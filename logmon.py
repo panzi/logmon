@@ -809,7 +809,7 @@ def main() -> None:
                     word_len = len(word)
                     line_len += word_len
                     if line_len > width:
-                        lines.append(''.join(line))
+                        lines.append(''.join(line).rstrip())
                         line.clear()
                         line.append(prefix)
                         line_len = prefix_len + word_len
@@ -823,7 +823,7 @@ def main() -> None:
                     line.append(word)
                     pos = next_pos
 
-                lines.append(''.join(line))
+                lines.append(''.join(line).rstrip())
             return lines
 
         def _fill_text(self, text: str, width: int, indent: str) -> str:
@@ -843,8 +843,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(formatter_class=SmartFormatter,
         description='Monitor log files and send emails if errors are detected.\n'
                     '\n'
-                    f'The settings are read from `{esc_config_path}`, or if run as root from `{esc_root_config_path}`. '
-                    'The command line options overwrite the default settings, but not the per-logfile settings. '
+                   f'The settings are read from `{esc_config_path}`, or if run as root from `{esc_root_config_path}`. '
+                    "But don't run it as root, use a dedicated user that can only read the log files. The "
+                    'command line options overwrite the default settings, but not the per-logfile settings. '
                     'See below for the settings file format.',
         epilog='settings:\n'
                '\n'

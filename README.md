@@ -7,9 +7,10 @@ configured error patterns.
 Usage
 -----
 
-The settings are read from `/home/panzi/.logmonrc`, or if run as root from 
-`/etc/logmonrc`. The command line options overwrite the default settings, but
-not the per-logfile settings. See below for the settings file format.
+The settings are read from `/home/panzi/.logmonrc`, or if run as root from
+`/etc/logmonrc`. But don't run it as root, use a dedicated user that can only
+read the log files. The command line options overwrite the default settings,
+but not the per-logfile settings. See below for the settings file format.
 
 ```
 usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
@@ -33,8 +34,8 @@ usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
 
 positional arguments:
   logfiles              Overwrite the logfiles form the settings. If the given
-                        logfile is also configured in the settings it still 
-                        uses the logfile specific settings for the given 
+                        logfile is also configured in the settings it still
+                        uses the logfile specific settings for the given
                         logfile.
 
 options:
@@ -42,19 +43,19 @@ options:
   --config PATH         Read settings from PATH instead.
   --sender EMAIL
   --receivers EMAIL,...
-  --subject TEMPLATE    Subject template for the emails. See --body for the 
+  --subject TEMPLATE    Subject template for the emails. See --body for the
                         template variables. [default: '[ERROR] {line1}']
   --body TEMPLATE       Body template for the emails.
                         
                         Template variables:
-                          {entries} .... All entries for the message 
-                                         concatenated into a string with two 
+                          {entries} .... All entries for the message
+                                         concatenated into a string with two
                                          newlines between each.
                           {logfile} .... The path of the logfile.
                           {entry1} ..... The first log entry of the message.
-                          {line1} ...... The first line of the first log 
+                          {line1} ...... The first line of the first log
                                          entry.
-                          {entrynum} ... The number of entries in this 
+                          {entrynum} ... The number of entries in this
                                          message.
                           {{ ........... A literal {
                           }} ........... A literal }
@@ -74,20 +75,20 @@ options:
                         Wait SECONDS for more entries before sending email. 
                         [default: 1]
   --wait-after-crash SECONDS
-                        Wait SECONDS after a monitoring thread crashed. 
+                        Wait SECONDS after a monitoring thread crashed.
                         [default: 10]
-  --max-entries COUNT   Only gather up to COUNT entries before sending an 
+  --max-entries COUNT   Only gather up to COUNT entries before sending an
                         email. [default: 20]
   --max-entry-lines COUNT
-                        Limit the length of a log entry to COUNT lines. 
+                        Limit the length of a log entry to COUNT lines.
                         [default: 2048]
   --max-emails-per-minute COUNT
                         Limit emails sent per minute to COUNT. Once the limit
                         is reached an error will be logged and no more emails
-                        are sent until the message count in the last 60 
+                        are sent until the message count in the last 60
                         seconds dropped below COUNT. [default: 6]
   --max-emails-per-hour COUNT
-                        Same as --max-emails-per-minute but for a span of 60 
+                        Same as --max-emails-per-minute but for a span of 60
                         minutes. Both options are evaluated one after another.
                         [default: 60]
   --use-inotify         This is the default if the `inotify` Python package is
@@ -102,12 +103,12 @@ options:
                         ?(?:[-+]\d\d:?\d\d|Z))?\]]
   --error-pattern REGEXP
                         If this pattern is found within a log entry the whole
-                        entry will be sent to the configured receivers. 
+                        entry will be sent to the configured receivers.
                         [default: ERROR|CRITICAL|Exception]
   --ignore-pattern REGEXP
-                        Even if the error pattern matches, if this pattern 
+                        Even if the error pattern matches, if this pattern
                         also matches ignore the message anyway. Pass an empty
-                        string to clear the pattern form the settings file. 
+                        string to clear the pattern form the settings file.
                         Per default this is not set.
   --seek-end            Seek to the end of existing files. [default: True]
   --no-seek-end         Opposite of --seek-end
@@ -117,21 +118,21 @@ options:
   --email-password PASSWORD
   --email-secure {None,STARTTLS,SSL/TLS}
   --email-protocol {SMTP,IMAP}
-  -d, --daemonize       Fork process to the background. Send SIGTERM to the 
+  -d, --daemonize       Fork process to the background. Send SIGTERM to the
                         logmon process for shutdown.
   --pidfile PATH        Write logmons PID to given file. Useful in combination
                         with --background.
-  --log-file PATH       Logfile of logmon itself. If not given writes to 
+  --log-file PATH       Logfile of logmon itself. If not given writes to
                         standard out.
   --log-level {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}
                         Log level of logmon itself.
-  --log-format FORMAT   Format of log entries of logmon itself. [default: 
-                        [%(asctime)s] [%(process)d] %(levelname)s: 
+  --log-format FORMAT   Format of log entries of logmon itself. [default:
+                        [%(asctime)s] [%(process)d] %(levelname)s:
                         %(message)s]
   --log-datefmt DATEFMT
-                        Format of the timestamp of log entries of logmon 
+                        Format of the timestamp of log entries of logmon
                         itself. [default: %Y-%m-%dT%H:%M:%S%z]
-  --logmails            Log emails instead of sending them. Use this for 
+  --logmails            Log emails instead of sending them. Use this for
                         debugging.
 ```
 
