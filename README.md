@@ -182,9 +182,12 @@ logfiles:
     # for every file, or a mapping with
     # overloaded settings for each file.
     /var/log/service1.log:
-    entry_start_pattern: >-
+      entry_start_pattern: >-
         ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d:
     /var/log/service2.log: {}
+    /var/log/service3.log:
+      receivers:
+      - daniel@example.com
 ```
 
 Copyright

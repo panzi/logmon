@@ -893,6 +893,9 @@ def main() -> None:
                '        entry_start_pattern: >-\n'
               r'          ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d:''\n'
                '      /var/log/service2.log: {}\n'
+               '      /var/log/service3.log:\n'
+               '        receivers:\n'
+               '        - daniel@example.com\n'
                '\n'
                'Copyright (c) 2025 Mathias Panzenböck\n'
     )
