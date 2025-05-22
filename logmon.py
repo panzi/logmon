@@ -19,6 +19,8 @@ import logging
 import threading
 import pydantic
 
+__version__ = '0.1.0'
+
 try:
     from inotify.adapters import Inotify, TerminalEventException
     from inotify.constants import IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MODIFY, IN_MOVED_FROM, IN_MOVED_TO, IN_MOVE_SELF
@@ -216,7 +218,7 @@ class MTConfig(TypedDict):
     default: NotRequired[LogfileConfig]
     logfiles: dict[str, LogfileConfig]|list[str]
 
-class AllLogConfig(TypedDict):
+class AppLogConfig(TypedDict):
     """
     Configuration of this apps own logging.
     """
@@ -226,7 +228,8 @@ class AllLogConfig(TypedDict):
     datefmt: NotRequired[str]
 
 class AppConfig(MTConfig):
-    log: NotRequired[AllLogConfig]
+    log: NotRequired[AppLogConfig]
+    pidfile: NotRequired[str]
 
 class ConfigFile(pydantic.BaseModel):
     config: AppConfig
@@ -758,6 +761,7 @@ def main() -> None:
     from pathlib import Path
     import argparse
     import signal
+    import json
 
     SPACE = re.compile(r'\s')
     NON_SPACE = re.compile(r'\S')
@@ -828,11 +832,19 @@ def main() -> None:
 
         def _fill_text(self, text: str, width: int, indent: str) -> str:
             return '\n'.join(indent + line for line in self._split_lines(text, width - len(indent)))
+        
+        def _format_usage(self, usage, actions, groups, prefix):
+            if prefix is None:
+                # don't like the default texts
+                prefix = 'Usage: '
+            return super()._format_usage(usage, actions, groups, prefix)
 
     config_path = str(Path.home() / '.logmonrc')
 
+    is_root = os.getpid() == 0
     esc_config_path = config_path.replace('%', '%%')
     esc_root_config_path = ROOT_CONFIG_PATH.replace('%', '%%')
+    esc_default_config_path = esc_config_path if not is_root else esc_root_config_path
     esc_default_subject = DEFAULT_SUBJECT.replace('%', '%%')
     esc_default_body = DEFAULT_BODY.replace('%', '%%')
     esc_default_entry_start_pattern = DEFAULT_ENTRY_START_PATTERN.pattern.replace('%', '%%')
@@ -847,12 +859,13 @@ def main() -> None:
                     "But don't run it as root, use a dedicated user that can only read the log files. The "
                     'command line options overwrite the default settings, but not the per-logfile settings. '
                     'See below for the settings file format.',
-        epilog='settings:\n'
+        epilog='Settings:\n'
                '\n'
                'The settings file uses YAML, although if `PyYAML` is not installed it falls back to just JSON.\n'
                '\n'
                'Example:\n'
                '\n'
+               '    ---\n'
                '    email:\n'
                '      protocol: SMTP # or IMAP\n'
                '      host: mail.example.com\n'
@@ -868,7 +881,8 @@ def main() -> None:
                '    default:\n'
                '      # Default configuration for every log\n'
                '      # entry that doesn\'t overwrite this.\n'
-               '      # This is all optional\n'
+               '      # This secion and everything in it is\n'
+               '      # optional.\n'
                '      entry_start_pattern: >-\n'
               r'        ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d\]''\n'
                '      error_pattern: "(?i)ERROR|CRIT"\n'
@@ -897,10 +911,33 @@ def main() -> None:
                '      /var/log/service3.log:\n'
                '        receivers:\n'
                '        - daniel@example.com\n'
+               '    log:\n'
+               '      # These are the logging settings for logmon\n'
+               '      # itself. This section and everthing in it is\n'
+               '      # optional.\n'
+               '      \n'
+               '      # Per default logs are written to standard\n'
+               '      # output.\n'
+               '      file: /var/log/logmon.log\n'
+              f'      level: INFO\n'
+              f'      format: {json.dumps(DEFAULT_LOG_FORMAT)}\n'
+              f'      datefmt: {json.dumps(DEFAULT_LOG_DATEFMT)}\n'
+               '    \n'
+               '    # Per default no pidfile is written. Optional.\n'
+               '    pidfile: /var/run/logmon.pid\n'
                '\n'
                'Copyright (c) 2025 Mathias Panzenböck\n'
     )
-    ap.add_argument('--config', default=None, metavar='PATH', help='Read settings from PATH instead.')
+    try:
+        # don't like the default texts
+        ap._optionals.title = 'Options'
+        ap._positionals.title = 'Positional Arguments'
+    except: pass
+
+    ap.add_argument('-v', '--version', default=False, action='store_true',
+        help='Print version and exit.')
+    ap.add_argument('--config', default=None, metavar='PATH',
+        help=f'Read settings from PATH. [default: {esc_default_config_path}]')
     ap.add_argument('--sender', default=None, metavar='EMAIL')
     ap.add_argument('--receivers', default=None, metavar='EMAIL,...')
     ap.add_argument('--subject', default=None, metavar='TEMPLATE',
@@ -937,6 +974,7 @@ def main() -> None:
     ap.add_argument('--max-emails-per-minute', type=positive(int), default=None, metavar='COUNT',
         help=f'Limit emails sent per minute to COUNT. Once the limit is reached an error will be logged and '
              f'no more emails are sent until the message count in the last 60 seconds dropped below COUNT. '
+             f'This limit is only evaluated on a per-logfile basis, adjust it accordingly. '
              f'[default: {DEFAULT_MAX_EMAILS_PER_MINUTE}]')
     ap.add_argument('--max-emails-per-hour', type=positive(int), default=None, metavar='COUNT',
         help=f'Same as --max-emails-per-minute but for a span of 60 minutes. Both options are evaluated one after another. '
@@ -987,10 +1025,14 @@ def main() -> None:
              'settings it still uses the logfile specific settings for the given logfile.')
     args = ap.parse_args()
 
+    if args.version:
+        print(__version__)
+        return
+
     config_path: str
     if args.config:
         config_path = abspath(args.config)
-    elif os.getuid() == 0:
+    elif is_root:
         config_path = ROOT_CONFIG_PATH
     else:
         config_path = str(Path.home() / '.logmonrc')
@@ -1006,7 +1048,6 @@ def main() -> None:
             try:
                 import yaml
             except ImportError:
-                import json
                 with open(config_path, 'r') as configfp:
                     config = json.load(configfp)
             else:
@@ -1131,12 +1172,12 @@ def main() -> None:
         context_dir = dirname(config_path)
 
     try:
-        mtconfig = ConfigFile(config=config).config # type: ignore
+        app_config = ConfigFile(config=config).config # type: ignore
     except pydantic.ValidationError as exc:
         print(f"{config_path}: Configuration error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    logfiles = mtconfig['logfiles']
+    logfiles = app_config['logfiles']
 
     if not logfiles:
         print('No logfiles configured!', file=sys.stderr)
@@ -1157,9 +1198,9 @@ def main() -> None:
     else:
         for logfile in logfiles:
             abslogfiles[joinpath(context_dir, logfile)] = {}
-    mtconfig['logfiles'] = abslogfiles
+    app_config['logfiles'] = abslogfiles
 
-    logconfig = mtconfig.get('log') or {}
+    logconfig = app_config.get('log') or {}
     loglevel_name = args.log_level   if args.log_level   is not None else logconfig.get('level', 'INFO')
     app_logfile   = args.log_file    if args.log_file    is not None else logconfig.get('file')
     logformat     = args.log_format  if args.log_format  is not None else logconfig.get('logformat',  DEFAULT_LOG_FORMAT)
@@ -1174,15 +1215,18 @@ def main() -> None:
         datefmt  = logdatefmt,
     )
 
-    pidfile: str|None = args.pidfile
+    pidfile: Optional[str] = app_config.get('pidfile')
 
-    if pidfile is not None:
-        os.access(pidfile, os.W_OK | os.R_OK)
+    if args.pidfile is not None:
+        pidfile = args.pidfile
 
     if args.daemonize:
+        if pidfile:
+            os.access(pidfile, os.W_OK | os.R_OK)
+
         daemonize()
 
-    if pidfile is not None:
+    if pidfile:
         pid = os.getpid()
         with open(pidfile, 'w') as pidfilefp:
             pidfilefp.write(f'{pid}\n')
@@ -1208,7 +1252,7 @@ def main() -> None:
         }
         _logmon_thread(logfile, cfg) # type: ignore
     else:
-        logmon_mt(mtconfig)
+        logmon_mt(app_config)
 
 def _print_no_inotify() -> None:
     print('Inotify support requires the `inotify` Python package to be installed!', file=sys.stderr)
