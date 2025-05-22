@@ -2,7 +2,7 @@
 
 # a very simple log monitor
 
-from typing import Callable, Generator, TextIO, Pattern, Optional, TypedDict, NotRequired, Literal
+from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal
 from time import sleep, monotonic
 from email.message import EmailMessage
 from email.policy import SMTP
@@ -18,6 +18,15 @@ import imaplib
 import logging
 import threading
 import pydantic
+
+if sys.version_info < (3, 12):
+    # compatibility fudging
+    try:
+        from typing_extensions import TypedDict
+    except ImportError:
+        from typing import TypedDict
+else:
+    from typing import TypedDict
 
 __version__ = '0.1.0'
 
