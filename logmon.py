@@ -842,7 +842,7 @@ def main() -> None:
     config_path = str(Path.home() / '.logmonrc')
 
     is_root = os.getpid() == 0
-    esc_config_path = config_path.replace('%', '%%')
+    esc_config_path = '$HOME/.logmonrc'.replace('%', '%%')
     esc_root_config_path = ROOT_CONFIG_PATH.replace('%', '%%')
     esc_default_config_path = esc_config_path if not is_root else esc_root_config_path
     esc_default_subject = DEFAULT_SUBJECT.replace('%', '%%')

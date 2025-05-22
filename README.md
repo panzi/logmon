@@ -7,7 +7,7 @@ configured error patterns.
 Usage
 -----
 
-The settings are read from `/home/panzi/.logmonrc`, or if run as root from
+The settings are read from `$HOME/.logmonrc`, or if run as root from
 `/etc/logmonrc`. But don't run it as root, use a dedicated user that can only
 read the log files. The command line options overwrite the default settings,
 but not the per-logfile settings. See below for the settings file format.
@@ -45,8 +45,7 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
 ```
   -h, --help            show this help message and exit
   -v, --version         Print version and exit.
-  --config PATH         Read settings from PATH. [default:
-                        /home/panzi/.logmonrc]
+  --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
   --sender EMAIL
   --receivers EMAIL,...
   --subject TEMPLATE    Subject template for the emails. See --body for the
