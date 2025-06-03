@@ -1,6 +1,22 @@
 #!/usr/bin/env python3
+"""\
+logmon - Monitor log files and send emails if errors are detected
 
-# a very simple log monitor
+Copyright (c) 2025  Mathias Panzenböck
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 
 from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal
 from time import sleep, monotonic
@@ -28,7 +44,7 @@ if sys.version_info < (3, 12):
 else:
     from typing import TypedDict
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 try:
     from inotify.adapters import Inotify, TerminalEventException
@@ -1010,6 +1026,7 @@ def main() -> None:
                '    pidfile: /var/run/logmon.pid\n'
                '\n'
                'Copyright (c) 2025 Mathias Panzenböck\n'
+               'This program comes with ABSOLUTELY NO WARRANTY.\n'
     )
     try:
         # don't like the default texts
@@ -1019,6 +1036,8 @@ def main() -> None:
 
     ap.add_argument('-v', '--version', default=False, action='store_true',
         help='Print version and exit.')
+    ap.add_argument('--license', default=False, action='store_true',
+        help='Show license information and exit.')
     ap.add_argument('--config', default=None, metavar='PATH',
         help=f'Read settings from PATH. [default: {esc_default_config_path}]')
     ap.add_argument('--sender', default=None, metavar='EMAIL')
@@ -1116,6 +1135,11 @@ def main() -> None:
 
     if args.version:
         print(__version__)
+        return
+
+    if args.license:
+        assert __doc__
+        print(__doc__.strip())
         return
 
     config_path: str
