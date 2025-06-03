@@ -91,9 +91,7 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                         Limit emails sent per minute to COUNT. Once the limit
                         is reached an error will be logged and no more emails
                         are sent until the message count in the last 60
-                        seconds dropped below COUNT. This limit is only
-                        evaluated on a per-logfile basis, adjust it
-                        accordingly. [default: 6]
+                        seconds dropped below COUNT. [default: 6]
   --max-emails-per-hour COUNT
                         Same as --max-emails-per-minute but for a span of 60
                         minutes. Both options are evaluated one after another.
@@ -145,8 +143,8 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                         never ..... Never log emails
                         always .... Always log emails
                         onerror ... Log emails if sending failed
-                        instead ... Log emails instead of sending them. Useful
-                                    for debugging.
+                        instead ... Log emails instead of sending them.
+                                    Useful for debugging.
                         
                         [default: onerror]
 ```
@@ -190,10 +188,11 @@ default:
   wait_after_crash: 10
   max_entries: 20
   max_entry_lines: 2048
-  max_emails_per_minute: 6
-  max_emails_per_hour: 60
   use_inotify: true
   seek_end: true
+limits:
+  max_emails_per_minute: 6
+  max_emails_per_hour: 60
 
 logfiles:
   # This can be a simple list of strings,
@@ -227,4 +226,3 @@ Copyright
 ---------
 
 (c) 2025 Mathias Panzenböck
-
