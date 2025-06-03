@@ -139,8 +139,16 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
   --log-datefmt DATEFMT
                         Format of the timestamp of log entries of logmon
                         itself. [default: %Y-%m-%dT%H:%M:%S%z]
-  --logmails            Log emails instead of sending them. Use this for
-                        debugging.
+  --logmails {always,never,onerror,instead}
+                        Log emails.
+                        
+                        never ..... Never log emails
+                        always .... Always log emails
+                        onerror ... Log emails if sending failed
+                        instead ... Log emails instead of sending them. Useful
+                                    for debugging.
+                        
+                        [default: onerror]
 ```
 
 Settings
@@ -164,6 +172,7 @@ email:
   - charly@example.com
   user: alice@example.com
   password: password1234
+  logmails: onerror
 
 default:
   # Default configuration for every log

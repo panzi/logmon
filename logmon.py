@@ -112,6 +112,7 @@ logger = logging.getLogger(__name__)
 
 SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
 EmailProtocol = Literal['SMTP', 'IMAP']
+Logmails = Literal['always', 'never', 'onerror', 'instead']
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PORT: dict[EmailProtocol, int] = {
@@ -133,6 +134,7 @@ DEFAULT_MAX_EMAILS_PER_HOUR = 60
 DEFAULT_MAX_ENTRY_LINES = 2048
 DEFAULT_LOG_FORMAT = '[%(asctime)s] [%(process)d] %(levelname)s: %(message)s'
 DEFAULT_LOG_DATEFMT = '%Y-%m-%dT%H:%M:%S%z'
+DEFAULT_LOGMAILS: Logmails = 'onerror'
 
 DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\]')
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
@@ -200,7 +202,7 @@ class EMailConfig(TypedDict):
     password: NotRequired[str]
     secure: NotRequired[SecureOption]
     protocol: NotRequired[EmailProtocol]
-    logmails: NotRequired[bool] # if True write emails to log instead
+    logmails: NotRequired[Logmails]
 
 class LogfileConfig(TypedDict):
     entry_start_pattern: NotRequired[str | list[str]]
@@ -255,7 +257,7 @@ def send_email(
         secure: SecureOption = None,
         protocol: EmailProtocol = 'SMTP',
         ssl_context: Optional[ssl.SSLContext] = None,
-        logmails: bool = False,
+        logmails: Logmails = DEFAULT_LOGMAILS,
 ) -> None:
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -265,38 +267,47 @@ def send_email(
 
     port = DEFAULT_EMAIL_PORT[protocol]
 
-    if logmails:
-        logger.info('Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
-    elif protocol == 'IMAP':
-        if secure == 'SSL/TLS':
-            context = ssl_context or ssl.create_default_context()
-            with imaplib.IMAP4_SSL(host, port, ssl_context=context) as server:
-                if user or password:
-                    server.login(user or '', password or '')
-                server.send(msg.as_bytes())
-        else:
-            with imaplib.IMAP4(host, port) as server:
-                if secure == 'STARTTLS':
-                    context = ssl_context or ssl.create_default_context()
-                    server.starttls(ssl_context=context)
-                if user or password:
-                    server.login(user or '', password or '')
-                server.send(msg.as_bytes())
+    if logmails == 'always':
+        logger.info('Sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
 
-    elif secure == 'SSL/TLS':
-        context = ssl_context or ssl.create_default_context()
-        with smtplib.SMTP_SSL(host, port, context=context) as server:
-            if user or password:
-                server.login(user or '', password or '')
-            server.send_message(msg)
+    if logmails == 'instead':
+        logger.info('Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
     else:
-        with smtplib.SMTP(host, port) as server:
-            if secure == 'STARTTLS':
+        try:
+            if protocol == 'IMAP':
+                if secure == 'SSL/TLS':
+                    context = ssl_context or ssl.create_default_context()
+                    with imaplib.IMAP4_SSL(host, port, ssl_context=context) as server:
+                        if user or password:
+                            server.login(user or '', password or '')
+                        server.send(msg.as_bytes())
+                else:
+                    with imaplib.IMAP4(host, port) as server:
+                        if secure == 'STARTTLS':
+                            context = ssl_context or ssl.create_default_context()
+                            server.starttls(ssl_context=context)
+                        if user or password:
+                            server.login(user or '', password or '')
+                        server.send(msg.as_bytes())
+
+            elif secure == 'SSL/TLS':
                 context = ssl_context or ssl.create_default_context()
-                server.starttls(context=context)
-            if user or password:
-                server.login(user or '', password or '')
-            server.send_message(msg)
+                with smtplib.SMTP_SSL(host, port, context=context) as server:
+                    if user or password:
+                        server.login(user or '', password or '')
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(host, port) as server:
+                    if secure == 'STARTTLS':
+                        context = ssl_context or ssl.create_default_context()
+                        server.starttls(context=context)
+                    if user or password:
+                        server.login(user or '', password or '')
+                    server.send_message(msg)
+        except:
+            if logmails == 'onerror':
+                logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+            raise
 
 _running = True
 
@@ -402,7 +413,7 @@ def _logmon(
     email_user = config.get('user')
     email_password = config.get('password')
     email_secure = config.get('secure')
-    logmails = config.get('logmails', False)
+    logmails = config.get('logmails', DEFAULT_LOGMAILS)
     seek_end = config.get('seek_end', True)
     use_inotify = config.get('use_inotify', Inotify is not None)
 
@@ -860,6 +871,7 @@ def main() -> None:
     esc_default_error_pattern = DEFAULT_ERROR_PATTERN.pattern.replace('%', '%%')
     esc_default_log_format = DEFAULT_LOG_FORMAT.replace('%', '%%')
     esc_default_log_datefmt = DEFAULT_LOG_DATEFMT.replace('%', '%%')
+    esc_default_logmails = DEFAULT_LOGMAILS.replace('%', '%%')
 
     ap = argparse.ArgumentParser(formatter_class=SmartFormatter,
         description='Monitor log files and send emails if errors are detected.\n'
@@ -886,6 +898,7 @@ def main() -> None:
                '      - charly@example.com\n'
                '      user: alice@example.com\n'
                '      password: password1234\n'
+               '      logmails: onerror\n'
                '    \n'
                '    default:\n'
                '      # Default configuration for every log\n'
@@ -1027,8 +1040,15 @@ def main() -> None:
         help=f'Format of log entries of logmon itself. [default: {esc_default_log_format}]')
     ap.add_argument('--log-datefmt', default=DEFAULT_LOG_DATEFMT, metavar='DATEFMT',
         help=f'Format of the timestamp of log entries of logmon itself. [default: {esc_default_log_datefmt}]')
-    ap.add_argument('--logmails', default=None, action='store_true',
-        help="Log emails instead of sending them. Use this for debugging.")
+    ap.add_argument('--logmails', default=None, choices=list(Logmails.__args__),
+        help='Log emails.\n'
+             '\n'
+             'never ..... Never log emails\n'
+             'always .... Always log emails\n'
+             'onerror ... Log emails if sending failed\n'
+             'instead ... Log emails instead of sending them. Useful for debugging.\n'
+             '\n'
+            f'[default: {esc_default_logmails}]')
     ap.add_argument('logfiles', nargs='*', default=[],
         help='Overwrite the logfiles form the settings. If the given logfile is also configured in the '
              'settings it still uses the logfile specific settings for the given logfile.')
