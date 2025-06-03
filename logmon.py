@@ -204,6 +204,10 @@ class EMailConfig(TypedDict):
     protocol: NotRequired[EmailProtocol]
     logmails: NotRequired[Logmails]
 
+class LimitsConfig(TypedDict):
+    max_emails_per_minute: NotRequired[int]
+    max_emails_per_hour: NotRequired[int]
+
 class LogfileConfig(TypedDict):
     entry_start_pattern: NotRequired[str | list[str]]
     error_pattern: NotRequired[str | list[str]]
@@ -216,18 +220,17 @@ class LogfileConfig(TypedDict):
     wait_after_crash: NotRequired[int | float]
     max_entries: NotRequired[int]
     max_entry_lines: NotRequired[int]
-    max_emails_per_minute: NotRequired[int]
-    max_emails_per_hour: NotRequired[int]
     use_inotify: NotRequired[bool]
     seek_end: NotRequired[bool] # default: True
 
-class Config(EMailConfig, LogfileConfig):
+class Config(EMailConfig, LogfileConfig, LimitsConfig):
     pass
 
 class MTConfig(TypedDict):
     email: EMailConfig
     default: NotRequired[LogfileConfig]
     logfiles: dict[str, LogfileConfig]|list[str]
+    limits: LimitsConfig
 
 class AppLogConfig(TypedDict):
     """
@@ -357,16 +360,94 @@ def read_log_entries(
         entry = ''.join(buf)
         buf.clear()
         yield entry
+class LimitsService:
+    __slots__ = (
+        '_lock', '_hour_timestamps', '_minute_timestamps',
+        '_max_emails_per_minute', '_max_emails_per_hour',
+        '_last_minute_warning_ts', '_last_hour_warning_ts',
+    )
+
+    _lock: threading.Lock
+    _hour_timestamps: list[float]
+    _minute_timestamps: list[float]
+    _max_emails_per_minute: int
+    _max_emails_per_hour: int
+    _last_minute_warning_ts: float
+    _last_hour_warning_ts: float
+
+    def __init__(self, max_emails_per_minute: int, max_emails_per_hour: int) -> None:
+        self._lock = threading.Lock()
+        self._hour_timestamps   = []
+        self._minute_timestamps = []
+        self._max_emails_per_minute = max_emails_per_minute
+        self._max_emails_per_hour   = max_emails_per_hour
+        self._last_minute_warning_ts = -inf
+        self._last_hour_warning_ts = -inf
+
+    @staticmethod
+    def from_config(config: LimitsConfig) -> 'LimitsService':
+        return LimitsService(
+            max_emails_per_hour=config.get('max_emails_per_hour', DEFAULT_MAX_EMAILS_PER_HOUR),
+            max_emails_per_minute=config.get('max_emails_per_minute', DEFAULT_MAX_EMAILS_PER_MINUTE),
+        )
+
+    @property
+    def max_emails_per_minute(self) -> int:
+        return self._max_emails_per_minute
+
+    @property
+    def max_emails_per_hour(self) -> int:
+        return self._max_emails_per_hour
+
+    def check(self) -> bool:
+        warn_minute = False
+        warn_hour = False
+
+        with self._lock:
+            now = monotonic()
+            hour_cutoff = now - (60 * 60)
+            minute_cutoff = now - 60
+
+            remove_smaller(self._minute_timestamps, minute_cutoff)
+            remove_smaller(self._hour_timestamps, hour_cutoff)
+
+            minutes_count = len(self._minute_timestamps)
+            hours_count   = len(self._hour_timestamps)
+
+            minutes_ok = minutes_count < self._max_emails_per_minute
+            hours_ok   = hours_count   < self._max_emails_per_hour
+
+            if not minutes_ok:
+                if self._last_minute_warning_ts < minute_cutoff:
+                    warn_minute = True
+                    self._last_minute_warning_ts = now
+
+            elif not hours_ok:
+                if self._last_hour_warning_ts < hour_cutoff:
+                    warn_hour = True
+                    self._last_hour_warning_ts = now
+
+            else:
+                self._hour_timestamps.append(now)
+                self._minute_timestamps.append(now)
+
+        if warn_minute:
+            logger.warning(f"Maximum emails per minute exceeded! {minutes_count} >= {self._max_emails_per_minute}")
+
+        if warn_hour:
+            logger.warning(f"Maximum emails per hour exceeded! {hours_count} >= {self._max_emails_per_hour}")
+
+        return minutes_ok and hours_ok
 
 def logmon(logfile: str, config: Config) -> None:
     logfile = normpath(abspath(logfile))
-    _logmon(logfile, config, [], [])
+    limits = LimitsService.from_config(config)
+    _logmon(logfile, config, limits)
 
 def _logmon(
         logfile: str,
         config: Config,
-        hour_timestamps: list[float],
-        minute_timestamps: list[float],
+        limits: LimitsService,
 ) -> None:
     entry_start_pattern = config.get('entry_start_pattern')
     if entry_start_pattern is None:
@@ -399,8 +480,6 @@ def _logmon(
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
-    max_emails_per_minute = config.get('max_emails_per_minute', DEFAULT_MAX_EMAILS_PER_MINUTE)
-    max_emails_per_hour = config.get('max_emails_per_hour', DEFAULT_MAX_EMAILS_PER_HOUR)
 
     subject_templ = config.get('subject', DEFAULT_SUBJECT)
     body_templ = config.get('body', DEFAULT_BODY)
@@ -476,42 +555,23 @@ def _logmon(
                             _keyboard_interrupt()
 
                         if entries:
-                            now = monotonic()
+                            try:
+                                entries_str = '\n\n'.join(entries)
+                                first_entry = entries[0]
+                                first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
 
-                            hour_cuttoff = now - (60 * 60)
-                            minute_cutoff = now - 60
+                                params = {
+                                    'entries': entries_str,
+                                    'logfile': logfile,
+                                    'line1': first_line,
+                                    'entry1': first_entry,
+                                    'entrynum': str(len(entries)),
+                                }
 
-                            remove_smaller(minute_timestamps, minute_cutoff)
-                            remove_smaller(hour_timestamps, hour_cuttoff)
+                                subject = subject_templ.format_map(params)
 
-                            if len(minute_timestamps) > max_emails_per_minute:
-                                if last_minute_warning_ts < minute_cutoff:
-                                    logger.warning(f"{logfile}: Maximum emails per minute exceeded! {len(minute_timestamps)} > {max_emails_per_minute}")
-                                    last_minute_warning_ts = now
-                            elif len(hour_timestamps) > max_emails_per_hour:
-                                if last_hour_warning_ts < hour_cuttoff:
-                                    logger.warning(f"{logfile}: Maximum emails per hour exceeded! {len(hour_timestamps)} > {max_emails_per_hour}")
-                                    last_hour_warning_ts = now
-                            else:
-                                minute_timestamps.append(now)
-                                hour_timestamps.append(now)
-
-                                try:
-                                    entries_str = '\n\n'.join(entries)
-                                    first_entry = entries[0]
-                                    first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-
-                                    params = {
-                                        'entries': entries_str,
-                                        'logfile': logfile,
-                                        'line1': first_line,
-                                        'entry1': first_entry,
-                                        'entrynum': str(len(entries)),
-                                    }
-
-                                    subject = subject_templ.format_map(params)
+                                if limits.check():
                                     body = body_templ.format_map(params)
-
                                     logger.debug(f'{logfile}: Sending email with subject: {subject}')
                                     send_email(
                                         subject = subject,
@@ -527,8 +587,11 @@ def _logmon(
                                         ssl_context = context,
                                         logmails = logmails,
                                     )
-                                except Exception as exc:
-                                    logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+                                elif logger.isEnabledFor(logging.DEBUG):
+                                    logger.debug(f'{logfile}: Email was rate limited: {subject}')
+
+                            except Exception as exc:
+                                logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
 
                         if count < max_entries and _running:
                             do_reopen = False
@@ -664,21 +727,16 @@ def _keyboard_interrupt() -> None:
         logger.info("Shutting down on SIGINT...")
         _running = False
 
-def _logmon_thread(logfile: str, config: Config) -> None:
+def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
     logfile = normpath(abspath(logfile))
     wait_after_crash = config.get('wait_after_crash', DEFAULT_WAIT_AFTER_CRASH)
-
-    # Preserve list of timestamps over crashes, so that a crash won't cause more emails to be sent.
-    hour_timestamps:   list[float] = []
-    minute_timestamps: list[float] = []
 
     while _running:
         try:
             _logmon(
                 logfile = logfile,
                 config = config,
-                hour_timestamps = hour_timestamps,
-                minute_timestamps = minute_timestamps,
+                limits = limits,
             )
         except KeyboardInterrupt:
             _keyboard_interrupt()
@@ -704,6 +762,8 @@ def logmon_mt(config: MTConfig):
     if not logfiles:
         raise ValueError('no logfiles given')
 
+    limits = LimitsService.from_config(config.get('limits') or {})
+
     threads: list[threading.Thread] = []
     try:
         items = logfiles.items() if isinstance(logfiles, dict) else [(logfile, {}) for logfile in logfiles]
@@ -715,7 +775,7 @@ def logmon_mt(config: MTConfig):
 
             thread = threading.Thread(
                 target = _logmon_thread,
-                args = (logfile, cfg),
+                args = (logfile, cfg, limits),
                 name = logfile,
             )
 
@@ -916,10 +976,11 @@ def main() -> None:
               f'      wait_after_crash: {DEFAULT_WAIT_AFTER_CRASH}\n'
               f'      max_entries: {DEFAULT_MAX_ENTRIES}\n'
               f'      max_entry_lines: {DEFAULT_MAX_ENTRY_LINES}\n'
-              f'      max_emails_per_minute: {DEFAULT_MAX_EMAILS_PER_MINUTE}\n'
-              f'      max_emails_per_hour: {DEFAULT_MAX_EMAILS_PER_HOUR}\n'
               f'      use_inotify: true\n'
               f'      seek_end: true\n'
+               '    limits:\n'
+              f'      max_emails_per_minute: {DEFAULT_MAX_EMAILS_PER_MINUTE}\n'
+              f'      max_emails_per_hour: {DEFAULT_MAX_EMAILS_PER_HOUR}\n'
                '    \n'
                '    logfiles:\n'
                '      # This can be a simple list of strings,\n'
@@ -996,7 +1057,6 @@ def main() -> None:
     ap.add_argument('--max-emails-per-minute', type=positive(int), default=None, metavar='COUNT',
         help=f'Limit emails sent per minute to COUNT. Once the limit is reached an error will be logged and '
              f'no more emails are sent until the message count in the last 60 seconds dropped below COUNT. '
-             f'This limit is only evaluated on a per-logfile basis, adjust it accordingly. '
              f'[default: {DEFAULT_MAX_EMAILS_PER_MINUTE}]')
     ap.add_argument('--max-emails-per-hour', type=positive(int), default=None, metavar='COUNT',
         help=f'Same as --max-emails-per-minute but for a span of 60 minutes. Both options are evaluated one after another. '
@@ -1103,6 +1163,10 @@ def main() -> None:
     if default_config is None:
         default_config = config['default'] = {}
 
+    limits_config = config.get('limits')
+    if limits_config is None:
+        limits_config = config['limits'] = {}
+
     email_config = config.get('email')
     if email_config is None:
         email_config = config['email'] = {}
@@ -1170,10 +1234,10 @@ def main() -> None:
         default_config['max_entry_lines'] = args.max_entry_lines
 
     if args.max_emails_per_minute is not None:
-        default_config['max_emails_per_minute'] = args.max_emails_per_minute
+        limits_config['max_emails_per_minute'] = args.max_emails_per_minute
 
     if args.max_emails_per_hour is not None:
-        default_config['max_emails_per_hour'] = args.max_emails_per_hour
+        limits_config['max_emails_per_hour'] = args.max_emails_per_hour
 
     if args.seek_end is not None:
         default_config['seek_end'] = args.seek_end
@@ -1229,11 +1293,11 @@ def main() -> None:
             abslogfiles[joinpath(context_dir, logfile)] = {}
     app_config['logfiles'] = abslogfiles
 
-    logconfig = app_config.get('log') or {}
-    loglevel_name = args.log_level   if args.log_level   is not None else logconfig.get('level', 'INFO')
-    app_logfile   = args.log_file    if args.log_file    is not None else logconfig.get('file')
-    logformat     = args.log_format  if args.log_format  is not None else logconfig.get('logformat',  DEFAULT_LOG_FORMAT)
-    logdatefmt    = args.log_datefmt if args.log_datefmt is not None else logconfig.get('logdatefmt', DEFAULT_LOG_DATEFMT)
+    log_config = app_config.get('log') or {}
+    loglevel_name = args.log_level   if args.log_level   is not None else log_config.get('level', 'INFO')
+    app_logfile   = args.log_file    if args.log_file    is not None else log_config.get('file')
+    logformat     = args.log_format  if args.log_format  is not None else log_config.get('logformat',  DEFAULT_LOG_FORMAT)
+    logdatefmt    = args.log_datefmt if args.log_datefmt is not None else log_config.get('logdatefmt', DEFAULT_LOG_DATEFMT)
 
     loglevel = logging.getLevelNamesMapping()[loglevel_name]
 
