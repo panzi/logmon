@@ -18,17 +18,21 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal
+from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any
 from time import sleep, monotonic
 from email.message import EmailMessage
 from email.policy import SMTP
 from math import inf
 from os.path import dirname, abspath, join as joinpath, normpath
+from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 
 import re
 import os
 import sys
 import ssl
+import uuid
+import json
 import smtplib
 import imaplib
 import logging
@@ -127,13 +131,16 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
-EmailProtocol = Literal['SMTP', 'IMAP']
+EmailProtocol = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS']
 Logmails = Literal['always', 'never', 'onerror', 'instead']
+ContentType = Literal['JSON', 'URL', 'multipart']
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PORT: dict[EmailProtocol, int] = {
     'SMTP': 587, # or 25 for insecure
     'IMAP': 143,
+    'HTTP': 80,
+    'HTTPS': 443,
 }
 DEFAULT_EMAIL_PROTOCOL = 'SMTP'
 
@@ -155,6 +162,11 @@ DEFAULT_LOGMAILS: Logmails = 'onerror'
 DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\]')
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
+
+DEFAULT_HTTP_PARAMS = {
+    'subject': '{subject}',
+    'receivers': '{receivers}',
+}
 
 ROOT_CONFIG_PATH = '/etc/logmonrc'
 
@@ -219,6 +231,11 @@ class EMailConfig(TypedDict):
     secure: NotRequired[SecureOption]
     protocol: NotRequired[EmailProtocol]
     logmails: NotRequired[Logmails]
+    http_method: NotRequired[str]
+    http_path: NotRequired[str]
+    http_params: NotRequired[dict[str, str]]
+    http_content_type: NotRequired[ContentType]
+    http_headers: NotRequired[dict[str, str]]
 
 class LimitsConfig(TypedDict):
     max_emails_per_minute: NotRequired[int]
@@ -264,9 +281,67 @@ class AppConfig(MTConfig):
 class ConfigFile(pydantic.BaseModel):
     config: AppConfig
 
+def make_message(
+        sender: str,
+        receivers: list[str],
+        templ_params: dict[str, str],
+        subject_templ: str,
+        body_templ: str,
+) -> EmailMessage:
+    subject = subject_templ.format_map(templ_params)
+    body = body_templ.format_map(templ_params)
+
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = ', '.join(receivers)
+    msg.set_content(body)
+
+    return msg
+
+class MultipartFile(TypedDict):
+    filename: str
+    content_type: NotRequired[str]
+    content: bytes
+
+FIELD_NAME_PATTERN = re.compile(r'["\x00-\x1F]')
+
+def quote_field_name(name: str) -> str:
+    return FIELD_NAME_PATTERN.sub(lambda m: '%%%02X' % ord(m[0]), name)
+
+def encode_multipart(fields: dict[str,str]|dict[str, MultipartFile]|dict[str, str|MultipartFile]) -> tuple[dict[str, str], bytes]:
+    buf: list[bytes] = []
+    boundary = uuid.uuid4().hex
+    bin_boundary = f'--{boundary}\r\n'.encode()
+    headers: dict[str, str] = {
+        'Content-Type': f'multipart/form-data; boundary={boundary}'
+    }
+
+    for key, value in fields.items():
+        buf.append(bin_boundary)
+        if isinstance(value, str):
+            buf.append(f'Content-Disposition: form-data; name="{quote_field_name(key)}"\r\n'.encode())
+            buf.append(b'\r\n')
+            buf.append(value.encode())
+            buf.append(b'\r\n')
+        else:
+            buf.append(f'Content-Disposition: form-data; name="{quote_field_name(key)}", filename="{quote_field_name(value["filename"])}"\r\n'.encode())
+            content_type = value.get('content_type', 'application/octet-stream').replace('\n', ' ').replace('\r', '')
+            buf.append(f'Content-Type: {content_type}\r\n'.encode())
+            buf.append(b'\r\n')
+            buf.append(value['content'])
+            buf.append(b'\r\n')
+
+    buf.append(f'--{boundary}--\r\n'.encode())
+    body = b''.join(buf)
+
+    return headers, body
+
 def send_email(
-        subject: str,
-        body: str,
+        subject_templ: str,
+        body_templ: str,
+        logfile: str,
+        entries: list[str],
         sender: str,
         receivers: list[str],
         host: str = DEFAULT_EMAIL_HOST,
@@ -277,54 +352,133 @@ def send_email(
         protocol: EmailProtocol = 'SMTP',
         ssl_context: Optional[ssl.SSLContext] = None,
         logmails: Logmails = DEFAULT_LOGMAILS,
+        http_method: str = 'POST',
+        http_path: str = '/',
+        http_params: Optional[dict[str, str]] = None,
+        http_content_type: Optional[ContentType] = None,
+        http_headers: Optional[dict[str, str]] = None,
 ) -> None:
-    msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = sender
-    msg['To'] = ', '.join(receivers)
-    msg.set_content(body)
+    entries_str = '\n\n'.join(entries)
+    first_entry = entries[0]
+    first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
 
-    port = DEFAULT_EMAIL_PORT[protocol]
+    templ_params = {
+        'entries': entries_str,
+        'entries_json': json.dumps(entries, indent=2),
+        'logfile': logfile,
+        'line1': first_line,
+        'entry1': first_entry,
+        'entrynum': str(len(entries)),
+        'receivers': ', '.join(receivers),
+    }
+
+    msg: Optional[EmailMessage]
 
     if logmails == 'always':
-        logger.info('Sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+        msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
+        logger.info(f'{logfile}: Sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+    else:
+        msg = None
 
     if logmails == 'instead':
-        logger.info('Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+        if msg is None:
+            msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
+        logger.info(f'{logfile}: Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
     else:
         try:
-            if protocol == 'IMAP':
-                if secure == 'SSL/TLS':
+            if protocol == 'HTTP' or protocol == 'HTTPS':
+                port_str = f':{port}' if port is not None else ''
+                if not http_path.startswith('/'):
+                    http_path = f'/{http_path}'
+
+                url = f'{protocol.lower()}://{host}{port_str}{http_path}'
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    subject = subject_templ.format_map(templ_params)
+                    logger.debug(f'{logfile}: {http_method}-ing to {url}: {subject}')
+
+                if http_params is None:
+                    http_params = DEFAULT_HTTP_PARAMS
+
+                data = {
+                    key: templ.format_map(templ_params)
+                    for key, templ in http_params.items()
+                }
+
+                if http_method == 'GET':
+                    query = urlencode(data)
+                    url = f'{url}?{query}'
+                    body = None
+                    headers = {}
+                else:
+                    if http_content_type is None or http_content_type == 'URL':
+                        body = urlencode(data).encode()
+                        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+                    elif http_content_type == 'JSON':
+                        json_data: dict[str, Any] = data
+                        for key, templ in http_params.items():
+                            if templ == '{entries_json}':
+                                json_data[key] = entries
+
+                        body = json.dumps(json_data).encode()
+                        headers = {'Content-Type': 'application/json; charset=UTF-8'}
+
+                    elif http_content_type == 'multipart':
+                        headers, body = encode_multipart(data)
+
+                    else:
+                        raise ValueError(f'illegal http_content_type: {http_content_type}')
+
+                if http_headers:
+                    http_headers.pop('Content-Type', None)
+                    headers.update(http_headers)
+
+                req = Request(url, method=http_method, headers=headers, data=body)
+                res = urlopen(req)
+
+            else:
+                if port is None:
+                    port = DEFAULT_EMAIL_PORT[protocol]
+
+                if msg is None:
+                    msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
+                logger.debug(f'{logfile}: Sending email with subject: {msg["Subject"]}')
+
+                if protocol == 'IMAP':
+                    if secure == 'SSL/TLS':
+                        context = ssl_context or ssl.create_default_context()
+                        with imaplib.IMAP4_SSL(host, port, ssl_context=context) as server:
+                            if user or password:
+                                server.login(user or '', password or '')
+                            server.send(msg.as_bytes())
+                    else:
+                        with imaplib.IMAP4(host, port) as server:
+                            if secure == 'STARTTLS':
+                                context = ssl_context or ssl.create_default_context()
+                                server.starttls(ssl_context=context)
+                            if user or password:
+                                server.login(user or '', password or '')
+                            server.send(msg.as_bytes())
+
+                elif secure == 'SSL/TLS':
                     context = ssl_context or ssl.create_default_context()
-                    with imaplib.IMAP4_SSL(host, port, ssl_context=context) as server:
+                    with smtplib.SMTP_SSL(host, port, context=context) as server:
                         if user or password:
                             server.login(user or '', password or '')
-                        server.send(msg.as_bytes())
+                        server.send_message(msg)
                 else:
-                    with imaplib.IMAP4(host, port) as server:
+                    with smtplib.SMTP(host, port) as server:
                         if secure == 'STARTTLS':
                             context = ssl_context or ssl.create_default_context()
-                            server.starttls(ssl_context=context)
+                            server.starttls(context=context)
                         if user or password:
                             server.login(user or '', password or '')
-                        server.send(msg.as_bytes())
-
-            elif secure == 'SSL/TLS':
-                context = ssl_context or ssl.create_default_context()
-                with smtplib.SMTP_SSL(host, port, context=context) as server:
-                    if user or password:
-                        server.login(user or '', password or '')
-                    server.send_message(msg)
-            else:
-                with smtplib.SMTP(host, port) as server:
-                    if secure == 'STARTTLS':
-                        context = ssl_context or ssl.create_default_context()
-                        server.starttls(context=context)
-                    if user or password:
-                        server.login(user or '', password or '')
-                    server.send_message(msg)
+                        server.send_message(msg)
         except:
             if logmails == 'onerror':
+                if msg is None:
+                    msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
                 logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
             raise
 
@@ -508,6 +662,11 @@ def _logmon(
     email_user = config.get('user')
     email_password = config.get('password')
     email_secure = config.get('secure')
+    http_method = config.get('http_method', 'POST')
+    http_path = config.get('http_path', '/')
+    http_params = config.get('http_params')
+    http_content_type = config.get('http_content_type')
+    http_headers = config.get('http_headers')
     logmails = config.get('logmails', DEFAULT_LOGMAILS)
     seek_end = config.get('seek_end', True)
     use_inotify = config.get('use_inotify', Inotify is not None)
@@ -521,8 +680,6 @@ def _logmon(
     try:
         context = ssl.create_default_context() if email_secure else None
 
-        last_minute_warning_ts = -inf
-        last_hour_warning_ts = -inf
         file_not_found = False
 
         while _running:
@@ -572,26 +729,12 @@ def _logmon(
 
                         if entries:
                             try:
-                                entries_str = '\n\n'.join(entries)
-                                first_entry = entries[0]
-                                first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-
-                                params = {
-                                    'entries': entries_str,
-                                    'logfile': logfile,
-                                    'line1': first_line,
-                                    'entry1': first_entry,
-                                    'entrynum': str(len(entries)),
-                                }
-
-                                subject = subject_templ.format_map(params)
-
                                 if limits.check():
-                                    body = body_templ.format_map(params)
-                                    logger.debug(f'{logfile}: Sending email with subject: {subject}')
                                     send_email(
-                                        subject = subject,
-                                        body = body,
+                                        logfile = logfile,
+                                        entries = entries,
+                                        subject_templ = subject_templ,
+                                        body_templ = body_templ,
                                         sender = sender,
                                         receivers = receivers,
                                         host = email_host,
@@ -602,9 +745,16 @@ def _logmon(
                                         protocol = email_protocol,
                                         ssl_context = context,
                                         logmails = logmails,
+                                        http_method = http_method,
+                                        http_path = http_path,
+                                        http_params = http_params,
+                                        http_content_type = http_content_type,
+                                        http_headers = http_headers,
                                     )
                                 elif logger.isEnabledFor(logging.DEBUG):
-                                    logger.debug(f'{logfile}: Email was rate limited: {subject}')
+                                    first_entry = entries[0]
+                                    first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+                                    logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {first_line}')
 
                             except Exception as exc:
                                 logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
@@ -857,7 +1007,6 @@ def main() -> None:
     from pathlib import Path
     import argparse
     import signal
-    import json
 
     SPACE = re.compile(r'\s')
     NON_SPACE = re.compile(r'\S')
@@ -1107,6 +1256,11 @@ def main() -> None:
     ap.add_argument('--email-password', default=None, metavar='PASSWORD')
     ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in SecureOption.__args__])
     ap.add_argument('--email-protocol', default=None, choices=list(EmailProtocol.__args__))
+    ap.add_argument('--http-method', default=None)
+    ap.add_argument('--http-path', default=None)
+    ap.add_argument('--http-content-type', default=None, choices=list(ContentType.__args__))
+    ap.add_argument('-P', '--http-param', action='append', default=[])
+    ap.add_argument('-H', '--http-header', action='append', default=[])
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
         help='Fork process to the background. Send SIGTERM to the logmon process for shutdown.')
     ap.add_argument('--pidfile', default=None, metavar='PATH',
@@ -1232,6 +1386,37 @@ def main() -> None:
 
     if args.email_protocol is not None:
         email_config['protocol'] = args.email_protocol
+
+    if args.http_method is not None:
+        email_config['http_method'] = args.http_method
+
+    if args.http_path is not None:
+        email_config['http_path'] = args.http_path
+
+    if args.http_content_type is not None:
+        email_config['http_content_type'] = args.http_content_type
+
+    if args.http_param:
+        http_params: dict[str, str] = {}
+        try:
+            for param in args.http_param:
+                key, value = param.split('=', 1)
+                http_params[key] = value
+        except ValueError:
+            print(f'Illegal value for --http-param: {args.http_param}', file=sys.stderr)
+            sys.exit(1)
+        email_config['http_params'] = http_params
+
+    if args.http_header:
+        http_headers: dict[str, str] = {}
+        try:
+            for header in args.http_header:
+                key, value = header.split(':', 1)
+                http_headers[key] = value.strip()
+        except ValueError:
+            print(f'Illegal value for --http-header: {args.http_param}', file=sys.stderr)
+            sys.exit(1)
+        email_config['http_headers'] = http_headers
 
     if args.logmails is not None:
         email_config['logmails'] = args.logmails
