@@ -144,7 +144,7 @@ DEFAULT_EMAIL_PORT: dict[EmailProtocol, int] = {
 }
 DEFAULT_EMAIL_PROTOCOL = 'SMTP'
 
-DEFAULT_SUBJECT = '[ERROR] {line1}'
+DEFAULT_SUBJECT = '[ERROR] {brief}'
 DEFAULT_BODY = '{logfile}\n\n{entries}'
 DEFAULT_WAIT_FILE_NOT_FOUND = 30
 DEFAULT_WAIT_LINE_INCOMPLETE = 0.1
@@ -344,6 +344,7 @@ def send_email(
         entries: list[str],
         sender: str,
         receivers: list[str],
+        entry_start_pattern: Pattern[str],
         host: str = DEFAULT_EMAIL_HOST,
         port: Optional[int] = None,
         user: Optional[str] = None,
@@ -360,12 +361,22 @@ def send_email(
 ) -> None:
     entries_str = '\n\n'.join(entries)
     first_entry = entries[0]
-    first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+    lines = first_entry.split('\n')
+
+    first_line = lines[0]
+    brief = ''
+
+    lines[0] = entry_start_pattern.sub('', first_line)
+    for line in lines:
+        brief = line.lstrip().rstrip(' \r\n\t:{')
+        if brief:
+            break
 
     templ_params = {
         'entries': entries_str,
         'entries_json': json.dumps(entries, indent=2),
         'logfile': logfile,
+        'brief': brief,
         'line1': first_line,
         'entry1': first_entry,
         'entrynum': str(len(entries)),
@@ -750,6 +761,7 @@ def _logmon(
                                         http_params = http_params,
                                         http_content_type = http_content_type,
                                         http_headers = http_headers,
+                                        entry_start_pattern = entry_start_pattern,
                                     )
                                 elif logger.isEnabledFor(logging.DEBUG):
                                     first_entry = entries[0]
@@ -1201,6 +1213,7 @@ def main() -> None:
              '  {logfile} .... The path of the logfile.\n'
              '  {entry1} ..... The first log entry of the message.\n'
              '  {line1} ...... The first line of the first log entry.\n'
+             '  {brief} ...... Like {line1}, but with the entry start pattern removed.\n'
              '  {entrynum} ... The number of entries in this message.\n'
              '  {{ ........... A literal {\n'
              '  }} ........... A literal }\n'
