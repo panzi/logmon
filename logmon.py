@@ -48,7 +48,7 @@ if sys.version_info < (3, 12):
 else:
     from typing import TypedDict
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 try:
     from inotify.adapters import Inotify, TerminalEventException
