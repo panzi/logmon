@@ -219,9 +219,7 @@ def _parse_comma_list(value: str) -> list[str]:
             result.append(item)
     return result
 
-class EMailConfig(TypedDict):
-    sender: str
-    receivers: list[str]
+class EMailConfigBase(TypedDict):
     subject: NotRequired[str]
     body: NotRequired[str]
     host: NotRequired[str]
@@ -236,6 +234,14 @@ class EMailConfig(TypedDict):
     http_params: NotRequired[dict[str, str]]
     http_content_type: NotRequired[ContentType]
     http_headers: NotRequired[dict[str, str]]
+
+class EMailConfig(EMailConfigBase):
+    sender: str
+    receivers: list[str]
+
+class PartialEMailConfig(EMailConfigBase):
+    sender: NotRequired[str]
+    receivers: NotRequired[list[str]]
 
 class LimitsConfig(TypedDict):
     max_emails_per_minute: NotRequired[int]
@@ -259,10 +265,13 @@ class LogfileConfig(TypedDict):
 class Config(EMailConfig, LogfileConfig, LimitsConfig):
     pass
 
+class PartialConfig(PartialEMailConfig, LogfileConfig, LimitsConfig):
+    pass
+
 class MTConfig(TypedDict):
     email: EMailConfig
     default: NotRequired[LogfileConfig]
-    logfiles: dict[str, LogfileConfig]|list[str]
+    logfiles: dict[str, PartialConfig]|list[str]
     limits: LimitsConfig
 
 class AppLogConfig(TypedDict):
@@ -1503,7 +1512,7 @@ def main() -> None:
         sys.exit(1)
 
     # make all paths absolute before daemonize
-    abslogfiles: dict[str, LogfileConfig] = {}
+    abslogfiles: dict[str, PartialConfig] = {}
     if isinstance(logfiles, dict):
         for logfile, cfg in logfiles.items():
             if Inotify is None and cfg.get('use_inotify'):
