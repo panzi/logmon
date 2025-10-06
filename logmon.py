@@ -1178,6 +1178,7 @@ def main() -> None:
               r'          ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d:''\n'
                '      /var/log/service2.log: {}\n'
                '      /var/log/service3.log:\n'
+               '        subject: "[SERVICE 3] {brief}"\n'
                '        receivers:\n'
                '        - daniel@example.com\n'
                '    log:\n'

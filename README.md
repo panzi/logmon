@@ -60,6 +60,8 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                           {entry1} ..... The first log entry of the message.
                           {line1} ...... The first line of the first log
                                          entry.
+                          {brief} ...... Like {line1}, but with the entry
+                                         start pattern removed.
                           {entrynum} ... The number of entries in this
                                          message.
                           {{ ........... A literal {
@@ -204,6 +206,7 @@ logfiles:
       ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d:
   /var/log/service2.log: {}
   /var/log/service3.log:
+    subject: "[SERVICE 3] {brief}"
     receivers:
     - daniel@example.com
 log:
