@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any
+from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, get_args
 from time import sleep, monotonic
 from email.message import EmailMessage
 from email.policy import SMTP
@@ -51,9 +51,10 @@ else:
 __version__ = '0.2.1'
 
 try:
-    from inotify.adapters import Inotify, TerminalEventException
-    from inotify.constants import IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MODIFY, IN_MOVED_FROM, IN_MOVED_TO, IN_MOVE_SELF
-    from inotify.calls import InotifyError
+    # inotify has no proper type annotations!
+    from inotify.adapters import Inotify, TerminalEventException # type: ignore
+    from inotify.constants import IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MODIFY, IN_MOVED_FROM, IN_MOVED_TO, IN_MOVE_SELF # type: ignore
+    from inotify.calls import InotifyError # type: ignore
 
     def _inotify_wait_for_exists(inotify: Inotify, path: str) -> bool: # type: ignore
         path = normpath(path)
@@ -142,7 +143,7 @@ DEFAULT_EMAIL_PORT: dict[EmailProtocol, int] = {
     'HTTP': 80,
     'HTTPS': 443,
 }
-DEFAULT_EMAIL_PROTOCOL = 'SMTP'
+DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
 
 DEFAULT_SUBJECT = '[ERROR] {brief}'
 DEFAULT_BODY = '{logfile}\n\n{entries}'
@@ -550,6 +551,7 @@ def read_log_entries(
         entry = ''.join(buf)
         buf.clear()
         yield entry
+
 class LimitsService:
     __slots__ = (
         '_lock', '_hour_timestamps', '_minute_timestamps',
@@ -639,30 +641,33 @@ def _logmon(
         config: Config,
         limits: LimitsService,
 ) -> None:
-    entry_start_pattern = config.get('entry_start_pattern')
-    if entry_start_pattern is None:
+    entry_start_pattern_cfg = config.get('entry_start_pattern')
+    if entry_start_pattern_cfg is None:
         entry_start_pattern = DEFAULT_ENTRY_START_PATTERN
     else:
-        if isinstance(entry_start_pattern, list):
-            entry_start_pattern = '|'.join(f'(?:{pattern})' for pattern in entry_start_pattern)
-        entry_start_pattern = re.compile(entry_start_pattern)
+        if isinstance(entry_start_pattern_cfg, list):
+            entry_start_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in entry_start_pattern_cfg)
+        entry_start_pattern = re.compile(entry_start_pattern_cfg)
 
-    error_pattern = config.get('error_pattern')
-    if error_pattern is None:
+    error_pattern_cfg = config.get('error_pattern')
+    if error_pattern_cfg is None:
         error_pattern = DEFAULT_ERROR_PATTERN
     else:
-        if isinstance(error_pattern, list):
-            error_pattern = '|'.join(f'(?:{pattern})' for pattern in error_pattern)
-        error_pattern = re.compile(error_pattern)
+        if isinstance(error_pattern_cfg, list):
+            error_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in error_pattern_cfg)
+        error_pattern = re.compile(error_pattern_cfg)
 
-    ignore_pattern = config.get('ignore_pattern')
-    if ignore_pattern is not None:
-        if not ignore_pattern:
+    ignore_pattern_cfg = config.get('ignore_pattern')
+    ignore_pattern: Optional[Pattern[str]]
+    if ignore_pattern_cfg is not None:
+        if not ignore_pattern_cfg:
             ignore_pattern = None
         else:
-            if isinstance(ignore_pattern, list):
-                ignore_pattern = '|'.join(f'(?:{pattern})' for pattern in ignore_pattern)
-            ignore_pattern = re.compile(ignore_pattern)
+            if isinstance(ignore_pattern_cfg, list):
+                ignore_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in ignore_pattern_cfg)
+            ignore_pattern = re.compile(ignore_pattern_cfg)
+    else:
+        ignore_pattern = None
 
     wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
@@ -1105,8 +1110,6 @@ def main() -> None:
                 prefix = 'Usage: '
             return super()._format_usage(usage, actions, groups, prefix)
 
-    config_path = str(Path.home() / '.logmonrc')
-
     is_root = os.getpid() == 0
     esc_config_path = '$HOME/.logmonrc'.replace('%', '%%')
     esc_root_config_path = ROOT_CONFIG_PATH.replace('%', '%%')
@@ -1277,11 +1280,11 @@ def main() -> None:
     ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT')
     ap.add_argument('--email-user', default=None, metavar='USER')
     ap.add_argument('--email-password', default=None, metavar='PASSWORD')
-    ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in SecureOption.__args__])
-    ap.add_argument('--email-protocol', default=None, choices=list(EmailProtocol.__args__))
+    ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption)])
+    ap.add_argument('--email-protocol', default=None, choices=list(get_args(EmailProtocol)))
     ap.add_argument('--http-method', default=None)
     ap.add_argument('--http-path', default=None)
-    ap.add_argument('--http-content-type', default=None, choices=list(ContentType.__args__))
+    ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType)))
     ap.add_argument('-P', '--http-param', action='append', default=[])
     ap.add_argument('-H', '--http-header', action='append', default=[])
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
@@ -1296,7 +1299,7 @@ def main() -> None:
         help=f'Format of log entries of logmon itself. [default: {esc_default_log_format}]')
     ap.add_argument('--log-datefmt', default=DEFAULT_LOG_DATEFMT, metavar='DATEFMT',
         help=f'Format of the timestamp of log entries of logmon itself. [default: {esc_default_log_datefmt}]')
-    ap.add_argument('--logmails', default=None, choices=list(Logmails.__args__),
+    ap.add_argument('--logmails', default=None, choices=list(get_args(Logmails)),
         help='Log emails.\n'
              '\n'
              'never ..... Never log emails\n'
@@ -1528,8 +1531,8 @@ def main() -> None:
     log_config = app_config.get('log') or {}
     loglevel_name = args.log_level   if args.log_level   is not None else log_config.get('level', 'INFO')
     app_logfile   = args.log_file    if args.log_file    is not None else log_config.get('file')
-    logformat     = args.log_format  if args.log_format  is not None else log_config.get('logformat',  DEFAULT_LOG_FORMAT)
-    logdatefmt    = args.log_datefmt if args.log_datefmt is not None else log_config.get('logdatefmt', DEFAULT_LOG_DATEFMT)
+    logformat     = args.log_format  if args.log_format  is not None else log_config.get('format',  DEFAULT_LOG_FORMAT)
+    logdatefmt    = args.log_datefmt if args.log_datefmt is not None else log_config.get('datefmt', DEFAULT_LOG_DATEFMT)
 
     loglevel = logging.getLevelNamesMapping()[loglevel_name]
 

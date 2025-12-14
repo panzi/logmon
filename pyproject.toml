@@ -1,0 +1,15 @@
+[project]
+name = "logmon"
+version = "0.2.1"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["pydantic==2.12.*"]
+[project.optional-dependencies]
+yaml = ["PyYAML==6.0.*"]
+inotify = ["inotify==0.2.*"]
+[dependency-groups]
+dev = [
+    "pytest==9.0.*",
+    "mypy==1.19.*",
+    "types-PyYAML==6.0.*"
+]
