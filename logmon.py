@@ -1029,7 +1029,7 @@ def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: st
     so.close()
     se.close()
 
-def main() -> None:
+def main(argv: Optional[list[str]] = None) -> None:
     from pathlib import Path
     import argparse
     import signal
@@ -1311,7 +1311,7 @@ def main() -> None:
     ap.add_argument('logfiles', nargs='*', default=[],
         help='Overwrite the logfiles form the settings. If the given logfile is also configured in the '
              'settings it still uses the logfile specific settings for the given logfile.')
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     if args.version:
         print(__version__)
