@@ -1570,6 +1570,11 @@ def main(argv: Optional[list[str]] = None) -> None:
         logger.info(f"Shutting down on {signame}...")
 
     signal.signal(signal.SIGTERM, on_signal)
+    #signal.signal(signal.SIGINT, on_signal)
+
+    SIGBREAK: Optional[int] = getattr(signal, 'SIGBREAK', None)
+    if SIGBREAK is not None:
+        signal.signal(SIGBREAK, on_signal)
 
     if len(abslogfiles) == 1:
         logfile, cfg = next(iter(abslogfiles.items()))
