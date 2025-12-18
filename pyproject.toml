@@ -7,6 +7,7 @@ dependencies = ["pydantic==2.12.*"]
 [project.optional-dependencies]
 yaml = ["PyYAML==6.0.*"]
 inotify = ["inotify==0.2.*"]
+systemd = ["cysystemd==2.0.*"]
 [dependency-groups]
 dev = [
     "pytest==9.0.*",

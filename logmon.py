@@ -26,6 +26,7 @@ from math import inf
 from os.path import dirname, abspath, join as joinpath, normpath
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
+from itertools import islice
 
 import re
 import os
@@ -263,17 +264,29 @@ class LogfileConfig(TypedDict):
     use_inotify: NotRequired[bool]
     seek_end: NotRequired[bool] # default: True
 
-class Config(EMailConfig, LogfileConfig, LimitsConfig):
+SystemDPriority = Literal[
+    'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
+    'DEBUG', 'INFO', 'ERROR', 'NOTICE',
+]
+
+class SystemDConfig(TypedDict):
+    priority: NotRequired[SystemDPriority|int]
+    match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
+
+class Config(EMailConfig, LogfileConfig, SystemDConfig, LimitsConfig):
     pass
 
-class PartialConfig(PartialEMailConfig, LogfileConfig, LimitsConfig):
+class PartialConfig(PartialEMailConfig, LogfileConfig, SystemDConfig, LimitsConfig):
+    pass
+
+class DefaultConfig(LogfileConfig, SystemDConfig):
     pass
 
 class MTConfig(TypedDict):
     email: EMailConfig
-    default: NotRequired[LogfileConfig]
+    default: NotRequired[DefaultConfig]
     logfiles: dict[str, PartialConfig]|list[str]
-    limits: LimitsConfig
+    limits: NotRequired[LimitsConfig]
 
 class AppLogConfig(TypedDict):
     """
@@ -354,7 +367,8 @@ def send_email(
         entries: list[str],
         sender: str,
         receivers: list[str],
-        entry_start_pattern: Pattern[str],
+        entry_start_pattern: Optional[Pattern[str]] = None,
+        brief: Optional[str] = None,
         host: str = DEFAULT_EMAIL_HOST,
         port: Optional[int] = None,
         user: Optional[str] = None,
@@ -372,15 +386,16 @@ def send_email(
     entries_str = '\n\n'.join(entries)
     first_entry = entries[0]
     lines = first_entry.split('\n')
-
     first_line = lines[0]
-    brief = ''
 
-    lines[0] = entry_start_pattern.sub('', first_line)
-    for line in lines:
-        brief = line.lstrip().rstrip(' \r\n\t:{')
-        if brief:
-            break
+    if brief is None:
+        brief = ''
+
+        lines[0] = entry_start_pattern.sub('', first_line) if entry_start_pattern is not None else first_line
+        for line in lines:
+            brief = line.lstrip().rstrip(' \r\n\t:{')
+            if brief:
+                break
 
     templ_params = {
         'entries': entries_str,
@@ -641,6 +656,9 @@ def _logmon(
         config: Config,
         limits: LimitsService,
 ) -> None:
+    if logfile.startswith('systemd:'):
+        return _logmon_systemd(logfile, config, limits)
+
     entry_start_pattern_cfg = config.get('entry_start_pattern')
     if entry_start_pattern_cfg is None:
         entry_start_pattern = DEFAULT_ENTRY_START_PATTERN
@@ -912,6 +930,189 @@ def _logmon(
 
             try: inotify.remove_watch(parentdir)
             except: pass
+
+try:
+    from cysystemd.reader import JournalReader, JournalOpenMode, Rule # type: ignore
+    from cysystemd.journal import Priority
+
+    OPEN_MODES: dict[str, JournalOpenMode] = {
+        mode.name: mode
+        for mode in JournalOpenMode
+    }
+
+    def _systemd_parse_path(logfile: str) -> tuple[JournalOpenMode, Optional[str]]:
+        path = logfile.split(':')
+        if len(path) < 2 or len(path) > 3 or path[0] != 'systemd':
+            raise ValueError(f'Illegal SystemD path: {logfile!r}')
+
+        mode = OPEN_MODES.get(path[1])
+        if mode is None:
+            raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
+
+        unit = path[2] if len(path) > 2 else None
+
+        return mode, unit
+
+    def _logmon_systemd(
+        logfile: str,
+        config: Config,
+        limits: LimitsService,
+    ) -> None:
+        wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
+        max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
+        max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
+
+        subject_templ = config.get('subject', DEFAULT_SUBJECT)
+        body_templ = config.get('body', DEFAULT_BODY)
+
+        sender = config['sender']
+        receivers = config['receivers']
+        email_host = config.get('host', DEFAULT_EMAIL_HOST)
+        email_protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+        email_port = config.get('port', DEFAULT_EMAIL_PORT[email_protocol])
+        email_user = config.get('user')
+        email_password = config.get('password')
+        email_secure = config.get('secure')
+        http_method = config.get('http_method', 'POST')
+        http_path = config.get('http_path', '/')
+        http_params = config.get('http_params')
+        http_content_type = config.get('http_content_type')
+        http_headers = config.get('http_headers')
+        logmails = config.get('logmails', DEFAULT_LOGMAILS)
+        seek_end = config.get('seek_end', True)
+        raw_priority = config.get('priority')
+        match_dict = config.get('match')
+
+        priority: Optional[Priority]
+        if isinstance(raw_priority, 'str'):
+            priority = Priority[raw_priority]
+        elif raw_priority is not None:
+            priority = Priority(raw_priority)
+        else:
+            priority = None
+
+        mode, unit = _systemd_parse_path(logfile)
+
+        context = ssl.create_default_context() if email_secure else None
+        reader = JournalReader()
+        try:
+            reader.open(mode)
+
+            if seek_end:
+                reader.seek_tail()
+
+            rule: Optional[Rule] = None
+
+            if unit is not None:
+                rule = Rule('_SYSTEMD_UNIT', unit)
+
+            if match_dict:
+                for rule_key, rule_value in match_dict.items():
+                    new_rule = Rule(rule_key, str(rule_value))
+                    if rule is None:
+                        rule = new_rule
+                    else:
+                        rule &= new_rule
+
+            if priority is not None:
+                # TODO: is this really the way?
+                int_priority: int = priority.value
+                prule = Rule('PRIORITY', str(int_priority))
+                int_priority -= 1
+                while int_priority > 0:
+                    prule |= Rule('PRIORITY', str(int_priority))
+                    int_priority -= 1
+
+                if rule is None:
+                    rule = prule
+                else:
+                    rule &= prule
+
+            if rule is not None:
+                reader.add_filter(rule)
+
+            while _running:
+                reader.wait()
+
+                start_ts = monotonic()
+                entries = list(reader)
+                duration = monotonic() - start_ts
+
+                try:
+                    while len(entries) < max_entries and duration < wait_before_send:
+                        rem_time = wait_before_send - duration
+                        logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
+                        reader.wait(rem_time)
+                        entries.extend(reader)
+                        duration = monotonic() - start_ts
+
+                except KeyboardInterrupt:
+                    _keyboard_interrupt()
+
+                str_entries: list[str] = [json.dumps(entry.data, indent=4) for entry in entries]
+
+                if str_entries:
+                    try:
+                        if limits.check():
+                            send_email(
+                                logfile = logfile,
+                                entries = str_entries,
+                                subject_templ = subject_templ,
+                                body_templ = body_templ,
+                                sender = sender,
+                                receivers = receivers,
+                                host = email_host,
+                                port = email_port,
+                                user = email_user,
+                                password = email_password,
+                                secure = email_secure,
+                                protocol = email_protocol,
+                                ssl_context = context,
+                                logmails = logmails,
+                                http_method = http_method,
+                                http_path = http_path,
+                                http_params = http_params,
+                                http_content_type = http_content_type,
+                                http_headers = http_headers,
+                                brief = entries[0].data.get('MESSAGE'),
+                            )
+                        elif logger.isEnabledFor(logging.DEBUG):
+                            first_entry = str_entries[0]
+                            first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+                            logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {first_line}')
+
+                    except Exception as exc:
+                        logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+
+        except KeyboardInterrupt:
+            _keyboard_interrupt()
+
+        finally:
+            if not reader.closed:
+                reader.close()
+
+    HAS_SYSTEMD = True
+except ImportError:
+    HAS_SYSTEMD = False
+
+    def _logmon_systemd(
+        logfile: str,
+        config: Config,
+        limits: LimitsService,
+    ) -> None:
+        raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the cysystemd package!')
+    
+    def _systemd_parse_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]:
+        raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the cysystemd package!')
+
+def make_abs_logfile(logfile: str, context_dir: str) -> str:
+    if logfile.startswith('systemd:'):
+        return logfile
+
+    if logfile.startswith('file:'):
+        logfile = logfile[5:]
+
+    return joinpath(context_dir, logfile)
 
 def _keyboard_interrupt() -> None:
     global _running
@@ -1522,11 +1723,15 @@ def main(argv: Optional[list[str]] = None) -> None:
             if Inotify is None and cfg.get('use_inotify'):
                 _print_no_inotify()
                 sys.exit(1)
-            abslogfiles[joinpath(context_dir, logfile)] = cfg
+            abslogfiles[make_abs_logfile(logfile, context_dir)] = cfg
     else:
         for logfile in logfiles:
-            abslogfiles[joinpath(context_dir, logfile)] = {}
+            abslogfiles[make_abs_logfile(logfile, context_dir)] = {}
     app_config['logfiles'] = abslogfiles
+
+    for logfile in abslogfiles:
+        if logfile.startswith('systemd:'):
+            _systemd_parse_path(logfile)
 
     log_config = app_config.get('log') or {}
     loglevel_name = args.log_level   if args.log_level   is not None else log_config.get('level', 'INFO')
