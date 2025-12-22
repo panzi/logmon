@@ -26,7 +26,7 @@ from math import inf
 from os.path import dirname, abspath, join as joinpath, normpath
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
-from itertools import islice
+from select import poll, POLLIN
 
 import re
 import os
@@ -270,8 +270,8 @@ SystemDPriority = Literal[
 ]
 
 class SystemDConfig(TypedDict):
-    priority: NotRequired[SystemDPriority|int]
-    match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
+    systemd_priority: NotRequired[SystemDPriority|int]
+    systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
 
 class Config(EMailConfig, LogfileConfig, SystemDConfig, LimitsConfig):
     pass
@@ -655,9 +655,10 @@ def _logmon(
         logfile: str,
         config: Config,
         limits: LimitsService,
+        stopfd: Optional[int] = None,
 ) -> None:
-    if logfile.startswith('systemd:'):
-        return _logmon_systemd(logfile, config, limits)
+    if _is_systemd_path(logfile):
+        return _logmon_systemd(logfile, config, limits, stopfd)
 
     entry_start_pattern_cfg = config.get('entry_start_pattern')
     if entry_start_pattern_cfg is None:
@@ -940,27 +941,16 @@ try:
         for mode in JournalOpenMode
     }
 
-    def _systemd_parse_path(logfile: str) -> tuple[JournalOpenMode, Optional[str]]:
-        path = logfile.split(':')
-        if len(path) < 2 or len(path) > 3 or path[0] != 'systemd':
-            raise ValueError(f'Illegal SystemD path: {logfile!r}')
-
-        mode = OPEN_MODES.get(path[1])
-        if mode is None:
-            raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
-
-        unit = path[2] if len(path) > 2 else None
-
-        return mode, unit
-
     def _logmon_systemd(
         logfile: str,
         config: Config,
         limits: LimitsService,
+        stopfd: Optional[int] = None,
     ) -> None:
         wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
-        max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
+        # TODO: respect max_entry_lines? break the JSON?
+        # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
         subject_templ = config.get('subject', DEFAULT_SUBJECT)
         body_templ = config.get('body', DEFAULT_BODY)
@@ -980,11 +970,11 @@ try:
         http_headers = config.get('http_headers')
         logmails = config.get('logmails', DEFAULT_LOGMAILS)
         seek_end = config.get('seek_end', True)
-        raw_priority = config.get('priority')
-        match_dict = config.get('match')
+        raw_priority = config.get('systemd_priority')
+        match_dict = config.get('systemd_match')
 
         priority: Optional[Priority]
-        if isinstance(raw_priority, 'str'):
+        if isinstance(raw_priority, str):
             priority = Priority[raw_priority]
         elif raw_priority is not None:
             priority = Priority(raw_priority)
@@ -1031,8 +1021,18 @@ try:
             if rule is not None:
                 reader.add_filter(rule)
 
+            poller = poll()
+            if stopfd is not None:
+                poller.register(stopfd, POLLIN)
+            poller.register(reader.fd, reader.events)
+
             while _running:
-                reader.wait()
+                events = poller.poll()
+                if not events:
+                    continue
+
+                if any(fd == stopfd for fd, _event in events):
+                    break
 
                 start_ts = monotonic()
                 entries = list(reader)
@@ -1053,6 +1053,8 @@ try:
 
                 if str_entries:
                     try:
+                        brief = entries[0].data.get('MESSAGE')
+
                         if limits.check():
                             send_email(
                                 logfile = logfile,
@@ -1074,12 +1076,13 @@ try:
                                 http_params = http_params,
                                 http_content_type = http_content_type,
                                 http_headers = http_headers,
-                                brief = entries[0].data.get('MESSAGE'),
+                                brief = brief,
                             )
                         elif logger.isEnabledFor(logging.DEBUG):
-                            first_entry = str_entries[0]
-                            first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-                            logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {first_line}')
+                            if not brief:
+                                first_entry = str_entries[0]
+                                brief = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+                            logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {brief}')
 
                     except Exception as exc:
                         logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
@@ -1087,26 +1090,40 @@ try:
         except KeyboardInterrupt:
             _keyboard_interrupt()
 
-        finally:
-            if not reader.closed:
-                reader.close()
+        # There seems to be no way to manually close the reader.
+        # It happens only in __dealloc__().
 
     HAS_SYSTEMD = True
 except ImportError:
     HAS_SYSTEMD = False
 
+    OPEN_MODES = {
+        'LOCAL_ONLY': 1, 'RUNTIME_ONLY': 2, 'SYSTEM': 4, 'CURRENT_USER': 8,
+    }
+
     def _logmon_systemd(
         logfile: str,
         config: Config,
         limits: LimitsService,
+        stopfd: Optional[int] = None,
     ) -> None:
-        raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the cysystemd package!')
-    
-    def _systemd_parse_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]:
-        raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the cysystemd package!')
+        raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
+
+def _systemd_parse_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]:
+    path = logfile.split(':')
+    if len(path) < 2 or len(path) > 3 or path[0] != 'systemd':
+        raise ValueError(f'Illegal SystemD path: {logfile!r}')
+
+    mode = OPEN_MODES.get(path[1])
+    if mode is None:
+        raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
+
+    unit = path[2] or None if len(path) > 2 else None
+
+    return mode, unit
 
 def make_abs_logfile(logfile: str, context_dir: str) -> str:
-    if logfile.startswith('systemd:'):
+    if _is_systemd_path(logfile):
         return logfile
 
     if logfile.startswith('file:'):
@@ -1120,8 +1137,8 @@ def _keyboard_interrupt() -> None:
         logger.info("Shutting down on SIGINT...")
         _running = False
 
-def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
-    logfile = normpath(abspath(logfile))
+def _logmon_thread(logfile: str, config: Config, limits: LimitsService, stopfd: Optional[int] = None) -> None:
+    logfile = normpath(abspath(logfile)) if not _is_systemd_path(logfile) else logfile
     wait_after_crash = config.get('wait_after_crash', DEFAULT_WAIT_AFTER_CRASH)
 
     while _running:
@@ -1130,16 +1147,23 @@ def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
                 logfile = logfile,
                 config = config,
                 limits = limits,
+                stopfd = stopfd,
             )
         except KeyboardInterrupt:
             _keyboard_interrupt()
-            return
+            break
         except Exception as exc:
             logger.error(f"{logfile}: Restarting after crash: {exc}", exc_info=exc)
             logger.debug(f"{logfile}: Waiting for {wait_after_crash} seconds after crash")
             sleep(wait_after_crash)
         else:
-            return
+            break
+
+    if stopfd is not None:
+        try:
+            os.close(stopfd)
+        except Exception as exc:
+            logger.error(f"{logfile}: Closing stopfd: {exc}", exc_info=exc)
 
 def logmon_mt(config: MTConfig):
     global _running
@@ -1158,6 +1182,8 @@ def logmon_mt(config: MTConfig):
     limits = LimitsService.from_config(config.get('limits') or {})
 
     threads: list[threading.Thread] = []
+    stopfds: list[int] = []
+
     try:
         items = logfiles.items() if isinstance(logfiles, dict) else [(logfile, {}) for logfile in logfiles]
         for logfile, cfg in items:
@@ -1166,9 +1192,17 @@ def logmon_mt(config: MTConfig):
                 **cfg
             }
 
+            stopfd: Optional[int]
+            if _needs_stopfd(logfile):
+                readfd, writefd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+                stopfds.append(writefd)
+                stopfd = readfd
+            else:
+                stopfd = None
+
             thread = threading.Thread(
                 target = _logmon_thread,
-                args = (logfile, cfg, limits),
+                args = (logfile, cfg, limits, stopfd),
                 name = logfile,
             )
 
@@ -1184,6 +1218,25 @@ def logmon_mt(config: MTConfig):
             _keyboard_interrupt()
         except Exception as exc:
             logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
+
+        if not _running:
+            for fd in stopfds:
+                try:
+                    os.write(fd, b'\0')
+                except Exception as exc:
+                    logger.warning(f"Error signaling stop through stopfd: {fd}")
+
+                try:
+                    os.close(fd)
+                except Exception as exc:
+                    logger.warning(f"Error closing stopfd: {fd}")
+
+            stopfds.clear()
+
+def _is_systemd_path(logfile: str) -> bool:
+    return logfile.startswith('systemd:')
+
+_needs_stopfd = _is_systemd_path
 
 # based on http://code.activestate.com/recipes/66012/
 def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: str = '/dev/null', rundir: str = '/') -> None:
@@ -1477,6 +1530,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Seek to the end of existing files. [default: True]")
     seek_end_grp.add_argument('--no-seek-end', default=None, action='store_false', dest='seek_end',
         help='Opposite of --seek-end')
+    ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
+    ap.add_argument('--systemd-match', nargs='*', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
     ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT')
     ap.add_argument('--email-user', default=None, metavar='USER')
@@ -1690,6 +1745,20 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.entry_start_pattern is not None:
         default_config['entry_start_pattern'] = args.entry_start_pattern
 
+    if args.systemd_priority is not None:
+        default_config['systemd_priority'] = args.systemd_priority
+
+    if args.systemd_match is not None:
+        systemd_match: dict[str, str] = {}
+        systemd_match_item: str
+        for systemd_match_item in args.systemd_match:
+            try:
+                key, value = systemd_match_item.split('=', 1)
+            except ValueError:
+                print(f'Illegal argument for --systemd-match option: {systemd_match_item}', file=sys.stderr)
+                sys.exit(1)
+        default_config['systemd_match'] = systemd_match
+
     if args.logfiles:
         config_logfiles = config.get('logfiles')
         if isinstance(config_logfiles, dict):
@@ -1729,9 +1798,15 @@ def main(argv: Optional[list[str]] = None) -> None:
             abslogfiles[make_abs_logfile(logfile, context_dir)] = {}
     app_config['logfiles'] = abslogfiles
 
+    has_systemd = False
     for logfile in abslogfiles:
-        if logfile.startswith('systemd:'):
+        if _is_systemd_path(logfile):
             _systemd_parse_path(logfile)
+            has_systemd = True
+
+    if has_systemd and not HAS_SYSTEMD:
+        _print_no_systemd()
+        sys.exit(1)
 
     log_config = app_config.get('log') or {}
     loglevel_name = args.log_level   if args.log_level   is not None else log_config.get('level', 'INFO')
@@ -1788,12 +1863,17 @@ def main(argv: Optional[list[str]] = None) -> None:
             **default_config,
             **cfg
         }
-        _logmon_thread(logfile, cfg) # type: ignore
+        limits = LimitsService.from_config(app_config.get('limits') or {})
+
+        _logmon_thread(logfile, cfg, limits) # type: ignore
     else:
         logmon_mt(app_config)
 
 def _print_no_inotify() -> None:
     print('Inotify support requires the `inotify` Python package to be installed!', file=sys.stderr)
+
+def _print_no_systemd() -> None:
+    print('SystemD support requires the `cysystemd` Python package to be installed!', file=sys.stderr)
 
 if __name__ == '__main__':
     main()
