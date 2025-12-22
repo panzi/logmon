@@ -1159,12 +1159,6 @@ def _logmon_thread(logfile: str, config: Config, limits: LimitsService, stopfd: 
         else:
             break
 
-    if stopfd is not None:
-        try:
-            os.close(stopfd)
-        except Exception as exc:
-            logger.error(f"{logfile}: Closing stopfd: {exc}", exc_info=exc)
-
 def logmon_mt(config: MTConfig):
     global _running
     email_config = config.get('email')
@@ -1182,7 +1176,8 @@ def logmon_mt(config: MTConfig):
     limits = LimitsService.from_config(config.get('limits') or {})
 
     threads: list[threading.Thread] = []
-    stopfds: list[int] = []
+    read_stopfd:  Optional[int] = None
+    write_stopfd: Optional[int] = None
 
     try:
         items = logfiles.items() if isinstance(logfiles, dict) else [(logfile, {}) for logfile in logfiles]
@@ -1192,17 +1187,12 @@ def logmon_mt(config: MTConfig):
                 **cfg
             }
 
-            stopfd: Optional[int]
-            if _needs_stopfd(logfile):
-                readfd, writefd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
-                stopfds.append(writefd)
-                stopfd = readfd
-            else:
-                stopfd = None
+            if read_stopfd is None and _needs_stopfd(logfile):
+                read_stopfd, write_stopfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
 
             thread = threading.Thread(
                 target = _logmon_thread,
-                args = (logfile, cfg, limits, stopfd),
+                args = (logfile, cfg, limits, read_stopfd),
                 name = logfile,
             )
 
@@ -1219,19 +1209,38 @@ def logmon_mt(config: MTConfig):
         except Exception as exc:
             logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
 
-        if not _running:
-            for fd in stopfds:
-                try:
-                    os.write(fd, b'\0')
-                except Exception as exc:
-                    logger.warning(f"Error signaling stop through stopfd: {fd}")
+        if not _running and write_stopfd is not None:
+            try:
+                os.write(write_stopfd, b'\0')
+            except Exception as exc:
+                logger.warning(f"Error signaling stop through write_stopfd: {write_stopfd}")
 
-                try:
-                    os.close(fd)
-                except Exception as exc:
-                    logger.warning(f"Error closing stopfd: {fd}")
+            try:
+                os.close(write_stopfd)
+            except Exception as exc:
+                logger.warning(f"Error closing write_stopfd: {write_stopfd}")
 
-            stopfds.clear()
+            write_stopfd = None
+
+            if read_stopfd is not None:
+                try:
+                    os.close(read_stopfd)
+                except Exception as exc:
+                    logger.warning(f"Error closing read_stopfd: {read_stopfd}")
+
+                read_stopfd = None
+
+    if write_stopfd is not None:
+        try:
+            os.close(write_stopfd)
+        except Exception as exc:
+            logger.warning(f"Error closing write_stopfd: {write_stopfd}")
+
+    if read_stopfd is not None:
+        try:
+            os.close(read_stopfd)
+        except Exception as exc:
+            logger.warning(f"Error closing read_stopfd: {read_stopfd}")
 
 def _is_systemd_path(logfile: str) -> bool:
     return logfile.startswith('systemd:')
