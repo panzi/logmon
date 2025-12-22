@@ -367,8 +367,7 @@ def send_email(
         entries: list[str],
         sender: str,
         receivers: list[str],
-        entry_start_pattern: Optional[Pattern[str]] = None,
-        brief: Optional[str] = None,
+        brief: str,
         host: str = DEFAULT_EMAIL_HOST,
         port: Optional[int] = None,
         user: Optional[str] = None,
@@ -387,15 +386,6 @@ def send_email(
     first_entry = entries[0]
     lines = first_entry.split('\n')
     first_line = lines[0]
-
-    if brief is None:
-        brief = ''
-
-        lines[0] = entry_start_pattern.sub('', first_line) if entry_start_pattern is not None else first_line
-        for line in lines:
-            brief = line.lstrip().rstrip(' \r\n\t:{')
-            if brief:
-                break
 
     templ_params = {
         'entries': entries_str,
@@ -695,23 +685,8 @@ def _logmon(
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-    subject_templ = config.get('subject', DEFAULT_SUBJECT)
-    body_templ = config.get('body', DEFAULT_BODY)
+    email_sender = EmailSender(config)
 
-    sender = config['sender']
-    receivers = config['receivers']
-    email_host = config.get('host', DEFAULT_EMAIL_HOST)
-    email_protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
-    email_port = config.get('port', DEFAULT_EMAIL_PORT[email_protocol])
-    email_user = config.get('user')
-    email_password = config.get('password')
-    email_secure = config.get('secure')
-    http_method = config.get('http_method', 'POST')
-    http_path = config.get('http_path', '/')
-    http_params = config.get('http_params')
-    http_content_type = config.get('http_content_type')
-    http_headers = config.get('http_headers')
-    logmails = config.get('logmails', DEFAULT_LOGMAILS)
     seek_end = config.get('seek_end', True)
     use_inotify = config.get('use_inotify', Inotify is not None)
 
@@ -722,8 +697,6 @@ def _logmon(
         inotify = None
 
     try:
-        context = ssl.create_default_context() if email_secure else None
-
         file_not_found = False
 
         while _running:
@@ -774,27 +747,20 @@ def _logmon(
                         if entries:
                             try:
                                 if limits.check():
-                                    send_email(
+                                    brief = ''
+
+                                    for line in entry_start_pattern.sub('', entries[0]).split('\n'):
+                                        brief = line.lstrip().rstrip(' \r\n\t:{')
+                                        if brief:
+                                            break
+
+                                    if not brief:
+                                        brief = entries[0]
+
+                                    email_sender.send_email(
                                         logfile = logfile,
                                         entries = entries,
-                                        subject_templ = subject_templ,
-                                        body_templ = body_templ,
-                                        sender = sender,
-                                        receivers = receivers,
-                                        host = email_host,
-                                        port = email_port,
-                                        user = email_user,
-                                        password = email_password,
-                                        secure = email_secure,
-                                        protocol = email_protocol,
-                                        ssl_context = context,
-                                        logmails = logmails,
-                                        http_method = http_method,
-                                        http_path = http_path,
-                                        http_params = http_params,
-                                        http_content_type = http_content_type,
-                                        http_headers = http_headers,
-                                        entry_start_pattern = entry_start_pattern,
+                                        brief = brief,
                                     )
                                 elif logger.isEnabledFor(logging.DEBUG):
                                     first_entry = entries[0]
@@ -932,6 +898,90 @@ def _logmon(
             try: inotify.remove_watch(parentdir)
             except: pass
 
+class EmailSender:
+    __slots__ = (
+        'subject_templ',
+        'body_templ',
+        'sender',
+        'receivers',
+        'email_host',
+        'email_protocol',
+        'email_port',
+        'email_user',
+        'email_password',
+        'email_secure',
+        'http_method',
+        'http_path',
+        'http_params',
+        'http_content_type',
+        'http_headers',
+        'logmails',
+        'ssl_context',
+    )
+
+    subject_templ: str
+    body_templ: str
+
+    sender: str
+    receivers: list[str]
+    email_host: str
+    email_protocol: EmailProtocol
+    email_port: int
+    email_user: Optional[str]
+    email_password: Optional[str]
+    email_secure: SecureOption
+    http_method: str
+    http_path: str
+    http_params: Optional[dict[str, str]]
+    http_content_type: Optional[ContentType]
+    http_headers: Optional[dict[str, str]]
+    ssl_context: Optional[ssl.SSLContext]
+    logmails: Logmails
+
+    def __init__(self, config: EMailConfig) -> None:
+        self.subject_templ = config.get('subject', DEFAULT_SUBJECT)
+        self.body_templ = config.get('body', DEFAULT_BODY)
+
+        self.sender = config['sender']
+        self.receivers = config['receivers']
+        self.email_host = config.get('host', DEFAULT_EMAIL_HOST)
+        self.email_protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+        self.email_port = config.get('port', DEFAULT_EMAIL_PORT[self.email_protocol])
+        self.email_user = config.get('user')
+        self.email_password = config.get('password')
+        self.email_secure = config.get('secure')
+        self.http_method = config.get('http_method', 'POST')
+        self.http_path = config.get('http_path', '/')
+        self.http_params = config.get('http_params')
+        self.http_content_type = config.get('http_content_type')
+        self.http_headers = config.get('http_headers')
+        self.ssl_context = ssl.create_default_context() if self.email_secure else None
+        self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
+
+    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+        send_email(
+            logfile = logfile,
+            entries = entries,
+            subject_templ = self.subject_templ,
+            body_templ = self.body_templ,
+            sender = self.sender,
+            receivers = self.receivers,
+            host = self.email_host,
+            port = self.email_port,
+            user = self.email_user,
+            password = self.email_password,
+            secure = self.email_secure,
+            protocol = self.email_protocol,
+            ssl_context = self.ssl_context,
+            logmails = self.logmails,
+            http_method = self.http_method,
+            http_path = self.http_path,
+            http_params = self.http_params,
+            http_content_type = self.http_content_type,
+            http_headers = self.http_headers,
+            brief = brief,
+        )
+
 try:
     from cysystemd.reader import JournalReader, JournalOpenMode, Rule # type: ignore
     from cysystemd.journal import Priority
@@ -952,23 +1002,8 @@ try:
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-        subject_templ = config.get('subject', DEFAULT_SUBJECT)
-        body_templ = config.get('body', DEFAULT_BODY)
+        email_sender = EmailSender(config)
 
-        sender = config['sender']
-        receivers = config['receivers']
-        email_host = config.get('host', DEFAULT_EMAIL_HOST)
-        email_protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
-        email_port = config.get('port', DEFAULT_EMAIL_PORT[email_protocol])
-        email_user = config.get('user')
-        email_password = config.get('password')
-        email_secure = config.get('secure')
-        http_method = config.get('http_method', 'POST')
-        http_path = config.get('http_path', '/')
-        http_params = config.get('http_params')
-        http_content_type = config.get('http_content_type')
-        http_headers = config.get('http_headers')
-        logmails = config.get('logmails', DEFAULT_LOGMAILS)
         seek_end = config.get('seek_end', True)
         raw_priority = config.get('systemd_priority')
         match_dict = config.get('systemd_match')
@@ -983,7 +1018,6 @@ try:
 
         mode, unit = _systemd_parse_path(logfile)
 
-        context = ssl.create_default_context() if email_secure else None
         reader = JournalReader()
         try:
             reader.open(mode)
@@ -1056,26 +1090,9 @@ try:
                         brief = entries[0].data.get('MESSAGE')
 
                         if limits.check():
-                            send_email(
+                            email_sender.send_email(
                                 logfile = logfile,
                                 entries = str_entries,
-                                subject_templ = subject_templ,
-                                body_templ = body_templ,
-                                sender = sender,
-                                receivers = receivers,
-                                host = email_host,
-                                port = email_port,
-                                user = email_user,
-                                password = email_password,
-                                secure = email_secure,
-                                protocol = email_protocol,
-                                ssl_context = context,
-                                logmails = logmails,
-                                http_method = http_method,
-                                http_path = http_path,
-                                http_params = http_params,
-                                http_content_type = http_content_type,
-                                http_headers = http_headers,
                                 brief = brief,
                             )
                         elif logger.isEnabledFor(logging.DEBUG):
