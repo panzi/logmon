@@ -172,17 +172,36 @@ DEFAULT_HTTP_PARAMS = {
 
 ROOT_CONFIG_PATH = '/etc/logmonrc'
 
-JSON_PATH_PATTERN_STR = r'(?P<key>[\$_a-z][\$_a-z0-9]*)|\[(?:(?P<index>[0-9]+)|"(?P<qkey>(?:[^"\\]|\\.)*)")\]'
+JSON_PATH_PATTERN_STR = r'(?P<key>[\$_a-z][\$_a-z0-9]*)|\[(?:(?P<index>[0-9]+)|(?P<qkey>"(?:[^"\\]|\\.)*"))\]'
 JSON_PATH_START_PATTERN = re.compile(JSON_PATH_PATTERN_STR, re.I)
 JSON_PATH_TAIL_PATTERN = re.compile(r'\.' + JSON_PATH_PATTERN_STR, re.I)
 
-JsonPath = list[str|int]
-JsonMatch = dict[str|int, str|int|None|bool|float|"JsonMatch"]
+type JsonPath = list[str|int]
+type JsonCmp = Literal["<", ">", "<=", ">=", "=", "!=", "in", "not in"]
 
-def parse_json_match(value: str) -> tuple[JsonPath, int|float|bool|str|None]:
-    m = JSON_PATH_START_PATTERN.match(value)
+class Range(pydantic.BaseModel):
+    start: int
+    stop: int
+
+    def __contains__(self, other) -> bool:
+        if not isinstance(other, int):
+            return False
+
+        return other >= self.start and other < self.stop
+
+class RangeValidator(pydantic.BaseModel):
+    range: list[str|float|int|None]|Range
+
+type EqExpr = tuple[Literal["=","!="],None|bool|float|int|str]
+type OrdExpr = tuple[Literal["<",">","<=",">="],float|int|str]
+type RangeExpr = tuple[Literal["in","not in"],list[str|float|int|None]|Range]
+type JsonExpr = EqExpr|OrdExpr|RangeExpr
+type JsonMatch = dict[str|int, JsonExpr|JsonMatch]
+
+def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
+    m = JSON_PATH_START_PATTERN.match(match_def)
     if m is None:
-        raise ValueError(f'Illegal JSON match definition: {value!r}')
+        raise ValueError(f'Illegal JSON match definition: {match_def!r}')
 
     match = JSON_PATH_TAIL_PATTERN.match
 
@@ -200,20 +219,67 @@ def parse_json_match(value: str) -> tuple[JsonPath, int|float|bool|str|None]:
             assert False, "No group defined!"
 
         index = m.end()
-        m = match(value, index)
+        m = match(match_def, index)
 
-    tail = value[index:].lstrip()
-    if not tail.startswith('='):
-        raise ValueError(f'Illegal JSON match definition: {value!r}')
-
-    tail = tail[1:]
-
+    tail = match_def[index:].lstrip()
     try:
-        value = json.loads(tail)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f'Illegal JSON match definition: {value!r}') from exc
+        for ord_op in "<=", ">=", "<", ">":
+            if tail.startswith(ord_op):
+                ord_value = json.loads(tail[len(ord_op):])
 
-    return path, value
+                if not isinstance(ord_value, (int, float, str)):
+                    raise ValueError(f'{ord_op} is only defined for int, float, and str: {match_def!r}')
+
+                return path, (ord_op, ord_value)
+
+        for eq_op in "!=", "=":
+            if tail.startswith(eq_op):
+                eq_value = json.loads(tail[len(eq_op):])
+
+                if not isinstance(eq_value, (int, float, str, bool)) and eq_value is not None:
+                    raise ValueError(f'{eq_op} is only defined for int, float, str, bool and None: {match_def!r}')
+
+                return path, (eq_op, eq_value)
+
+        in_op: Literal["in", "not in"]
+        if tail.startswith("in") and not _is_json_word(tail[2:3]):
+            tail = tail[2:]
+            in_op = "in"
+        elif tail.startswith("not") and not _is_json_word(tail[3:4]):
+            tail = tail[3:]
+            if tail.startswith("in") and not _is_json_word(tail[2:3]):
+                tail = tail[2:]
+                in_op = "not in"
+            else:
+                raise ValueError(f'Illegal JSON match definition: {match_def!r}')
+        else:
+            raise ValueError(f'Illegal JSON match definition: {match_def!r}')
+
+        if tail[1:2].isnumeric():
+            range_parts = tail.split('..', 1)
+            if len(range_parts) != 2:
+                raise ValueError(f'Illegal JSON match definition: {match_def!r}')
+
+            try:
+                start = int(range_parts[0], 10)
+                stop = int(range_parts[1], 10)
+            except ValueError as exc:
+                raise ValueError(f'Illegal JSON match definition: {match_def!r}') from exc
+
+            return path, (in_op, Range(start=start, stop=stop))
+
+        try:
+            in_value = RangeValidator(range = json.loads(tail)).range
+        except pydantic.ValidationError as exc:
+            raise ValueError(f'Illegal JSON match definition: {match_def!r}') from exc
+
+        return path, (in_op, in_value)
+
+    except json.JSONDecodeError as exc:
+        raise ValueError(f'Illegal JSON match definition: {match_def!r}') from exc
+
+def _is_json_word(ch: str) -> bool:
+    return ch.isalnum() or ch == '_' or ch == '$'
 
 Num = int|float
 def in_range(parse: Callable[[str], Num], min: Optional[Num] = None, max: Optional[Num] = None) -> Callable[[str], Num]:
@@ -1880,9 +1946,9 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Opposite of --seek-end')
     ap.add_argument('--json', action='store_true', default=None)
     ap.add_argument('--no-json', action='store_false', dest='json')
-    ap.add_argument('--json-match', nargs='*', metavar='PATH=VALUE')
+    ap.add_argument('--json-match', action='append', metavar='PATH=VALUE')
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
-    ap.add_argument('--systemd-match', nargs='*', metavar='KEY=VALUE')
+    ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
     ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT')
     ap.add_argument('--email-user', default=None, metavar='USER')
@@ -2113,14 +2179,18 @@ def main(argv: Optional[list[str]] = None) -> None:
             json_ctx = json_match
             for key in json_path[:-1]:
                 if key not in json_ctx:
-                    json_ctx = json_ctx[key] = {}
+                    next_ctx = {}
+                    json_ctx[key] = next_ctx
                 else:
                     next_ctx = json_ctx[key]
                     if not isinstance(next_ctx, dict):
-                        raise ValueError(f'--json-match={json_match_item} conflict: item already exists and is of type {type(next_ctx).__name__} (expected dict)')
-                    json_ctx = next_ctx
+                        raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists and is of type {type(next_ctx).__name__} (expected dict)')
+                json_ctx = next_ctx
 
-            json_ctx[json_path[-1]] = json_value
+            key = json_path[-1]
+            if key in json_ctx:
+                raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists')
+            json_ctx[key] = json_value
         default_config['json_match'] = json_match
 
     if args.systemd_priority is not None:
