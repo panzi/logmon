@@ -25,9 +25,8 @@ from email.message import EmailMessage
 from email.policy import SMTP
 from math import inf
 from os.path import dirname, abspath, join as joinpath, normpath
-from urllib.request import Request, urlopen
 from http.client import HTTPConnection, HTTPSConnection, NotConnected, HTTPException
-from urllib.parse import urlencode, quote as urlquote, urljoin, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 from select import poll, POLLIN
 from base64 import b64encode
 
