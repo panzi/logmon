@@ -195,7 +195,8 @@ class RangeValidator(pydantic.BaseModel):
 type EqExpr = tuple[Literal["=","!="],None|bool|float|int|str]
 type OrdExpr = tuple[Literal["<",">","<=",">="],float|int|str]
 type RangeExpr = tuple[Literal["in","not in"],list[str|float|int|None]|Range]
-type JsonExpr = EqExpr|OrdExpr|RangeExpr
+type RegExExpr = tuple[Literal["~"], str]
+type JsonExpr = EqExpr|OrdExpr|RangeExpr|RegExExpr
 type JsonMatch = dict[str|int, JsonExpr|JsonMatch]
 
 def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
@@ -240,6 +241,14 @@ def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
                     raise ValueError(f'{eq_op} is only defined for int, float, str, bool and None: {match_def!r}')
 
                 return path, (eq_op, eq_value)
+
+        if tail.startswith("~"):
+            tail = tail[1:].lstrip()
+            re_value = json.loads(tail)
+            if not isinstance(re_value, str):
+                raise ValueError(f'~ is only defined for str: {match_def!r}')
+
+            return path, ('~', re_value)
 
         in_op: Literal["in", "not in"]
         if tail.startswith("in") and not _is_json_word(tail[2:3]):
