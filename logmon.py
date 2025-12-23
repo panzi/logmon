@@ -184,7 +184,7 @@ class Range(pydantic.BaseModel):
     stop: int
 
     def __contains__(self, other) -> bool:
-        if not isinstance(other, int):
+        if not isinstance(other, (int, float)):
             return False
 
         return other >= self.start and other < self.stop
@@ -212,8 +212,8 @@ def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
     while m is not None:
         if (key := m.group('key')) is not None:
             path.append(key)
-        elif (index := m.group('index')) is not None:
-            path.append(int(index, 10))
+        elif (index_str := m.group('index')) is not None:
+            path.append(int(index_str, 10))
         elif (qkey := m.group('qkey')) is not None:
             path.append(json.loads(qkey))
         else:
@@ -286,6 +286,57 @@ def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
 
     except json.JSONDecodeError as exc:
         raise ValueError(f'Illegal JSON match definition: {match_def!r}') from exc
+
+def compile_json_match_expr(expr: JsonExpr) -> Callable[[Any], bool]:
+    op, expected = expr
+    match op:
+        case "=":  return lambda value: value == expected
+        case "!=": return lambda value: value != expected
+        case "in": return lambda value: value in expected # type: ignore
+        case "not in": return lambda value: value not in expected # type: ignore
+        case "~":
+            regex = re.compile(expected, re.I) # type: ignore
+            def check(value: Any) -> bool:
+                if not isinstance(value, str):
+                    return False
+                return regex.match(value) is not None
+
+            return check
+        case "<":
+            def check(value: Any) -> bool:
+                try:
+                    return value < expected
+                except TypeError:
+                    return False
+
+            return check
+        case ">":
+            def check(value: Any) -> bool:
+                try:
+                    return value > expected
+                except TypeError:
+                    return False
+
+            return check
+        case "<=":
+            def check(value: Any) -> bool:
+                try:
+                    return value <= expected
+                except TypeError:
+                    return False
+
+            return check
+        case ">=":
+            def check(value: Any) -> bool:
+                try:
+                    return value >= expected
+                except TypeError:
+                    return False
+
+            return check
+        case _:
+            raise NotImplementedError
+
 
 def _is_json_word(ch: str) -> bool:
     return ch.isalnum() or ch == '_' or ch == '$'
@@ -2188,13 +2239,14 @@ def main(argv: Optional[list[str]] = None) -> None:
             json_ctx = json_match
             for key in json_path[:-1]:
                 if key not in json_ctx:
-                    next_ctx = {}
-                    json_ctx[key] = next_ctx
+                    new_ctx: JsonMatch = {}
+                    json_ctx[key] = new_ctx
+                    json_ctx = new_ctx
                 else:
                     next_ctx = json_ctx[key]
                     if not isinstance(next_ctx, dict):
                         raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists and is of type {type(next_ctx).__name__} (expected dict)')
-                json_ctx = next_ctx
+                    json_ctx = next_ctx
 
             key = json_path[-1]
             if key in json_ctx:
