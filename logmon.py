@@ -172,6 +172,49 @@ DEFAULT_HTTP_PARAMS = {
 
 ROOT_CONFIG_PATH = '/etc/logmonrc'
 
+JSON_PATH_PATTERN_STR = r'(?P<key>[\$_a-z][\$_a-z0-9]*)|\[(?:(?P<index>[0-9]+)|"(?P<qkey>(?:[^"\\]|\\.)*)")\]'
+JSON_PATH_START_PATTERN = re.compile(JSON_PATH_PATTERN_STR, re.I)
+JSON_PATH_TAIL_PATTERN = re.compile(r'\.' + JSON_PATH_PATTERN_STR, re.I)
+
+JsonPath = list[str|int]
+JsonMatch = dict[str|int, str|int|None|bool|float|"JsonMatch"]
+
+def parse_json_match(value: str) -> tuple[JsonPath, int|float|bool|str|None]:
+    m = JSON_PATH_START_PATTERN.match(value)
+    if m is None:
+        raise ValueError(f'Illegal JSON match definition: {value!r}')
+
+    match = JSON_PATH_TAIL_PATTERN.match
+
+    path: JsonPath = []
+    index = m.end()
+
+    while m is not None:
+        if (key := m.group('key')) is not None:
+            path.append(key)
+        elif (index := m.group('index')) is not None:
+            path.append(int(index, 10))
+        elif (qkey := m.group('qkey')) is not None:
+            path.append(json.loads(qkey))
+        else:
+            assert False, "No group defined!"
+
+        index = m.end()
+        m = match(value, index)
+
+    tail = value[index:].lstrip()
+    if not tail.startswith('='):
+        raise ValueError(f'Illegal JSON match definition: {value!r}')
+
+    tail = tail[1:]
+
+    try:
+        value = json.loads(tail)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f'Illegal JSON match definition: {value!r}') from exc
+
+    return path, value
+
 Num = int|float
 def in_range(parse: Callable[[str], Num], min: Optional[Num] = None, max: Optional[Num] = None) -> Callable[[str], Num]:
     def parse_in_range(value: str) -> Num:
@@ -265,6 +308,8 @@ class LogfileConfig(TypedDict):
     max_entry_lines: NotRequired[int]
     use_inotify: NotRequired[bool]
     seek_end: NotRequired[bool] # default: True
+    json: NotRequired[bool] # default: False
+    json_match: NotRequired[Optional[JsonMatch]]
 
 SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
@@ -1833,6 +1878,9 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Seek to the end of existing files. [default: True]")
     seek_end_grp.add_argument('--no-seek-end', default=None, action='store_false', dest='seek_end',
         help='Opposite of --seek-end')
+    ap.add_argument('--json', action='store_true', default=None)
+    ap.add_argument('--no-json', action='store_false', dest='json')
+    ap.add_argument('--json-match', nargs='*', metavar='PATH=VALUE')
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
     ap.add_argument('--systemd-match', nargs='*', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
@@ -2052,6 +2100,28 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.keep_connected is not None:
         default_config['keep_connected'] = args.keep_connected
+
+    if args.json is not None:
+        default_config['json'] = args.json
+
+    if args.json_match is not None:
+        json_match: JsonMatch = {}
+        json_match_item: str
+        for json_match_item in args.json_match:
+            json_path, json_value = parse_json_match(json_match_item)
+
+            json_ctx = json_match
+            for key in json_path[:-1]:
+                if key not in json_ctx:
+                    json_ctx = json_ctx[key] = {}
+                else:
+                    next_ctx = json_ctx[key]
+                    if not isinstance(next_ctx, dict):
+                        raise ValueError(f'--json-match={json_match_item} conflict: item already exists and is of type {type(next_ctx).__name__} (expected dict)')
+                    json_ctx = next_ctx
+
+            json_ctx[json_path[-1]] = json_value
+        default_config['json_match'] = json_match
 
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
