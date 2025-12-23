@@ -18,15 +18,18 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, get_args
+from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, get_args, override
+from abc import ABC, abstractmethod
 from time import sleep, monotonic
 from email.message import EmailMessage
 from email.policy import SMTP
 from math import inf
 from os.path import dirname, abspath, join as joinpath, normpath
 from urllib.request import Request, urlopen
-from urllib.parse import urlencode
+from http.client import HTTPConnection, HTTPSConnection, NotConnected, HTTPException
+from urllib.parse import urlencode, quote as urlquote, urljoin, urlparse
 from select import poll, POLLIN
+from base64 import b64encode
 
 import re
 import os
@@ -34,6 +37,7 @@ import sys
 import ssl
 import uuid
 import json
+import errno
 import smtplib
 import imaplib
 import logging
@@ -50,6 +54,8 @@ else:
     from typing import TypedDict
 
 __version__ = '0.2.1'
+
+HTTP_REDIRECT_STATUSES = frozenset((301, 302, 307, 308))
 
 try:
     # inotify has no proper type annotations!
@@ -138,12 +144,6 @@ Logmails = Literal['always', 'never', 'onerror', 'instead']
 ContentType = Literal['JSON', 'URL', 'multipart']
 
 DEFAULT_EMAIL_HOST = 'localhost'
-DEFAULT_EMAIL_PORT: dict[EmailProtocol, int] = {
-    'SMTP': 587, # or 25 for insecure
-    'IMAP': 143,
-    'HTTP': 80,
-    'HTTPS': 443,
-}
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
 
 DEFAULT_SUBJECT = '[ERROR] {brief}'
@@ -165,6 +165,7 @@ DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
 
+DEFAULT_HTTP_MAX_REDIRECT = 10
 DEFAULT_HTTP_PARAMS = {
     'subject': '{subject}',
     'receivers': '{receivers}',
@@ -236,6 +237,8 @@ class EMailConfigBase(TypedDict):
     http_params: NotRequired[dict[str, str]]
     http_content_type: NotRequired[ContentType]
     http_headers: NotRequired[dict[str, str]]
+    http_max_redirect: NotRequired[int]
+    keep_connected: NotRequired[bool]
 
 class EMailConfig(EMailConfigBase):
     sender: str
@@ -359,154 +362,6 @@ def encode_multipart(fields: dict[str,str]|dict[str, MultipartFile]|dict[str, st
     body = b''.join(buf)
 
     return headers, body
-
-def send_email(
-        subject_templ: str,
-        body_templ: str,
-        logfile: str,
-        entries: list[str],
-        sender: str,
-        receivers: list[str],
-        brief: str,
-        host: str = DEFAULT_EMAIL_HOST,
-        port: Optional[int] = None,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
-        secure: SecureOption = None,
-        protocol: EmailProtocol = 'SMTP',
-        ssl_context: Optional[ssl.SSLContext] = None,
-        logmails: Logmails = DEFAULT_LOGMAILS,
-        http_method: str = 'POST',
-        http_path: str = '/',
-        http_params: Optional[dict[str, str]] = None,
-        http_content_type: Optional[ContentType] = None,
-        http_headers: Optional[dict[str, str]] = None,
-) -> None:
-    entries_str = '\n\n'.join(entries)
-    first_entry = entries[0]
-    lines = first_entry.split('\n')
-    first_line = lines[0]
-
-    templ_params = {
-        'entries': entries_str,
-        'entries_json': json.dumps(entries, indent=2),
-        'logfile': logfile,
-        'brief': brief,
-        'line1': first_line,
-        'entry1': first_entry,
-        'entrynum': str(len(entries)),
-        'receivers': ', '.join(receivers),
-    }
-
-    msg: Optional[EmailMessage]
-
-    if logmails == 'always':
-        msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
-        logger.info(f'{logfile}: Sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
-    else:
-        msg = None
-
-    if logmails == 'instead':
-        if msg is None:
-            msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
-        logger.info(f'{logfile}: Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
-    else:
-        try:
-            if protocol == 'HTTP' or protocol == 'HTTPS':
-                port_str = f':{port}' if port is not None else ''
-                if not http_path.startswith('/'):
-                    http_path = f'/{http_path}'
-
-                url = f'{protocol.lower()}://{host}{port_str}{http_path}'
-
-                if logger.isEnabledFor(logging.DEBUG):
-                    subject = subject_templ.format_map(templ_params)
-                    logger.debug(f'{logfile}: {http_method}-ing to {url}: {subject}')
-
-                if http_params is None:
-                    http_params = DEFAULT_HTTP_PARAMS
-
-                data = {
-                    key: templ.format_map(templ_params)
-                    for key, templ in http_params.items()
-                }
-
-                if http_method == 'GET':
-                    query = urlencode(data)
-                    url = f'{url}?{query}'
-                    body = None
-                    headers = {}
-                else:
-                    if http_content_type is None or http_content_type == 'URL':
-                        body = urlencode(data).encode()
-                        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-
-                    elif http_content_type == 'JSON':
-                        json_data: dict[str, Any] = data
-                        for key, templ in http_params.items():
-                            if templ == '{entries_json}':
-                                json_data[key] = entries
-
-                        body = json.dumps(json_data).encode()
-                        headers = {'Content-Type': 'application/json; charset=UTF-8'}
-
-                    elif http_content_type == 'multipart':
-                        headers, body = encode_multipart(data)
-
-                    else:
-                        raise ValueError(f'illegal http_content_type: {http_content_type}')
-
-                if http_headers:
-                    http_headers.pop('Content-Type', None)
-                    headers.update(http_headers)
-
-                req = Request(url, method=http_method, headers=headers, data=body)
-                res = urlopen(req)
-
-            else:
-                if port is None:
-                    port = DEFAULT_EMAIL_PORT[protocol]
-
-                if msg is None:
-                    msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
-                logger.debug(f'{logfile}: Sending email with subject: {msg["Subject"]}')
-
-                if protocol == 'IMAP':
-                    if secure == 'SSL/TLS':
-                        context = ssl_context or ssl.create_default_context()
-                        with imaplib.IMAP4_SSL(host, port, ssl_context=context) as server:
-                            if user or password:
-                                server.login(user or '', password or '')
-                            server.send(msg.as_bytes())
-                    else:
-                        with imaplib.IMAP4(host, port) as server:
-                            if secure == 'STARTTLS':
-                                context = ssl_context or ssl.create_default_context()
-                                server.starttls(ssl_context=context)
-                            if user or password:
-                                server.login(user or '', password or '')
-                            server.send(msg.as_bytes())
-
-                elif secure == 'SSL/TLS':
-                    context = ssl_context or ssl.create_default_context()
-                    with smtplib.SMTP_SSL(host, port, context=context) as server:
-                        if user or password:
-                            server.login(user or '', password or '')
-                        server.send_message(msg)
-                else:
-                    with smtplib.SMTP(host, port) as server:
-                        if secure == 'STARTTLS':
-                            context = ssl_context or ssl.create_default_context()
-                            server.starttls(context=context)
-                        if user or password:
-                            server.login(user or '', password or '')
-                        server.send_message(msg)
-        except:
-            if logmails == 'onerror':
-                if msg is None:
-                    msg = make_message(sender, receivers, templ_params, subject_templ, body_templ)
-                logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
-            raise
 
 _running = True
 
@@ -685,238 +540,226 @@ def _logmon(
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-    email_sender = EmailSender(config)
+    with EmailSender.from_config(config) as email_sender:
+        seek_end = config.get('seek_end', True)
+        use_inotify = config.get('use_inotify', Inotify is not None)
 
-    seek_end = config.get('seek_end', True)
-    use_inotify = config.get('use_inotify', Inotify is not None)
+        parentdir = dirname(logfile)
+        if use_inotify and Inotify is not None:
+            inotify = Inotify()
+        else:
+            inotify = None
 
-    parentdir = dirname(logfile)
-    if use_inotify and Inotify is not None:
-        inotify = Inotify()
-    else:
-        inotify = None
+        try:
+            file_not_found = False
 
-    try:
-        file_not_found = False
-
-        while _running:
-            try:
-                logfp = open(logfile, 'r')
-                if file_not_found:
-                    file_not_found = False
-                    logger.debug(f"{logfile}: File appeared!")
+            while _running:
                 try:
-                    logfp_stat = os.fstat(logfp.fileno())
-                    logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
-                    if seek_end:
-                        logfp.seek(0, os.SEEK_END)
+                    logfp = open(logfile, 'r')
+                    if file_not_found:
+                        file_not_found = False
+                        logger.debug(f"{logfile}: File appeared!")
+                    try:
+                        logfp_stat = os.fstat(logfp.fileno())
+                        logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
+                        if seek_end:
+                            logfp.seek(0, os.SEEK_END)
 
-                    reader = read_log_entries(logfp, entry_start_pattern, wait_line_incomplete, max_entry_lines)
+                        reader = read_log_entries(logfp, entry_start_pattern, wait_line_incomplete, max_entry_lines)
 
-                    while _running:
-                        start_ts = monotonic()
-                        entries: list[str] = []
-                        count = 0
-                        try:
-                            for entry in reader:
-                                if entry is None:
-                                    duration = monotonic() - start_ts
-                                    if duration >= wait_before_send:
-                                        break
-                                    rem_time = wait_before_send - duration
-                                    logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
-                                    sleep(rem_time)
-                                    continue
-
-                                if error_match := error_pattern.search(entry):
-                                    if ignore_pattern is not None and (ignore_match := ignore_pattern.search(entry)):
-                                        if logger.isEnabledFor(logging.DEBUG):
-                                            error_reason  = error_match.group(0)
-                                            ignore_reason = ignore_match.group(0)
-                                            logger.debug(f'{logfile}: IGNORED: {error_reason} for {ignore_reason}')
-                                    else:
-                                        entries.append(entry)
-
-                                count += 1
-                                if count >= max_entries:
-                                    break
-
-                        except KeyboardInterrupt:
-                            _keyboard_interrupt()
-
-                        if entries:
+                        while _running:
+                            start_ts = monotonic()
+                            entries: list[str] = []
+                            count = 0
                             try:
-                                if limits.check():
-                                    brief = ''
-
-                                    for line in entry_start_pattern.sub('', entries[0]).split('\n'):
-                                        brief = line.lstrip().rstrip(' \r\n\t:{')
-                                        if brief:
+                                for entry in reader:
+                                    if entry is None:
+                                        duration = monotonic() - start_ts
+                                        if duration >= wait_before_send:
                                             break
+                                        rem_time = wait_before_send - duration
+                                        logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
+                                        sleep(rem_time)
+                                        continue
 
-                                    if not brief:
-                                        brief = entries[0]
+                                    if error_match := error_pattern.search(entry):
+                                        if ignore_pattern is not None and (ignore_match := ignore_pattern.search(entry)):
+                                            if logger.isEnabledFor(logging.DEBUG):
+                                                error_reason  = error_match.group(0)
+                                                ignore_reason = ignore_match.group(0)
+                                                logger.debug(f'{logfile}: IGNORED: {error_reason} for {ignore_reason}')
+                                        else:
+                                            entries.append(entry)
 
-                                    email_sender.send_email(
-                                        logfile = logfile,
-                                        entries = entries,
-                                        brief = brief,
-                                    )
-                                elif logger.isEnabledFor(logging.DEBUG):
-                                    first_entry = entries[0]
-                                    first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-                                    logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {first_line}')
+                                    count += 1
+                                    if count >= max_entries:
+                                        break
 
-                            except Exception as exc:
-                                logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+                            except KeyboardInterrupt:
+                                _keyboard_interrupt()
 
-                        if count < max_entries and _running:
-                            do_reopen = False
-                            if inotify is not None:
-                                logger.debug(f'{logfile}: Waiting with inotify for modifications')
+                            if entries:
                                 try:
-                                    inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF)
-                                except InotifyError:
-                                    if not os.path.exists(logfile):
-                                        raise FileNotFoundError
-                                    raise
+                                    if limits.check():
+                                        brief = ''
 
-                                try:
-                                    inotify.add_watch(parentdir, IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO)
-                                except InotifyError:
-                                    if not os.path.exists(parentdir):
-                                        raise FileNotFoundError
-                                    raise
-                                except:
-                                    try: inotify.remove_watch(logfile)
-                                    except: pass
-
-                                deleted = False
-                                try:
-                                    new_stat = os.stat(logfile)
-                                    new_ref = (new_stat.st_dev, new_stat.st_ino)
-                                    if logfp_ref != new_ref:
-                                        # verify we're actually waiting on the file that is opened
-                                        do_reopen = True
-                                    else:
-                                        for event in inotify.event_gen():
-                                            if not _running:
+                                        for line in entry_start_pattern.sub('', entries[0]).split('\n'):
+                                            brief = line.lstrip().rstrip(' \r\n\t:{')
+                                            if brief:
                                                 break
 
-                                            if event is None:
-                                                continue
+                                        if not brief:
+                                            brief = entries[0]
 
-                                            _, type_names, event_path, event_filename = event
-                                            if normpath(joinpath(event_path, event_filename)) == logfile:
-                                                if 'IN_MODIFY' in type_names:
-                                                    break
+                                        email_sender.send_email(
+                                            logfile = logfile,
+                                            entries = entries,
+                                            brief = brief,
+                                        )
+                                    elif logger.isEnabledFor(logging.DEBUG):
+                                        first_entry = entries[0]
+                                        first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+                                        logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {first_line}')
 
-                                                if 'IN_MOVE_SELF' in type_names:
-                                                    do_reopen = True
-                                                    # this never fires because we have logfp open
-                                                    break
+                                except Exception as exc:
+                                    logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
 
-                                                if 'IN_MOVED_FROM' in type_names:
-                                                    do_reopen = True
-                                                    deleted = True
-                                                    break
-
-                                                if 'IN_MOVED_TO' in type_names:
-                                                    do_reopen = True
-                                                    deleted = True
-                                                    break
-
-                                                if 'IN_DELETE' in type_names or 'IN_DELETE_SELF' in type_names:
-                                                    do_reopen = True
-                                                    deleted = True
-                                                    break
-
-                                    if not _running:
-                                        break
-
-                                except TerminalEventException as exc:
-                                    # filesystem unmounted
-                                    do_reopen = True
-                                    deleted = True
-
-                                finally:
+                            if count < max_entries and _running:
+                                do_reopen = False
+                                if inotify is not None:
+                                    logger.debug(f'{logfile}: Waiting with inotify for modifications')
                                     try:
-                                        if not deleted:
-                                            inotify.remove_watch(logfile)
-                                    except Exception as exc:
-                                        logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
+                                        inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF)
+                                    except InotifyError:
+                                        if not os.path.exists(logfile):
+                                            raise FileNotFoundError
+                                        raise
 
                                     try:
-                                        inotify.remove_watch(parentdir)
-                                    except Exception as exc:
-                                        logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
-                            else:
-                                logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
-                                sleep(wait_no_entries)
+                                        inotify.add_watch(parentdir, IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO)
+                                    except InotifyError:
+                                        if not os.path.exists(parentdir):
+                                            raise FileNotFoundError
+                                        raise
+                                    except:
+                                        try: inotify.remove_watch(logfile)
+                                        except: pass
 
-                                try:
-                                    new_stat = os.stat(logfile)
-                                except FileNotFoundError:
-                                    pass
-                                else:
-                                    new_ref = (new_stat.st_dev, new_stat.st_ino)
-                                    if logfp_ref != new_ref:
+                                    deleted = False
+                                    try:
+                                        new_stat = os.stat(logfile)
+                                        new_ref = (new_stat.st_dev, new_stat.st_ino)
+                                        if logfp_ref != new_ref:
+                                            # verify we're actually waiting on the file that is opened
+                                            do_reopen = True
+                                        else:
+                                            for event in inotify.event_gen():
+                                                if not _running:
+                                                    break
+
+                                                if event is None:
+                                                    continue
+
+                                                _, type_names, event_path, event_filename = event
+                                                if normpath(joinpath(event_path, event_filename)) == logfile:
+                                                    if 'IN_MODIFY' in type_names:
+                                                        break
+
+                                                    if 'IN_MOVE_SELF' in type_names:
+                                                        do_reopen = True
+                                                        # this never fires because we have logfp open
+                                                        break
+
+                                                    if 'IN_MOVED_FROM' in type_names:
+                                                        do_reopen = True
+                                                        deleted = True
+                                                        break
+
+                                                    if 'IN_MOVED_TO' in type_names:
+                                                        do_reopen = True
+                                                        deleted = True
+                                                        break
+
+                                                    if 'IN_DELETE' in type_names or 'IN_DELETE_SELF' in type_names:
+                                                        do_reopen = True
+                                                        deleted = True
+                                                        break
+
+                                        if not _running:
+                                            break
+
+                                    except TerminalEventException as exc:
+                                        # filesystem unmounted
                                         do_reopen = True
+                                        deleted = True
 
-                            if do_reopen:
-                                logger.info(f"{logfile}: File changed, reopening...")
-                                try: logfp.close()
-                                except: pass
-                                seek_end = False
-                                config['seek_end'] = False
-                                break
+                                    finally:
+                                        try:
+                                            if not deleted:
+                                                inotify.remove_watch(logfile)
+                                        except Exception as exc:
+                                            logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
 
-                finally:
-                    if not logfp.closed:
-                        try: logfp.close()
-                        except: pass
+                                        try:
+                                            inotify.remove_watch(parentdir)
+                                        except Exception as exc:
+                                            logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
+                                else:
+                                    logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
+                                    sleep(wait_no_entries)
 
-            except FileNotFoundError:
-                file_not_found = True
-                seek_end = False
-                config['seek_end'] = False
-                if inotify is not None:
-                    logger.error(f"{logfile}: File not found, waiting with inotify")
-                    if not _inotify_wait_for_exists(inotify, logfile):
-                        break
-                else:
-                    logger.error(f"{logfile}: File not found, waiting for {wait_file_not_found} seconds")
-                    sleep(wait_file_not_found)
+                                    try:
+                                        new_stat = os.stat(logfile)
+                                    except FileNotFoundError:
+                                        pass
+                                    else:
+                                        new_ref = (new_stat.st_dev, new_stat.st_ino)
+                                        if logfp_ref != new_ref:
+                                            do_reopen = True
 
-            except KeyboardInterrupt:
-                _keyboard_interrupt()
-    finally:
-        if inotify is not None:
-            try: inotify.remove_watch(logfile)
-            except: pass
+                                if do_reopen:
+                                    logger.info(f"{logfile}: File changed, reopening...")
+                                    try: logfp.close()
+                                    except: pass
+                                    seek_end = False
+                                    config['seek_end'] = False
+                                    break
 
-            try: inotify.remove_watch(parentdir)
-            except: pass
+                    finally:
+                        if not logfp.closed:
+                            try: logfp.close()
+                            except: pass
 
-class EmailSender:
+                except FileNotFoundError:
+                    file_not_found = True
+                    seek_end = False
+                    config['seek_end'] = False
+                    if inotify is not None:
+                        logger.error(f"{logfile}: File not found, waiting with inotify")
+                        if not _inotify_wait_for_exists(inotify, logfile):
+                            break
+                    else:
+                        logger.error(f"{logfile}: File not found, waiting for {wait_file_not_found} seconds")
+                        sleep(wait_file_not_found)
+
+                except KeyboardInterrupt:
+                    _keyboard_interrupt()
+        finally:
+            if inotify is not None:
+                try: inotify.remove_watch(logfile)
+                except: pass
+
+                try: inotify.remove_watch(parentdir)
+                except: pass
+
+class EmailSender(ABC):
     __slots__ = (
         'subject_templ',
         'body_templ',
         'sender',
         'receivers',
-        'email_host',
-        'email_protocol',
-        'email_port',
-        'email_user',
-        'email_password',
-        'email_secure',
-        'http_method',
-        'http_path',
-        'http_params',
-        'http_content_type',
-        'http_headers',
         'logmails',
-        'ssl_context',
+        'protocol',
     )
 
     subject_templ: str
@@ -924,19 +767,26 @@ class EmailSender:
 
     sender: str
     receivers: list[str]
-    email_host: str
-    email_protocol: EmailProtocol
-    email_port: int
-    email_user: Optional[str]
-    email_password: Optional[str]
-    email_secure: SecureOption
-    http_method: str
-    http_path: str
-    http_params: Optional[dict[str, str]]
-    http_content_type: Optional[ContentType]
-    http_headers: Optional[dict[str, str]]
-    ssl_context: Optional[ssl.SSLContext]
+    protocol: EmailProtocol
+
     logmails: Logmails
+
+    @staticmethod
+    def from_config(config: Config) -> "EmailSender":
+        protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+
+        match protocol:
+            case 'HTTP' | 'HTTPS':
+                return HttpEmailSender(config)
+
+            case 'IMAP':
+                return ImapEmailSender(config)
+
+            case 'SMTP':
+                return SmtpEmailSender(config)
+
+            case _:
+                raise ValueError(f'Illegal protocol: {protocol!r}')
 
     def __init__(self, config: EMailConfig) -> None:
         self.subject_templ = config.get('subject', DEFAULT_SUBJECT)
@@ -944,43 +794,472 @@ class EmailSender:
 
         self.sender = config['sender']
         self.receivers = config['receivers']
-        self.email_host = config.get('host', DEFAULT_EMAIL_HOST)
-        self.email_protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
-        self.email_port = config.get('port', DEFAULT_EMAIL_PORT[self.email_protocol])
-        self.email_user = config.get('user')
-        self.email_password = config.get('password')
-        self.email_secure = config.get('secure')
+        self.protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+
+        self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
+
+    @abstractmethod
+    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+        ...
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        pass
+
+    def handle_error(self, msg: Optional[EmailMessage], templ_params: dict[str, str], exc: Exception) -> None:
+        if self.logmails == 'onerror':
+            if msg is None:
+                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
+            logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+
+    def get_email_params(self, logfile: str, entries: list[str], brief: str) -> Optional[tuple[dict[str, str], Optional[EmailMessage]]]:
+        entries_str = '\n\n'.join(entries)
+        first_entry = entries[0]
+        lines = first_entry.split('\n')
+        first_line = lines[0]
+
+        templ_params = {
+            'entries': entries_str,
+            'entries_json': json.dumps(entries, indent=2),
+            'logfile': logfile,
+            'brief': brief,
+            'line1': first_line,
+            'entry1': first_entry,
+            'entrynum': str(len(entries)),
+            'receivers': ', '.join(self.receivers),
+        }
+
+        msg: Optional[EmailMessage]
+        match self.logmails:
+            case 'always':
+                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
+                logger.info(f'{logfile}: Sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+
+            case 'instead':
+                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
+                logger.info(f'{logfile}: Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+                return None
+
+            case _:
+                msg = None
+
+        return templ_params, msg
+
+def get_default_port(config: EMailConfig) -> int:
+    protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+
+    match protocol:
+        case 'HTTP':
+            return 80
+
+        case 'HTTPS':
+            return 443
+
+        case 'SMTP':
+            match config.get('secure'):
+                case 'STARTTLS':
+                    return 587
+
+                case 'SSL/TLS':
+                    return 465
+
+                case None:
+                    return 25
+
+        case 'IMAP':
+            match config.get('secure'):
+                case 'STARTTLS' | None:
+                    return 993
+
+                case 'SSL/TLS':
+                    return 143
+
+        case _:
+            raise ValueError(f'Illegal protocol: {protocol!r}')
+
+class RemoteEmailSender(EmailSender):
+    __slots__ = (
+        'host',
+        'port',
+        'username',
+        'password',
+        'keep_connected',
+    )
+
+    host: str
+    port: int
+    username: Optional[str]
+    password: Optional[str]
+    keep_connected: bool
+
+    def __init__(self, config: Config) -> None:
+        super().__init__(config)
+
+        port = config.get('port')
+        self.host = config.get('host', DEFAULT_EMAIL_HOST)
+        self.port = port if port is not None else get_default_port(config)
+        self.username = config.get('user')
+        self.password = config.get('password')
+        self.keep_connected = config.get('keep_connected', False)
+
+class HttpEmailSender(RemoteEmailSender):
+    __slots__ = (
+        'http_method',
+        'http_path',
+        'http_params',
+        'http_content_type',
+        'http_headers',
+        'http_max_redirect',
+        'http_connection',
+    )
+    http_method: str
+    http_path: str
+    http_params: Optional[dict[str, str]]
+    http_content_type: Optional[ContentType]
+    http_headers: Optional[dict[str, str]]
+    http_max_redirect: int
+    http_connection: HTTPConnection
+
+    def __init__(self, config: Config) -> None:
+        super().__init__(config)
+
         self.http_method = config.get('http_method', 'POST')
-        self.http_path = config.get('http_path', '/')
+        http_path = config.get('http_path', '/')
+        if not http_path.startswith('/'):
+            http_path = f'/{http_path}'
+        self.http_path = http_path
         self.http_params = config.get('http_params')
         self.http_content_type = config.get('http_content_type')
         self.http_headers = config.get('http_headers')
-        self.ssl_context = ssl.create_default_context() if self.email_secure else None
-        self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
+        self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
+        self.http_connection = HTTPConnection(self.host, self.port) if self.protocol == 'HTTP' else \
+                               HTTPSConnection(self.host, self.port)
 
+    @override
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
-        send_email(
-            logfile = logfile,
-            entries = entries,
-            subject_templ = self.subject_templ,
-            body_templ = self.body_templ,
-            sender = self.sender,
-            receivers = self.receivers,
-            host = self.email_host,
-            port = self.email_port,
-            user = self.email_user,
-            password = self.email_password,
-            secure = self.email_secure,
-            protocol = self.email_protocol,
-            ssl_context = self.ssl_context,
-            logmails = self.logmails,
-            http_method = self.http_method,
-            http_path = self.http_path,
-            http_params = self.http_params,
-            http_content_type = self.http_content_type,
-            http_headers = self.http_headers,
-            brief = brief,
-        )
+        email_params = self.get_email_params(logfile, entries, brief)
+
+        if email_params is None:
+            return
+
+        templ_params, msg = email_params
+
+        try:
+            if logger.isEnabledFor(logging.DEBUG):
+                subject = self.subject_templ.format_map(templ_params)
+                debug_url = f'{self.protocol.lower()}://{self.host}:{self.port}{self.http_path}'
+                logger.debug(f'{logfile}: {self.http_method}-ing to {debug_url}: {subject}')
+
+            http_params = self.http_params
+            if http_params is None:
+                http_params = DEFAULT_HTTP_PARAMS
+
+            data = {
+                key: templ.format_map(templ_params)
+                for key, templ in http_params.items()
+            }
+
+            body: Optional[bytes]
+            content_type: Optional[str] = None
+            http_method = self.http_method
+            relative_url = self.http_path
+
+            if http_method == 'GET':
+                query = urlencode(data)
+                relative_url = f'{relative_url}?{query}'
+                body = None
+            else:
+                http_content_type = self.http_content_type
+                if http_content_type is None or http_content_type == 'URL':
+                    body = urlencode(data).encode()
+                    content_type = 'application/x-www-form-urlencoded'
+
+                elif http_content_type == 'JSON':
+                    json_data: dict[str, Any] = data
+                    for key, templ in http_params.items():
+                        if templ == '{entries_json}':
+                            json_data[key] = entries
+
+                    body = json.dumps(json_data).encode()
+                    content_type = 'application/json; charset=UTF-8'
+
+                elif http_content_type == 'multipart':
+                    headers, body = encode_multipart(data)
+
+                else:
+                    raise ValueError(f'illegal http_content_type: {http_content_type}')
+
+            if self.http_headers:
+                headers = dict(self.http_headers)
+            else:
+                headers = {}
+
+            if content_type:
+                headers['Content-Type'] = content_type
+
+            if self.keep_connected:
+                headers['Connection'] = 'keep-alive'
+
+            if self.username or self.password:
+                credentials = f'{self.username or ''}:{self.password or ''}'.encode()
+                headers['Authorization'] = f"Basic {b64encode(credentials).decode('ASCII')}"
+
+            if self.http_connection.sock is None:
+                self.http_connection.connect()
+
+            try:
+                self.http_connection.request(http_method, relative_url, body, headers)
+            except NotConnected:
+                self.http_connection.connect()
+                self.http_connection.request(http_method, relative_url, body, headers)
+
+            res = self.http_connection.getresponse()
+            status = res.status
+
+            if status in HTTP_REDIRECT_STATUSES:
+                scheme = self.protocol.lower()
+                url = f'{scheme}://{relative_url}'
+
+                if http_method != 'GET':
+                    raise HTTPException(f'Got {status} {res.reason} for {http_method} request to {url}')
+
+                visited = {url}
+
+                if self.http_headers:
+                    new_headers = dict(self.http_headers)
+                else:
+                    new_headers = {}
+
+                if content_type:
+                    new_headers['Content-Type'] = content_type
+
+                redirect_count = 0
+                while True:
+                    redirect_count += 1
+                    if redirect_count > self.http_max_redirect:
+                        raise HTTPException(f'Maximum number of redirects ({self.http_max_redirect}) exceeded!')
+
+                    location = res.headers.get('location')
+
+                    if not location:
+                        raise HTTPException(f'Redirect {status} {res.reason} is missing a Location header!')
+
+                    new_url = urljoin(url, location)
+                    if new_url in visited:
+                        raise HTTPException(f'Redirection loop to {new_url} detected!')
+                    visited.add(new_url)
+
+                    new_url_obj = urlparse(new_url)
+                    new_relative_url = (new_url_obj.path or '/')
+                    if new_url_obj.query:
+                        new_relative_url = f'{new_relative_url}?{new_url_obj.query}'
+
+                    new_port = new_url_obj.port
+                    if new_port is None:
+                        if new_url_obj.scheme == 'http':
+                            new_port = 80
+
+                        elif new_url_obj.scheme == 'https':
+                            new_port = 443
+
+                    if self.keep_connected and new_url_obj.scheme == scheme and new_url_obj.netloc == self.host and new_port == self.port:
+                        try:
+                            self.http_connection.request('GET', new_relative_url, body, { **new_headers, 'Connection': 'keep-alive' })
+                        except NotConnected:
+                            self.http_connection.connect()
+                            self.http_connection.request('GET', new_relative_url, body, { **new_headers, 'Connection': 'keep-alive' })
+
+                        res = self.http_connection.getresponse()
+                    else:
+                        conn = HTTPConnection(new_url_obj.netloc, new_port) if new_url_obj.scheme == 'http' else \
+                               HTTPSConnection(new_url_obj.netloc, new_port)
+                        try:
+                            conn.connect()
+                            conn.request('GET', new_relative_url, body, new_headers)
+                            res = self.http_connection.getresponse()
+                        finally:
+                            conn.close()
+
+                    status = res.status
+                    url = new_url
+
+                    if status in HTTP_REDIRECT_STATUSES:
+                        continue
+
+                    if status < 200 or status >= 300:
+                        raise HTTPException(f'HTTP status error: {status} {res.reason}')
+
+            elif status < 200 or status >= 300:
+                raise HTTPException(f'HTTP status error: {status} {res.reason}')
+
+        except Exception as exc:
+            self.handle_error(msg, templ_params, exc)
+            raise
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.http_connection.close()
+
+class SslEmailSender(RemoteEmailSender):
+    __slots__ = (
+        'secure',
+        'ssl_context',
+    )
+
+    secure: SecureOption
+    ssl_context: Optional[ssl.SSLContext]
+
+    def __init__(self, config: Config) -> None:
+        super().__init__(config)
+
+        self.secure = secure = config.get('secure')
+        self.ssl_context = ssl.create_default_context() if secure else None
+
+class SmtpEmailSender(SslEmailSender):
+    __slots__ = (
+        'smtp',
+    )
+
+    smtp: smtplib.SMTP
+
+    def __init__(self, config: Config) -> None:
+        super().__init__(config)
+
+        if self.secure == 'SSL/TLS':
+            self.smtp = smtplib.SMTP_SSL()
+        else:
+            self.smtp = smtplib.SMTP()
+
+    @override
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if self.smtp.sock is not None:
+            self.smtp.__exit__(exc_type, exc_value, traceback)
+
+    def connect(self) -> None:
+        self.smtp.connect(self.host, self.port)
+
+        if self.secure == 'STARTTLS':
+            if self.ssl_context is None:
+                self.ssl_context = ssl.create_default_context()
+            self.smtp.starttls(context=self.ssl_context)
+
+        if self.username or self.password:
+            self.smtp.login(self.username or '', self.password or '')
+
+    @override
+    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+        email_params = self.get_email_params(logfile, entries, brief)
+
+        if email_params is None:
+            return
+
+        templ_params, msg = email_params
+
+        try:
+            if msg is None:
+                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
+
+            try:
+                if self.smtp.sock is None:
+                    self.connect()
+
+                try:
+                    self.smtp.send_message(msg)
+                except smtplib.SMTPServerDisconnected:
+                    self.connect()
+                    self.smtp.send_message(msg)
+            finally:
+                if not self.keep_connected:
+                    self.__exit__(None, None, None)
+
+        except Exception as exc:
+            self.handle_error(msg, templ_params, exc)
+            raise
+
+class ImapEmailSender(SslEmailSender):
+    __slots__ = (
+        'imap',
+    )
+
+    imap: Optional[imaplib.IMAP4]
+
+    def __init__(self, config: Config) -> None:
+        super().__init__(config)
+
+        self.imap = None
+
+    @override
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        imap = self.imap
+        if imap is not None:
+            imap.__exit__(exc_type, exc_value, traceback)
+            self.imap = None
+
+    def connect(self) -> imaplib.IMAP4:
+        imap = self.imap
+
+        if imap is not None:
+            try:
+                imap.shutdown()
+            except Exception as exc:
+                logger.error(f'Error shutting down existing IMAP connection: {exc}', exc_info=exc)
+
+            self.imap = None
+
+        if self.secure == 'SSL/TLS':
+            imap = imaplib.IMAP4_SSL(self.host, self.port, ssl_context=self.ssl_context)
+        else:
+            imap = imaplib.IMAP4(self.host, self.port)
+
+        self.imap = imap
+        imap.open(self.host, self.port)
+
+        if self.secure == 'STARTTLS':
+            if self.ssl_context is None:
+                self.ssl_context = ssl.create_default_context()
+            imap.starttls(ssl_context=self.ssl_context)
+
+        if self.username or self.password:
+            imap.login(self.username or '', self.password or '')
+
+        return imap
+
+    @override
+    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+        email_params = self.get_email_params(logfile, entries, brief)
+
+        if email_params is None:
+            return
+
+        templ_params, msg = email_params
+
+        try:
+            if msg is None:
+                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
+
+            msg_bytes = msg.as_bytes()
+
+            try:
+                imap = self.imap
+                if imap is None:
+                    imap = self.connect()
+
+                try:
+                    imap.send(msg_bytes)
+                except OSError as exc:
+                    if exc.errno == errno.ECONNRESET or exc.errno == errno.ENOTCONN:
+                        imap = self.connect()
+                        imap.send(msg_bytes)
+                    else:
+                        raise
+            finally:
+                if not self.keep_connected:
+                    self.__exit__(None, None, None)
+
+        except Exception as exc:
+            self.handle_error(msg, templ_params, exc)
+            raise
 
 try:
     from cysystemd.reader import JournalReader, JournalOpenMode, Rule # type: ignore
@@ -1002,113 +1281,112 @@ try:
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-        email_sender = EmailSender(config)
+        with EmailSender.from_config(config) as email_sender:
+            seek_end = config.get('seek_end', True)
+            raw_priority = config.get('systemd_priority')
+            match_dict = config.get('systemd_match')
 
-        seek_end = config.get('seek_end', True)
-        raw_priority = config.get('systemd_priority')
-        match_dict = config.get('systemd_match')
+            priority: Optional[Priority]
+            if isinstance(raw_priority, str):
+                priority = Priority[raw_priority]
+            elif raw_priority is not None:
+                priority = Priority(raw_priority)
+            else:
+                priority = None
 
-        priority: Optional[Priority]
-        if isinstance(raw_priority, str):
-            priority = Priority[raw_priority]
-        elif raw_priority is not None:
-            priority = Priority(raw_priority)
-        else:
-            priority = None
+            mode, unit = _systemd_parse_path(logfile)
 
-        mode, unit = _systemd_parse_path(logfile)
+            reader = JournalReader()
+            try:
+                reader.open(mode)
 
-        reader = JournalReader()
-        try:
-            reader.open(mode)
+                if seek_end:
+                    reader.seek_tail()
 
-            if seek_end:
-                reader.seek_tail()
+                rule: Optional[Rule] = None
 
-            rule: Optional[Rule] = None
+                if unit is not None:
+                    rule = Rule('_SYSTEMD_UNIT', unit)
 
-            if unit is not None:
-                rule = Rule('_SYSTEMD_UNIT', unit)
+                if match_dict:
+                    for rule_key, rule_value in match_dict.items():
+                        new_rule = Rule(rule_key, str(rule_value))
+                        if rule is None:
+                            rule = new_rule
+                        else:
+                            rule &= new_rule
 
-            if match_dict:
-                for rule_key, rule_value in match_dict.items():
-                    new_rule = Rule(rule_key, str(rule_value))
-                    if rule is None:
-                        rule = new_rule
-                    else:
-                        rule &= new_rule
-
-            if priority is not None:
-                # TODO: is this really the way?
-                int_priority: int = priority.value
-                prule = Rule('PRIORITY', str(int_priority))
-                int_priority -= 1
-                while int_priority > 0:
-                    prule |= Rule('PRIORITY', str(int_priority))
+                if priority is not None:
+                    # TODO: is this really the way?
+                    int_priority: int = priority.value
+                    prule = Rule('PRIORITY', str(int_priority))
                     int_priority -= 1
+                    while int_priority > 0:
+                        prule |= Rule('PRIORITY', str(int_priority))
+                        int_priority -= 1
 
-                if rule is None:
-                    rule = prule
-                else:
-                    rule &= prule
+                    if rule is None:
+                        rule = prule
+                    else:
+                        rule &= prule
 
-            if rule is not None:
-                reader.add_filter(rule)
+                if rule is not None:
+                    reader.add_filter(rule)
 
-            poller = poll()
-            if stopfd is not None:
-                poller.register(stopfd, POLLIN)
-            poller.register(reader.fd, reader.events)
+                poller = poll()
+                if stopfd is not None:
+                    poller.register(stopfd, POLLIN)
+                poller.register(reader.fd, reader.events)
 
-            while _running:
-                events = poller.poll()
-                if not events:
-                    continue
+                while _running:
+                    events = poller.poll()
+                    if not events:
+                        continue
 
-                if any(fd == stopfd for fd, _event in events):
-                    break
+                    if any(fd == stopfd for fd, _event in events):
+                        break
 
-                start_ts = monotonic()
-                entries = list(reader)
-                duration = monotonic() - start_ts
+                    start_ts = monotonic()
+                    entries = list(reader)
+                    duration = monotonic() - start_ts
 
-                try:
-                    while len(entries) < max_entries and duration < wait_before_send:
-                        rem_time = wait_before_send - duration
-                        logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
-                        reader.wait(rem_time)
-                        entries.extend(reader)
-                        duration = monotonic() - start_ts
-
-                except KeyboardInterrupt:
-                    _keyboard_interrupt()
-
-                str_entries: list[str] = [json.dumps(entry.data, indent=4) for entry in entries]
-
-                if str_entries:
                     try:
-                        brief = entries[0].data.get('MESSAGE')
+                        while len(entries) < max_entries and duration < wait_before_send:
+                            rem_time = wait_before_send - duration
+                            logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
+                            reader.wait(rem_time)
+                            entries.extend(reader)
+                            duration = monotonic() - start_ts
 
-                        if limits.check():
-                            email_sender.send_email(
-                                logfile = logfile,
-                                entries = str_entries,
-                                brief = brief,
-                            )
-                        elif logger.isEnabledFor(logging.DEBUG):
-                            if not brief:
-                                first_entry = str_entries[0]
-                                brief = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-                            logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {brief}')
+                    except KeyboardInterrupt:
+                        _keyboard_interrupt()
 
-                    except Exception as exc:
-                        logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+                    str_entries: list[str] = [json.dumps(entry.data, indent=4) for entry in entries]
 
-        except KeyboardInterrupt:
-            _keyboard_interrupt()
+                    if str_entries:
+                        try:
+                            brief = entries[0].data.get('MESSAGE')
 
-        # There seems to be no way to manually close the reader.
-        # It happens only in __dealloc__().
+                            if limits.check():
+                                email_sender.send_email(
+                                    logfile = logfile,
+                                    entries = str_entries,
+                                    brief = brief,
+                                )
+                            elif logger.isEnabledFor(logging.DEBUG):
+                                if not brief:
+                                    first_entry = str_entries[0]
+                                    brief = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+                                logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {brief}')
+
+                        except Exception as exc:
+                            logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+
+            except KeyboardInterrupt:
+                _keyboard_interrupt()
+
+            # There seems to be no way to manually close the reader.
+            # It happens only in __dealloc__().
 
     HAS_SYSTEMD = True
 except ImportError:
@@ -1569,6 +1847,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType)))
     ap.add_argument('-P', '--http-param', action='append', default=[])
     ap.add_argument('-H', '--http-header', action='append', default=[])
+    ap.add_argument('--keep-connected', action='store_true', default=None)
+    ap.add_argument('--no-keep-connected', action='store_false', dest='keep_connected')
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
         help='Fork process to the background. Send SIGTERM to the logmon process for shutdown.')
     ap.add_argument('--pidfile', default=None, metavar='PATH',
@@ -1770,6 +2050,9 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.entry_start_pattern is not None:
         default_config['entry_start_pattern'] = args.entry_start_pattern
+
+    if args.keep_connected is not None:
+        default_config['keep_connected'] = args.keep_connected
 
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
