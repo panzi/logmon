@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, get_args, override
+from typing import Callable, Iterable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, NamedTuple, get_args, override
 from abc import ABC, abstractmethod
 from time import sleep, monotonic
 from email.message import EmailMessage
@@ -212,6 +212,7 @@ type RangeExpr = tuple[Literal["in","not in"],list[str|float|int|None]|Range]
 type RegExExpr = tuple[Literal["~"], str]
 type JsonExpr = EqExpr|OrdExpr|RangeExpr|RegExExpr
 type JsonMatch = dict[str|int, JsonExpr|JsonMatch]
+type CompiledJsonMatch = dict[str|int, Callable[[Any], bool]|CompiledJsonMatch]
 
 def get_json_path(obj: Any, path: JsonPath) -> Optional[Any]:
     for key in path:
@@ -221,6 +222,22 @@ def get_json_path(obj: Any, path: JsonPath) -> Optional[Any]:
             return None
 
     return obj
+
+def check_json_match(obj: Any, json_match: CompiledJsonMatch) -> bool:
+    for key, check in json_match.items():
+        try:
+            value = obj[key]
+        except (KeyError, IndexError, TypeError):
+            return False
+
+        if callable(check):
+            if not check(value):
+                return False
+
+        elif not check_json_match(value, check):
+            return False
+
+    return True
 
 def parse_json_path(path_def: str) -> JsonPath:
     path, index = _parse_json_path(path_def)
@@ -321,6 +338,17 @@ def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
 
     except json.JSONDecodeError as exc:
         raise ValueError(f'Illegal JSON match definition: {match_def!r}') from exc
+
+def compile_json_match(json_match: JsonMatch) -> CompiledJsonMatch:
+    compiled: CompiledJsonMatch = {}
+
+    for key, value in json_match.items():
+        if isinstance(value, dict):
+            compiled[key] = compile_json_match(value)
+        else:
+            compiled[key] = compile_json_match_expr(value)
+
+    return compiled
 
 def compile_json_match_expr(expr: JsonExpr) -> Callable[[Any], bool]:
     op, expected = expr
@@ -471,7 +499,9 @@ class LogfileConfig(TypedDict):
     seek_end: NotRequired[bool] # default: True
     json: NotRequired[bool] # default: False
     json_match: NotRequired[Optional[JsonMatch]]
+    json_ignore: NotRequired[Optional[JsonMatch]]
     json_brief: NotRequired[Optional[JsonPath]]
+    json_indent: NotRequired[int]
 
 SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
@@ -570,6 +600,240 @@ def encode_multipart(fields: dict[str,str]|dict[str, MultipartFile]|dict[str, st
     return headers, body
 
 _running = True
+
+class LogEntry(NamedTuple):
+    data: Any
+    brief: Optional[str] # how to not calculate that for all entries?
+    formatted: str
+
+class EntryReader(ABC):
+    __slots__ = ()
+
+    @abstractmethod
+    def read_entries(self, logfile: TextIO) -> Iterable[Optional[LogEntry]]: ...
+
+    @staticmethod
+    def from_config(config: Config) -> "EntryReader":
+        if config.get('json'):
+            return JsonEntryReader(config)
+        else:
+            return TextEntryReader(config)
+
+class TextEntryReader(EntryReader):
+    __slots__ = (
+        'entry_start_pattern',
+        'error_pattern',
+        'ignore_pattern',
+        'wait_line_incomplete',
+        'max_entry_lines',
+    )
+    entry_start_pattern: Pattern[str]
+    error_pattern: Pattern[str]
+    ignore_pattern: Optional[Pattern[str]]
+    wait_line_incomplete: int|float
+    max_entry_lines: int
+
+    def __init__(self, config: Config) -> None:
+        super().__init__()
+
+        entry_start_pattern_cfg = config.get('entry_start_pattern')
+        if entry_start_pattern_cfg is None:
+            entry_start_pattern = DEFAULT_ENTRY_START_PATTERN
+        else:
+            if isinstance(entry_start_pattern_cfg, list):
+                entry_start_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in entry_start_pattern_cfg)
+            entry_start_pattern = re.compile(entry_start_pattern_cfg)
+
+        error_pattern_cfg = config.get('error_pattern')
+        if error_pattern_cfg is None:
+            error_pattern = DEFAULT_ERROR_PATTERN
+        else:
+            if isinstance(error_pattern_cfg, list):
+                error_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in error_pattern_cfg)
+            error_pattern = re.compile(error_pattern_cfg)
+
+        ignore_pattern_cfg = config.get('ignore_pattern')
+        ignore_pattern: Optional[Pattern[str]]
+        if ignore_pattern_cfg is not None:
+            if not ignore_pattern_cfg:
+                ignore_pattern = None
+            else:
+                if isinstance(ignore_pattern_cfg, list):
+                    ignore_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in ignore_pattern_cfg)
+                ignore_pattern = re.compile(ignore_pattern_cfg)
+        else:
+            ignore_pattern = None
+
+        wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
+        max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
+
+        self.entry_start_pattern = entry_start_pattern
+        self.error_pattern = error_pattern
+        self.ignore_pattern = ignore_pattern
+        self.wait_line_incomplete = wait_line_incomplete
+        self.max_entry_lines = max_entry_lines
+
+    @override
+    def read_entries(self, logfile: TextIO) -> Iterable[Optional[LogEntry]]:
+        buf: list[str] = []
+        next_line: Optional[str] = None
+
+        while _running:
+            if next_line is not None:
+                line = next_line
+                next_line = None
+            else:
+                line = logfile.readline()
+
+            if not line:
+                # singal no more entries for now
+                yield None
+                continue
+
+            buf.append(line)
+            if not line.endswith('\n'):
+                sleep(self.wait_line_incomplete)
+                buf.append(logfile.readline())
+
+            line_count = 1
+            entry_start_pattern = self.entry_start_pattern
+            while line_count < self.max_entry_lines:
+                line = logfile.readline()
+
+                if not line:
+                    break
+
+                if not line.endswith('\n'):
+                    sleep(self.wait_line_incomplete)
+                    line += logfile.readline()
+
+                if entry_start_pattern.match(line):
+                    next_line = line
+                    break
+
+                buf.append(line)
+                line_count += 1
+
+            entry = ''.join(buf)
+            buf.clear()
+
+            if error_match := self.error_pattern.search(entry):
+                ignore_pattern = self.ignore_pattern
+                if ignore_pattern is not None and (ignore_match := ignore_pattern.search(entry)):
+                    if logger.isEnabledFor(logging.DEBUG):
+                        error_reason  = error_match.group(0)
+                        ignore_reason = ignore_match.group(0)
+                        logger.debug(f'{logfile.name}: IGNORED: {error_reason} for {ignore_reason}')
+                else:
+                    brief = ''
+
+                    for line in entry_start_pattern.sub('', entry).split('\n'):
+                        brief = line.lstrip().rstrip(' \r\n\t:{')
+                        if brief:
+                            break
+
+                    if not brief:
+                        brief = entry
+
+                    yield LogEntry(
+                        data = entry,
+                        brief = brief,
+                        formatted = entry,
+                    )
+
+class JsonEntryReader(EntryReader):
+    __slots__ = (
+        'match',
+        'ignore',
+        'brief_path',
+        'wait_line_incomplete',
+        'indent',
+    )
+    match: CompiledJsonMatch
+    ignore: Optional[CompiledJsonMatch]
+    brief_path: Optional[JsonPath]
+    wait_line_incomplete: int|float
+    indent: int
+
+    def __init__(self, config: Config) -> None:
+        super().__init__()
+
+        json_match = config.get('json_match') or {}
+        json_ignore = config.get('json_ignore')
+
+        self.match = compile_json_match(json_match)
+        self.ignore = compile_json_match(json_ignore) if json_ignore is not None else None
+        self.brief_path = config.get('json_brief')
+        self.wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
+        self.indent = config.get('json_indent', 4)
+
+    @override
+    def read_entries(self, logfile: TextIO) -> Iterable[LogEntry | None]:
+        while _running:
+            line = logfile.readline()
+
+            if not line:
+                yield None
+                continue
+
+            if not line.endswith('\n'):
+                sleep(self.wait_line_incomplete)
+                line += logfile.readline()
+
+            line = line.strip()
+
+            if not line or line.startswith('//'):
+                # ignore empty lines and support single line JavaScript style comments
+                continue
+
+            entry = json.loads(line)
+
+            if not check_json_match(entry, self.match):
+                continue
+
+            ignore = self.ignore
+            if ignore is not None and check_json_match(entry, ignore):
+                continue
+
+            brief_path = self.brief_path
+
+            if brief_path is not None:
+                brief = get_json_path(entry, brief_path)
+                if brief is None:
+                    brief = line.strip()
+            else:
+                brief = line.strip()
+
+            formatted = json.dumps(entry, indent=self.indent)
+
+            yield LogEntry(
+                data = entry,
+                brief = brief,
+                formatted = formatted
+            )
+
+def read_json_log_entries(
+        logfile: TextIO,
+        wait_line_incomplete: int|float = DEFAULT_WAIT_LINE_INCOMPLETE,
+) -> Generator[Any|None, None, None]:
+    while _running:
+        line = logfile.readline()
+
+        if not line:
+            yield None
+            continue
+
+        if not line.endswith('\n'):
+            sleep(wait_line_incomplete)
+            line += logfile.readline()
+
+        line = line.strip()
+
+        if not line or line.startswith('//'):
+            # ignore empty lines and support single line JavaScript style comments
+            continue
+
+        yield json.loads(line)
 
 def read_log_entries(
         logfile: TextIO,
@@ -775,7 +1039,6 @@ def _logmon(
                         while _running:
                             start_ts = monotonic()
                             entries: list[str] = []
-                            count = 0
                             try:
                                 for entry in reader:
                                     if entry is None:
@@ -796,8 +1059,7 @@ def _logmon(
                                         else:
                                             entries.append(entry)
 
-                                    count += 1
-                                    if count >= max_entries:
+                                    if len(entries) >= max_entries:
                                         break
 
                             except KeyboardInterrupt:
@@ -829,7 +1091,7 @@ def _logmon(
                                 except Exception as exc:
                                     logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
 
-                            if count < max_entries and _running:
+                            if _running:
                                 do_reopen = False
                                 if inotify is not None:
                                     logger.debug(f'{logfile}: Waiting with inotify for modifications')
@@ -2059,7 +2321,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--json', action='store_true', default=None)
     ap.add_argument('--no-json', action='store_false', dest='json')
     ap.add_argument('--json-match', action='append', metavar='PATH=VALUE')
+    ap.add_argument('--json-ignore', action='append', metavar='PATH=VALUE')
     ap.add_argument('--json-brief', default=None, metavar='PATH')
+    ap.add_argument('--json-indent', type=int, default=None)
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
@@ -2284,31 +2548,16 @@ def main(argv: Optional[list[str]] = None) -> None:
         default_config['json'] = args.json
 
     if args.json_match is not None:
-        json_match: JsonMatch = {}
-        json_match_item: str
-        for json_match_item in args.json_match:
-            json_path, json_value = parse_json_match(json_match_item)
+        default_config['json_match'] = _parse_json_match_arg(args.json_match)
 
-            json_ctx = json_match
-            for key in json_path[:-1]:
-                if key not in json_ctx:
-                    new_ctx: JsonMatch = {}
-                    json_ctx[key] = new_ctx
-                    json_ctx = new_ctx
-                else:
-                    next_ctx = json_ctx[key]
-                    if not isinstance(next_ctx, dict):
-                        raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists and is of type {type(next_ctx).__name__} (expected dict)')
-                    json_ctx = next_ctx
-
-            key = json_path[-1]
-            if key in json_ctx:
-                raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists')
-            json_ctx[key] = json_value
-        default_config['json_match'] = json_match
+    if args.json_ignore is not None:
+        default_config['json_ignore'] = _parse_json_match_arg(args.json_ignore)
 
     if args.json_brief is not None:
         default_config['json_brief'] = parse_json_path(args.json_brief)
+
+    if args.json_indent is not None:
+        default_config['json_indent'] = args.json_indent
 
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
@@ -2429,6 +2678,31 @@ def _print_no_inotify() -> None:
 
 def _print_no_systemd() -> None:
     print('SystemD support requires the `cysystemd` Python package to be installed!', file=sys.stderr)
+
+def _parse_json_match_arg(args: list[str]) -> JsonMatch:
+    json_match: JsonMatch = {}
+    json_match_item: str
+    for json_match_item in args:
+        json_path, json_value = parse_json_match(json_match_item)
+
+        json_ctx = json_match
+        for key in json_path[:-1]:
+            if key not in json_ctx:
+                new_ctx: JsonMatch = {}
+                json_ctx[key] = new_ctx
+                json_ctx = new_ctx
+            else:
+                next_ctx = json_ctx[key]
+                if not isinstance(next_ctx, dict):
+                    raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists and is of type {type(next_ctx).__name__} (expected dict)')
+                json_ctx = next_ctx
+
+        key = json_path[-1]
+        if key in json_ctx:
+            raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists')
+        json_ctx[key] = json_value
+
+    return json_match
 
 if __name__ == '__main__':
     main()
