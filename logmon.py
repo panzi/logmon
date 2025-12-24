@@ -1091,7 +1091,9 @@ def _logmon(
                                 except Exception as exc:
                                     logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
 
-                            if _running:
+                            if len(entries) < max_entries and _running:
+                                # If there are max_entries that means there are probably already more in the
+                                # log file, so try to read those before waiting via inotify.
                                 do_reopen = False
                                 if inotify is not None:
                                     logger.debug(f'{logfile}: Waiting with inotify for modifications')
