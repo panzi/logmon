@@ -37,6 +37,7 @@ import ssl
 import uuid
 import json
 import errno
+import signal
 import smtplib
 import imaplib
 import logging
@@ -87,6 +88,19 @@ try:
                 try:
                     if os.path.exists(path):
                         return True
+
+                    stopfd = _read_stopfd
+                    if stopfd is not None:
+                        poller = poll()
+                        poller.register(stopfd, POLLIN)
+                        # why is there no official way to get that file discriptor!?
+                        poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
+                        pevents = poller.poll()
+                        if not pevents:
+                            return False
+
+                        if any(fd == stopfd for fd, _pevent in pevents):
+                            return False
 
                     for event in inotify.event_gen():
                         if not _running:
@@ -670,10 +684,9 @@ def _logmon(
         logfile: str,
         config: Config,
         limits: LimitsService,
-        stopfd: Optional[int] = None,
 ) -> None:
     if _is_systemd_path(logfile):
-        return _logmon_systemd(logfile, config, limits, stopfd)
+        return _logmon_systemd(logfile, config, limits)
 
     entry_start_pattern_cfg = config.get('entry_start_pattern')
     if entry_start_pattern_cfg is None:
@@ -823,6 +836,19 @@ def _logmon(
                                             # verify we're actually waiting on the file that is opened
                                             do_reopen = True
                                         else:
+                                            stopfd = _read_stopfd
+                                            if stopfd is not None:
+                                                poller = poll()
+                                                poller.register(stopfd, POLLIN)
+                                                # why is there no official way to get that file discriptor!?
+                                                poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
+                                                pevents = poller.poll()
+                                                if not pevents:
+                                                    break
+
+                                                if any(fd == stopfd for fd, _pevent in pevents):
+                                                    break
+
                                             for event in inotify.event_gen():
                                                 if not _running:
                                                     break
@@ -1444,7 +1470,6 @@ try:
         logfile: str,
         config: Config,
         limits: LimitsService,
-        stopfd: Optional[int] = None,
     ) -> None:
         wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
@@ -1504,6 +1529,7 @@ try:
                     reader.add_filter(rule)
 
                 poller = poll()
+                stopfd = _read_stopfd
                 if stopfd is not None:
                     poller.register(stopfd, POLLIN)
                 poller.register(reader.fd, reader.events)
@@ -1570,7 +1596,6 @@ except ImportError:
         logfile: str,
         config: Config,
         limits: LimitsService,
-        stopfd: Optional[int] = None,
     ) -> None:
         raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
 
@@ -1596,13 +1621,7 @@ def make_abs_logfile(logfile: str, context_dir: str) -> str:
 
     return joinpath(context_dir, logfile)
 
-def _keyboard_interrupt() -> None:
-    global _running
-    if _running:
-        logger.info("Shutting down on SIGINT...")
-        _running = False
-
-def _logmon_thread(logfile: str, config: Config, limits: LimitsService, stopfd: Optional[int] = None) -> None:
+def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
     logfile = normpath(abspath(logfile)) if not _is_systemd_path(logfile) else logfile
     wait_after_crash = config.get('wait_after_crash', DEFAULT_WAIT_AFTER_CRASH)
 
@@ -1612,7 +1631,6 @@ def _logmon_thread(logfile: str, config: Config, limits: LimitsService, stopfd: 
                 logfile = logfile,
                 config = config,
                 limits = limits,
-                stopfd = stopfd,
             )
         except KeyboardInterrupt:
             _keyboard_interrupt()
@@ -1624,8 +1642,45 @@ def _logmon_thread(logfile: str, config: Config, limits: LimitsService, stopfd: 
         else:
             break
 
-def logmon_mt(config: MTConfig):
+_read_stopfd:  Optional[int] = None
+_write_stopfd: Optional[int] = None
+
+def _keyboard_interrupt() -> None:
     global _running
+    if _running:
+        _running = False
+        logger.info("Shutting down on SIGINT...")
+        _signal_stopfd()
+
+def _stop_on_signal(signum: int, frame) -> None:
+    global _running
+    _running = False
+    signame: str
+    try:
+        signame = signal.Signals(signum).name
+    except:
+        signame = f'signal {signum}'
+    logger.info(f"Shutting down on {signame}...")
+    _signal_stopfd()
+
+def _signal_stopfd() -> None:
+    global _running, _write_stopfd
+
+    if not _running and _write_stopfd is not None:
+        try:
+            os.write(_write_stopfd, b'\0')
+        except Exception as exc:
+            logger.warning(f"Error signaling stop through write_stopfd {_write_stopfd}: {exc}", exc_info=exc)
+
+        try:
+            os.close(_write_stopfd)
+        except Exception as exc:
+            logger.warning(f"Error closing write_stopfd {_write_stopfd}: {exc}", exc_info=exc)
+
+        _write_stopfd = None
+
+def logmon_mt(config: MTConfig):
+    global _running, _read_stopfd, _write_stopfd
     email_config = config.get('email')
     base_config = dict(email_config)
 
@@ -1641,23 +1696,20 @@ def logmon_mt(config: MTConfig):
     limits = LimitsService.from_config(config.get('limits') or {})
 
     threads: list[threading.Thread] = []
-    read_stopfd:  Optional[int] = None
-    write_stopfd: Optional[int] = None
 
     try:
         items = logfiles.items() if isinstance(logfiles, dict) else [(logfile, {}) for logfile in logfiles]
+        _read_stopfd, _write_stopfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+
         for logfile, cfg in items:
             cfg = {
                 **base_config,
                 **cfg
             }
 
-            if read_stopfd is None and _needs_stopfd(logfile):
-                read_stopfd, write_stopfd = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
-
             thread = threading.Thread(
                 target = _logmon_thread,
-                args = (logfile, cfg, limits, read_stopfd),
+                args = (logfile, cfg, limits),
                 name = logfile,
             )
 
@@ -1674,43 +1726,22 @@ def logmon_mt(config: MTConfig):
         except Exception as exc:
             logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
 
-        if not _running and write_stopfd is not None:
-            try:
-                os.write(write_stopfd, b'\0')
-            except Exception as exc:
-                logger.warning(f"Error signaling stop through write_stopfd: {write_stopfd}")
-
-            try:
-                os.close(write_stopfd)
-            except Exception as exc:
-                logger.warning(f"Error closing write_stopfd: {write_stopfd}")
-
-            write_stopfd = None
-
-            if read_stopfd is not None:
-                try:
-                    os.close(read_stopfd)
-                except Exception as exc:
-                    logger.warning(f"Error closing read_stopfd: {read_stopfd}")
-
-                read_stopfd = None
-
-    if write_stopfd is not None:
+    if _write_stopfd is not None:
         try:
-            os.close(write_stopfd)
+            os.close(_write_stopfd)
         except Exception as exc:
-            logger.warning(f"Error closing write_stopfd: {write_stopfd}")
+            logger.warning(f"Error closing write_stopfd {_write_stopfd}: {exc}", exc_info=exc)
+        _write_stopfd = None
 
-    if read_stopfd is not None:
+    if _read_stopfd is not None:
         try:
-            os.close(read_stopfd)
+            os.close(_read_stopfd)
         except Exception as exc:
-            logger.warning(f"Error closing read_stopfd: {read_stopfd}")
+            logger.warning(f"Error closing read_stopfd {_read_stopfd}: {exc}", exc_info=exc)
+        _read_stopfd = None
 
 def _is_systemd_path(logfile: str) -> bool:
     return logfile.startswith('systemd:')
-
-_needs_stopfd = _is_systemd_path
 
 # based on http://code.activestate.com/recipes/66012/
 def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: str = '/dev/null', rundir: str = '/') -> None:
@@ -1760,7 +1791,6 @@ def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: st
 def main(argv: Optional[list[str]] = None) -> None:
     from pathlib import Path
     import argparse
-    import signal
 
     SPACE = re.compile(r'\s')
     NON_SPACE = re.compile(r'\S')
@@ -2348,22 +2378,12 @@ def main(argv: Optional[list[str]] = None) -> None:
         with open(pidfile, 'w') as pidfilefp:
             pidfilefp.write(f'{pid}\n')
 
-    def on_signal(signum: int, frame) -> None:
-        global _running
-        _running = False
-        signame: str
-        try:
-            signame = signal.Signals(signum).name
-        except:
-            signame = f'signal {signum}'
-        logger.info(f"Shutting down on {signame}...")
-
-    signal.signal(signal.SIGTERM, on_signal)
+    signal.signal(signal.SIGTERM, _stop_on_signal)
     #signal.signal(signal.SIGINT, on_signal)
 
     SIGBREAK: Optional[int] = getattr(signal, 'SIGBREAK', None)
     if SIGBREAK is not None:
-        signal.signal(SIGBREAK, on_signal)
+        signal.signal(SIGBREAK, _stop_on_signal)
 
     if len(abslogfiles) == 1:
         logfile, cfg = next(iter(abslogfiles.items()))
