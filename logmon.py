@@ -213,10 +213,26 @@ type RegExExpr = tuple[Literal["~"], str]
 type JsonExpr = EqExpr|OrdExpr|RangeExpr|RegExExpr
 type JsonMatch = dict[str|int, JsonExpr|JsonMatch]
 
-def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
-    m = JSON_PATH_START_PATTERN.match(match_def)
+def get_json_path(obj: Any, path: JsonPath) -> Optional[Any]:
+    for key in path:
+        try:
+            obj = obj[key]
+        except (KeyError, IndexError, TypeError):
+            return None
+
+    return obj
+
+def parse_json_path(path_def: str) -> JsonPath:
+    path, index = _parse_json_path(path_def)
+    tail = path_def[index:].strip()
+    if tail:
+        raise ValueError(f'Illegal JSON path: {path_def!r}')
+    return path
+
+def _parse_json_path(path_def: str) -> tuple[JsonPath, int]:
+    m = JSON_PATH_START_PATTERN.match(path_def)
     if m is None:
-        raise ValueError(f'Illegal JSON match definition: {match_def!r}')
+        raise ValueError(f'Illegal JSON path: {path_def!r}')
 
     match = JSON_PATH_TAIL_PATTERN.match
 
@@ -234,7 +250,12 @@ def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
             assert False, "No group defined!"
 
         index = m.end()
-        m = match(match_def, index)
+        m = match(path_def, index)
+
+    return path, index
+
+def parse_json_match(match_def: str) -> tuple[JsonPath, JsonExpr]:
+    path, index = _parse_json_path(match_def)
 
     tail = match_def[index:].lstrip()
     try:
@@ -450,6 +471,7 @@ class LogfileConfig(TypedDict):
     seek_end: NotRequired[bool] # default: True
     json: NotRequired[bool] # default: False
     json_match: NotRequired[Optional[JsonMatch]]
+    json_brief: NotRequired[Optional[JsonPath]]
 
 SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
@@ -2037,6 +2059,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--json', action='store_true', default=None)
     ap.add_argument('--no-json', action='store_false', dest='json')
     ap.add_argument('--json-match', action='append', metavar='PATH=VALUE')
+    ap.add_argument('--json-brief', default=None, metavar='PATH')
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
@@ -2283,6 +2306,9 @@ def main(argv: Optional[list[str]] = None) -> None:
                 raise ValueError(f'--json-match="{json_match_item}" conflict: item already exists')
             json_ctx[key] = json_value
         default_config['json_match'] = json_match
+
+    if args.json_brief is not None:
+        default_config['json_brief'] = parse_json_path(args.json_brief)
 
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
