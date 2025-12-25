@@ -97,10 +97,10 @@ logfiles:
     with open(logfiles[0], 'w') as fp1:
         print("[2025-12-14T20:15:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
-        errmsg1hdr = "ERROR: Something failed!"
-        errmsg2hdr = "ERROR: Something else failed!"
-        errmsg1 = f"[2025-12-14T20:17:00+0100] {errmsg1hdr}"
-        errmsg2 = f"[2025-12-14T20:18:00+0100] {errmsg2hdr}"
+        errmsg1hdr = "Something failed!"
+        errmsg2hdr = "Something else failed!"
+        errmsg1 = f"[2025-12-14T20:17:00+0100] ERROR: {errmsg1hdr}"
+        errmsg2 = f"[2025-12-14T20:18:00+0100] ERROR: {errmsg2hdr}"
         print(errmsg1, file=fp1); fp1.flush()
         print(errmsg2, file=fp1); fp1.flush()
         print("[2025-12-14T20:19:00+0100] INFO: Ok again.", file=fp1); fp1.flush()
@@ -119,8 +119,8 @@ logfiles:
         assert status == 0
 
     with open(logfiles[1], 'w') as fp2:
-        errmsg3hdr = "ERROR: Starts with an error!"
-        errmsg3_1 = f"[2025-12-14T20:16:00+0100] {errmsg3hdr}"
+        errmsg3hdr = "Starts with an error!"
+        errmsg3_1 = f"[2025-12-14T20:16:00+0100] ERROR: {errmsg3hdr}"
         errmsg3_2 = "Which is actually multi line!"
         print(errmsg3_1, file=fp2); fp2.flush()
         print(errmsg3_2, file=fp2); fp2.flush()
