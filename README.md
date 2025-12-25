@@ -4,6 +4,26 @@ logmon
 A very simple log file monitoring script that sends emails when it finds
 configured error patterns.
 
+Dependencies
+------------
+
+### Required
+
+* [Pydantic](https://github.com/pydantic/pydantic) - validating the configuration
+  file
+
+### Optional
+
+* `inotify`: [PyInotify](https://github.com/dsoprea/PyInotify) - more efficient
+  waiting for log file changes
+* `systemd`: [cysystemd](https://github.com/mosquito/cysystemd) - ingest SystemD
+  journals
+* `yaml`: [PyYAML](https://pyyaml.org/) - support configuration file to be YAML
+  (instead of JSON) and emit YAML (instead of JSON) in emails.
+* `ruamel_yaml`: [ruamel.yaml](https://sourceforge.net/projects/ruamel-yaml/) -
+  Same as above, but nicer formatted YAML in emails. If `PyYAML` and `ruamel.yaml`
+  are both installed `ruamel.yaml` is used.
+
 Usage
 -----
 
