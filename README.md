@@ -137,7 +137,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                         pattern is matched or the end of the file is reached.
                         [default: ^\[\d\d\d\d-\d\d-\d\d[T
                         ]\d\d:\d\d:\d\d(?:\.\d+)?(?:
-                        ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?)?]
+                        ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?\s*:?\s*)?]
   --error-pattern REGEXP
                         If this pattern is found within a log entry the whole
                         entry will be sent to the configured receivers.
@@ -189,17 +189,22 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
   --systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}
                         Only report log entries of this or higher priority.
   --systemd-match KEY=VALUE
-  --email-host HOST
-  --email-port PORT
+  --email-host HOST     [default: localhost]
+  --email-port PORT     [default: depends on --email-protocol and
+                        --email-secure]
   --email-user USER
   --email-password PASSWORD
   --email-secure {None,STARTTLS,SSL/TLS}
   --email-protocol {SMTP,IMAP,HTTP,HTTPS}
   --http-method HTTP_METHOD
+                        [default: GET]
   --http-path HTTP_PATH
-  --http-content-type {JSON,URL,multipart}
-  -P, --http-param HTTP_PARAM
-  -H, --http-header HTTP_HEADER
+                        [default: /]
+  --http-content-type {JSON,YAML,URL,multipart}
+                        [default: URL]
+  -P, --http-param KEY=VALUE
+                        [default: subject={subject} receivers={receivers}]
+  -H, --http-header Header:Value
   --keep-connected
   --no-keep-connected
   -d, --daemonize       Fork process to the background. Send SIGTERM to the
@@ -217,7 +222,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                         Format of the timestamp of log entries of logmon
                         itself. [default: %Y-%m-%dT%H:%M:%S%z]
   --logmails {always,never,onerror,instead}
-                        Log emails.
+                        Log emails to the Python logger.
                         
                         never ..... Never log emails
                         always .... Always log emails
