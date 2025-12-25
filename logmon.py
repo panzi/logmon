@@ -1933,18 +1933,12 @@ def _stop_on_signal(signum: int, frame) -> None:
 def _signal_stopfd() -> None:
     global _running, _write_stopfd
 
-    if not _running and _write_stopfd is not None:
+    write_stopfd = _write_stopfd
+    if not _running and write_stopfd is not None:
         try:
-            os.write(_write_stopfd, b'\0')
+            os.write(write_stopfd, b'\0')
         except Exception as exc:
-            logger.warning(f"Error signaling stop through write_stopfd {_write_stopfd}: {exc}", exc_info=exc)
-
-        try:
-            os.close(_write_stopfd)
-        except Exception as exc:
-            logger.warning(f"Error closing write_stopfd {_write_stopfd}: {exc}", exc_info=exc)
-
-        _write_stopfd = None
+            logger.warning(f"Error signaling stop through write_stopfd {write_stopfd}: {exc}", exc_info=exc)
 
 def logmon_mt(config: MTConfig):
     global _running, _read_stopfd, _write_stopfd
@@ -1993,18 +1987,20 @@ def logmon_mt(config: MTConfig):
         except Exception as exc:
             logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
 
-    if _write_stopfd is not None:
+    write_stopfd = _write_stopfd
+    if write_stopfd is not None:
         try:
-            os.close(_write_stopfd)
+            os.close(write_stopfd)
         except Exception as exc:
-            logger.warning(f"Error closing write_stopfd {_write_stopfd}: {exc}", exc_info=exc)
+            logger.warning(f"Error closing write_stopfd {write_stopfd}: {exc}", exc_info=exc)
         _write_stopfd = None
 
-    if _read_stopfd is not None:
+    read_stopfd = _read_stopfd
+    if read_stopfd is not None:
         try:
-            os.close(_read_stopfd)
+            os.close(read_stopfd)
         except Exception as exc:
-            logger.warning(f"Error closing read_stopfd {_read_stopfd}: {exc}", exc_info=exc)
+            logger.warning(f"Error closing read_stopfd {read_stopfd}: {exc}", exc_info=exc)
         _read_stopfd = None
 
 def _is_systemd_path(logfile: str) -> bool:
