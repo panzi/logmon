@@ -15,14 +15,14 @@ Dependencies
 ### Optional
 
 * `inotify`: [PyInotify](https://github.com/dsoprea/PyInotify) - more efficient
-  waiting for log file changes
+  way to wait for log file changes
 * `systemd`: [cysystemd](https://github.com/mosquito/cysystemd) - ingest SystemD
   journals
-* `yaml`: [PyYAML](https://pyyaml.org/) - support configuration file to be YAML
-  (instead of JSON) and emit YAML (instead of JSON) in emails.
+* `yaml`: [PyYAML](https://pyyaml.org/) - support configuration to be YAML
+  (instead of JSON) and emit YAML (instead of JSON) in emails
 * `ruamel_yaml`: [ruamel.yaml](https://sourceforge.net/projects/ruamel-yaml/) -
   Same as above, but nicer formatted YAML in emails. If `PyYAML` and `ruamel.yaml`
-  are both installed `ruamel.yaml` is used.
+  are both installed then `ruamel.yaml` is used.
 
 Usage
 -----
@@ -184,7 +184,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                         by this number of spaces. [default: 4]
   --output-format {JSON,YAML}
                         Format structured data in emails using this format.
-                        [default: YAML]
+                        [default: "YAML" if `PyYAML` or `ruramel.yaml` is
+                         available, otherwise "JSON"]
   --systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}
                         Only report log entries of this or higher priority.
   --systemd-match KEY=VALUE

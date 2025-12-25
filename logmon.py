@@ -103,7 +103,7 @@ except ImportError:
             raise NotImplementedError('Reading YAML files requires the `PyYAML` package.')
 
         def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
-            raise NotImplementedError('Writing YAML files requires the `PyYAML` package.')
+            return json.dumps(data, indent=indent)
 
 HTTP_REDIRECT_STATUSES = frozenset((301, 302, 307, 308))
 
