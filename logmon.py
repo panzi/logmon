@@ -204,7 +204,7 @@ logger = logging.getLogger(__name__)
 type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
 type EmailProtocol = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS']
 type Logmails = Literal['always', 'never', 'onerror', 'instead']
-type ContentType = Literal['JSON', 'URL', 'multipart']
+type ContentType = Literal['JSON', 'YAML', 'URL', 'multipart']
 type OutputFormat = Literal['JSON', 'YAML']
 type JsonPath = list[str|int]
 type JsonCmp = Literal["<", ">", "<=", ">=", "=", "!=", "in", "not in"]
@@ -231,7 +231,7 @@ DEFAULT_OUTPUT_INDENT = 4
 DEFAULT_OUTPUT_FORMAT: OutputFormat = 'YAML' if HAS_YAML else 'JSON'
 
 # The optional err(or)/warn(ing)/crit(ical)/info/debug in this pattern is in order to strip away the non-essential prefix for subject lines.
-DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?)?', re.I)
+DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?\s*:?\s*)?', re.I)
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
 
@@ -240,6 +240,7 @@ DEFAULT_HTTP_PARAMS = {
     'subject': '{subject}',
     'receivers': '{receivers}',
 }
+DEFAULT_HTTP_CONTENT_TYPE: ContentType = 'URL'
 
 DEFAULT_JSON_BRIEF: JsonPath = ['message']
 
@@ -1361,6 +1362,7 @@ class HttpEmailSender(RemoteEmailSender):
         'http_headers',
         'http_max_redirect',
         'http_connection',
+        'output_indent',
     )
     http_method: str
     http_path: str
@@ -1369,6 +1371,7 @@ class HttpEmailSender(RemoteEmailSender):
     http_headers: Optional[dict[str, str]]
     http_max_redirect: int
     http_connection: HTTPConnection
+    output_indent: int
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
@@ -1384,6 +1387,7 @@ class HttpEmailSender(RemoteEmailSender):
         self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
         self.http_connection = HTTPConnection(self.host, self.port) if self.protocol == 'HTTP' else \
                                HTTPSConnection(self.host, self.port)
+        self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
 
     @override
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
@@ -1394,14 +1398,17 @@ class HttpEmailSender(RemoteEmailSender):
             return
 
         try:
+            subject = self.subject_templ.format_map(templ_params)
+
             if logger.isEnabledFor(logging.DEBUG):
-                subject = self.subject_templ.format_map(templ_params)
                 debug_url = f'{self.protocol.lower()}://{self.host}:{self.port}{self.http_path}'
                 logger.debug(f'{logfile}: {self.http_method}-ing to {debug_url}: {subject}')
 
             http_params = self.http_params
             if http_params is None:
                 http_params = DEFAULT_HTTP_PARAMS
+
+            http_params = { **http_params, 'subject': subject }
 
             data = {
                 key: templ.format_map(templ_params)
@@ -1418,25 +1425,35 @@ class HttpEmailSender(RemoteEmailSender):
                 relative_url = f'{relative_url}?{query}'
                 body = None
             else:
-                http_content_type = self.http_content_type
-                if http_content_type is None or http_content_type == 'URL':
-                    body = urlencode(data).encode()
-                    content_type = 'application/x-www-form-urlencoded'
+                http_content_type = self.http_content_type or DEFAULT_HTTP_CONTENT_TYPE
+                match http_content_type:
+                    case 'URL':
+                        body = urlencode(data).encode()
+                        content_type = 'application/x-www-form-urlencoded'
 
-                elif http_content_type == 'JSON':
-                    json_data: dict[str, Any] = data
-                    for key, templ in http_params.items():
-                        if templ == '{entries_json}':
-                            json_data[key] = entries
+                    case 'JSON':
+                        json_data: dict[str, Any] = data
+                        for key, templ in http_params.items():
+                            if templ == '{entries_json}':
+                                json_data[key] = entries
 
-                    body = json.dumps(json_data).encode()
-                    content_type = 'application/json; charset=UTF-8'
+                        body = json.dumps(json_data, indent=self.output_indent).encode()
+                        content_type = 'application/json; charset=UTF-8'
 
-                elif http_content_type == 'multipart':
-                    headers, body = encode_multipart(data)
+                    case 'YAML':
+                        yaml_data: dict[str, Any] = data
+                        for key, templ in http_params.items():
+                            if templ == '{entries_json}':
+                                yaml_data[key] = entries
 
-                else:
-                    raise ValueError(f'illegal http_content_type: {http_content_type}')
+                        body = yaml_dump(yaml_data, indent=self.output_indent).encode()
+                        content_type = 'application/x-yaml; charset=UTF-8'
+
+                    case 'multipart':
+                        headers, body = encode_multipart(data)
+
+                    case _:
+                        raise ValueError(f'illegal http_content_type: {http_content_type}')
 
             if self.http_headers:
                 headers = dict(self.http_headers)
@@ -2352,17 +2369,21 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority.__value__),
         help='Only report log entries of this or higher priority.')
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
-    ap.add_argument('--email-host', default=None, metavar='HOST')
-    ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT')
+    ap.add_argument('--email-host', default=None, metavar='HOST',
+        help=f'[default: {DEFAULT_EMAIL_HOST}]')
+    ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT',
+        help='[default: depends on --email-protocol and --email-secure]')
     ap.add_argument('--email-user', default=None, metavar='USER')
     ap.add_argument('--email-password', default=None, metavar='PASSWORD')
     ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption.__value__)])
     ap.add_argument('--email-protocol', default=None, choices=list(get_args(EmailProtocol.__value__)))
-    ap.add_argument('--http-method', default=None)
-    ap.add_argument('--http-path', default=None)
-    ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)))
-    ap.add_argument('-P', '--http-param', action='append', default=[])
-    ap.add_argument('-H', '--http-header', action='append', default=[])
+    ap.add_argument('--http-method', default=None, help='[default: GET]')
+    ap.add_argument('--http-path', default=None, help='[default: /]')
+    ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)),
+        help=f'[default: {DEFAULT_HTTP_CONTENT_TYPE}]')
+    ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
+        help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS.items())}]')
+    ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
     ap.add_argument('--keep-connected', action='store_true', default=None)
     ap.add_argument('--no-keep-connected', action='store_false', dest='keep_connected')
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
@@ -2378,7 +2399,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--log-datefmt', default=DEFAULT_LOG_DATEFMT, metavar='DATEFMT',
         help=f'Format of the timestamp of log entries of logmon itself. [default: {esc_default_log_datefmt}]')
     ap.add_argument('--logmails', default=None, choices=list(get_args(Logmails.__value__)),
-        help='Log emails.\n'
+        help='Log emails to the Python logger.\n'
              '\n'
              'never ..... Never log emails\n'
              'always .... Always log emails\n'
