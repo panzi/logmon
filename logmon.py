@@ -55,6 +55,57 @@ else:
 
 __version__ = '0.2.1'
 
+try:
+    import ruamel.yaml.representer
+
+    from ruamel.yaml import YAML
+    from io import StringIO
+
+    class YamlRepresenter(ruamel.yaml.representer.RoundTripRepresenter):
+        __slots__ = ()
+
+        def represent_str(self, data: Any) -> Any:
+            if '\n' in data:
+                return self.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+            return self.represent_scalar('tag:yaml.org,2002:str', data)
+
+    YamlRepresenter.add_representer(str, YamlRepresenter.represent_str)
+
+    def yaml_load(stream) -> Any:
+        yaml = YAML(typ='safe', pure=True)
+        return yaml.load(stream)
+
+    def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
+        yaml = YAML(typ='safe', pure=True)
+        yaml.Representer = YamlRepresenter
+
+        if indent is not None:
+            yaml.indent = indent
+
+        stream = StringIO()
+        yaml.dump(data, stream)
+
+        return stream.getvalue()
+
+    HAS_YAML = True
+except ImportError:
+    try:
+        from yaml import (
+            safe_load as yaml_load,
+            safe_dump as yaml_dump, # type: ignore
+        )
+
+        HAS_YAML = True
+    except ImportError:
+        HAS_YAML = False
+
+        def yaml_load(stream) -> Any:
+            raise NotImplementedError('Reading YAML files requires the `PyYAML` package.')
+
+        def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
+            raise NotImplementedError('Writing YAML files requires the `PyYAML` package.')
+
+
 HTTP_REDIRECT_STATUSES = frozenset((301, 302, 307, 308))
 
 try:
@@ -155,6 +206,7 @@ SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
 EmailProtocol = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS']
 Logmails = Literal['always', 'never', 'onerror', 'instead']
 ContentType = Literal['JSON', 'URL', 'multipart']
+OutputFormat = Literal['JSON', 'YAML']
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
@@ -173,6 +225,9 @@ DEFAULT_MAX_ENTRY_LINES = 2048
 DEFAULT_LOG_FORMAT = '[%(asctime)s] [%(process)d] %(levelname)s: %(message)s'
 DEFAULT_LOG_DATEFMT = '%Y-%m-%dT%H:%M:%S%z'
 DEFAULT_LOGMAILS: Logmails = 'onerror'
+
+DEFAULT_OUTPUT_INDENT = 4
+DEFAULT_OUTPUT_FORMAT: OutputFormat = 'YAML' if HAS_YAML else 'JSON'
 
 # The optional err(or)/warn(ing)/crit(ical)/info/debug in this pattern is in order to strip away the non-essential prefix for subject lines.
 DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?)?', re.I)
@@ -502,7 +557,8 @@ class LogfileConfig(TypedDict):
     json_match: NotRequired[Optional[JsonMatch]]
     json_ignore: NotRequired[Optional[JsonMatch]]
     json_brief: NotRequired[Optional[JsonPath]]
-    json_indent: NotRequired[int]
+    output_indent: NotRequired[int]
+    output_format: NotRequired[OutputFormat]
 
 SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
@@ -748,13 +804,15 @@ class JsonEntryReaderFactory(EntryReaderFactory):
         'ignore',
         'brief_path',
         'wait_line_incomplete',
-        'indent',
+        'output_indent',
+        'output_format',
     )
     match: CompiledJsonMatch
     ignore: Optional[CompiledJsonMatch]
     brief_path: Optional[JsonPath]
     wait_line_incomplete: int|float
-    indent: int
+    output_indent: int
+    output_format: OutputFormat
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -766,7 +824,8 @@ class JsonEntryReaderFactory(EntryReaderFactory):
         self.ignore = compile_json_match(json_ignore) if json_ignore is not None else None
         self.brief_path = config.get('json_brief')
         self.wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
-        self.indent = config.get('json_indent', 4)
+        self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
+        self.output_format = config.get('output_format', DEFAULT_OUTPUT_FORMAT)
 
     @override
     def create_reader(self, logfile: TextIO) -> Generator[LogEntry | None, None, None]:
@@ -806,10 +865,21 @@ class JsonEntryReaderFactory(EntryReaderFactory):
                     brief = json.dumps(brief)
                 else:
                     brief = str(brief)
+
+                brief = _cleanup_brief(brief)
             else:
                 brief = line.strip()
 
-            formatted = json.dumps(entry, indent=self.indent)
+            match self.output_format:
+                case 'JSON':
+                    formatted = json.dumps(entry, indent=self.output_indent)
+
+                case 'YAML':
+                    formatted = yaml_dump(entry, indent=self.output_indent)
+
+                case _:
+                    logger.error(f'{logfile.name}: Illegal output format: {self.output_format}')
+                    formatted = json.dumps(entry, indent=self.output_indent)
 
             yield LogEntry(
                 data = entry,
@@ -909,40 +979,10 @@ def _logmon(
     if _is_systemd_path(logfile):
         return _logmon_systemd(logfile, config, limits)
 
-    entry_start_pattern_cfg = config.get('entry_start_pattern')
-    if entry_start_pattern_cfg is None:
-        entry_start_pattern = DEFAULT_ENTRY_START_PATTERN
-    else:
-        if isinstance(entry_start_pattern_cfg, list):
-            entry_start_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in entry_start_pattern_cfg)
-        entry_start_pattern = re.compile(entry_start_pattern_cfg)
-
-    error_pattern_cfg = config.get('error_pattern')
-    if error_pattern_cfg is None:
-        error_pattern = DEFAULT_ERROR_PATTERN
-    else:
-        if isinstance(error_pattern_cfg, list):
-            error_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in error_pattern_cfg)
-        error_pattern = re.compile(error_pattern_cfg)
-
-    ignore_pattern_cfg = config.get('ignore_pattern')
-    ignore_pattern: Optional[Pattern[str]]
-    if ignore_pattern_cfg is not None:
-        if not ignore_pattern_cfg:
-            ignore_pattern = None
-        else:
-            if isinstance(ignore_pattern_cfg, list):
-                ignore_pattern_cfg = '|'.join(f'(?:{pattern})' for pattern in ignore_pattern_cfg)
-            ignore_pattern = re.compile(ignore_pattern_cfg)
-    else:
-        ignore_pattern = None
-
-    wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
-    max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
     reader_factory = EntryReaderFactory.from_config(config)
 
@@ -1682,6 +1722,10 @@ try:
     ) -> None:
         wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
+
+        output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
+        output_format = config.get('output_format', DEFAULT_OUTPUT_FORMAT)
+
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
@@ -1766,11 +1810,28 @@ try:
                     except KeyboardInterrupt:
                         _keyboard_interrupt()
 
-                    str_entries: list[str] = [json.dumps(entry.data, indent=4) for entry in entries]
+                    str_entries: list[str]
+
+                    match output_format:
+                        case 'JSON':
+                            str_entries = [json.dumps(entry.data, indent=output_indent) for entry in entries]
+
+                        case 'YAML':
+                            str_entries = [yaml_dump(entry.data, indent=output_indent) for entry in entries]
+
+                        case _:
+                            logger.error(f'{logfile.name}: Illegal output format: {output_format}')
+                            str_entries = [json.dumps(entry.data, indent=output_indent) for entry in entries]
 
                     if str_entries:
                         try:
                             brief = entries[0].data.get('MESSAGE')
+
+                            if not brief:
+                                first_entry = str_entries[0]
+                                brief = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+
+                            brief = _cleanup_brief(brief)
 
                             if limits.check():
                                 email_sender.send_email(
@@ -1779,9 +1840,6 @@ try:
                                     brief = brief,
                                 )
                             elif logger.isEnabledFor(logging.DEBUG):
-                                if not brief:
-                                    first_entry = str_entries[0]
-                                    brief = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
                                 logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {brief}')
 
                         except Exception as exc:
@@ -2248,7 +2306,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--json-match', action='append', metavar='PATH=VALUE')
     ap.add_argument('--json-ignore', action='append', metavar='PATH=VALUE')
     ap.add_argument('--json-brief', default=None, metavar='PATH')
-    ap.add_argument('--json-indent', type=int, default=None)
+    ap.add_argument('--output-indent', type=int, default=None)
+    ap.add_argument('--output-format', choices=get_args(OutputFormat), default=None)
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
@@ -2310,19 +2369,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     config: dict
     try:
         config_path_lower = config_path.lower()
-        if config_path_lower.endswith(('.yml', '.yaml')):
-            import yaml
+        if config_path_lower.endswith(('.yml', '.yaml')) or HAS_YAML:
             with open(config_path, 'r') as configfp:
-                config = yaml.safe_load(configfp)
+                config = yaml_load(configfp)
         else:
-            try:
-                import yaml
-            except ImportError:
-                with open(config_path, 'r') as configfp:
-                    config = json.load(configfp)
-            else:
-                with open(config_path, 'r') as configfp:
-                    config = yaml.safe_load(configfp)
+            with open(config_path, 'r') as configfp:
+                config = json.load(configfp)
 
         if config is None:
             config = {}
@@ -2481,8 +2533,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.json_brief is not None:
         default_config['json_brief'] = parse_json_path(args.json_brief)
 
-    if args.json_indent is not None:
-        default_config['json_indent'] = args.json_indent
+    if args.output_indent is not None:
+        default_config['output_indent'] = args.output_indent
+
+    if args.output_format is not None:
+        default_config['output_format'] = args.output_format
 
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
@@ -2536,6 +2591,11 @@ def main(argv: Optional[list[str]] = None) -> None:
         for logfile in logfiles:
             abslogfiles[make_abs_logfile(logfile, context_dir)] = {}
     app_config['logfiles'] = abslogfiles
+
+    if not HAS_YAML:
+        if ((app_default := app_config.get('default')) and app_default.get('output_format') == 'YAML') or \
+            any(cfg.get('output_format') == 'YAML' for cfg in abslogfiles.values()):
+            raise NotImplementedError('Writing YAML files requires the `PyYAML` package.')
 
     has_systemd = False
     for logfile in abslogfiles:
@@ -2628,6 +2688,27 @@ def _parse_json_match_arg(args: list[str]) -> JsonMatch:
         json_ctx[key] = json_value
 
     return json_match
+
+def _cleanup_brief(brief: str) -> str:
+    # If brief has multiple lines then join them into one,
+    # but only up to 120 "characters" (arbitrarily chosen),
+    # but at least one non-empty line.
+    buf: list[str] = []
+    brief_len = 0
+    for line in brief.splitlines():
+        line = line.strip().replace('\r', '')
+        if line:
+            line_len = len(line)
+            if brief_len == 0:
+                brief_len = line_len
+                buf.append(line)
+            elif brief_len + line_len <= 120:
+                brief_len += line_len
+                buf.append(line)
+            else:
+                break
+
+    return ' '.join(buf)
 
 if __name__ == '__main__':
     main()
