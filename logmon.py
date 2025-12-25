@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Callable, Iterable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, NamedTuple, get_args, override
+from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, NamedTuple, get_args, override
 from abc import ABC, abstractmethod
 from time import sleep, monotonic
 from email.message import EmailMessage
@@ -174,7 +174,8 @@ DEFAULT_LOG_FORMAT = '[%(asctime)s] [%(process)d] %(levelname)s: %(message)s'
 DEFAULT_LOG_DATEFMT = '%Y-%m-%dT%H:%M:%S%z'
 DEFAULT_LOGMAILS: Logmails = 'onerror'
 
-DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\]')
+# The optional err(or)/warn(ing)/crit(ical)/info/debug in this pattern is in order to strip away the non-essential prefix for subject lines.
+DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?)?', re.I)
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
 
@@ -215,11 +216,11 @@ type JsonMatch = dict[str|int, JsonExpr|JsonMatch]
 type CompiledJsonMatch = dict[str|int, Callable[[Any], bool]|CompiledJsonMatch]
 
 def get_json_path(obj: Any, path: JsonPath) -> Optional[Any]:
-    for key in path:
-        try:
+    try:
+        for key in path:
             obj = obj[key]
-        except (KeyError, IndexError, TypeError):
-            return None
+    except (KeyError, IndexError, TypeError):
+        return None
 
     return obj
 
@@ -603,23 +604,23 @@ _running = True
 
 class LogEntry(NamedTuple):
     data: Any
-    brief: Optional[str] # how to not calculate that for all entries?
+    brief: str # how to not calculate that for all entries?
     formatted: str
 
-class EntryReader(ABC):
+class EntryReaderFactory(ABC):
     __slots__ = ()
 
     @abstractmethod
-    def read_entries(self, logfile: TextIO) -> Iterable[Optional[LogEntry]]: ...
+    def create_reader(self, logfile: TextIO) -> Generator[Optional[LogEntry], None, None]: ...
 
     @staticmethod
-    def from_config(config: Config) -> "EntryReader":
+    def from_config(config: Config) -> "EntryReaderFactory":
         if config.get('json'):
-            return JsonEntryReader(config)
+            return JsonEntryReaderFactory(config)
         else:
-            return TextEntryReader(config)
+            return TextEntryReaderFactory(config)
 
-class TextEntryReader(EntryReader):
+class TextEntryReaderFactory(EntryReaderFactory):
     __slots__ = (
         'entry_start_pattern',
         'error_pattern',
@@ -674,7 +675,7 @@ class TextEntryReader(EntryReader):
         self.max_entry_lines = max_entry_lines
 
     @override
-    def read_entries(self, logfile: TextIO) -> Iterable[Optional[LogEntry]]:
+    def create_reader(self, logfile: TextIO) -> Generator[Optional[LogEntry], None, None]:
         buf: list[str] = []
         next_line: Optional[str] = None
 
@@ -741,7 +742,7 @@ class TextEntryReader(EntryReader):
                         formatted = entry,
                     )
 
-class JsonEntryReader(EntryReader):
+class JsonEntryReaderFactory(EntryReaderFactory):
     __slots__ = (
         'match',
         'ignore',
@@ -768,7 +769,7 @@ class JsonEntryReader(EntryReader):
         self.indent = config.get('json_indent', 4)
 
     @override
-    def read_entries(self, logfile: TextIO) -> Iterable[LogEntry | None]:
+    def create_reader(self, logfile: TextIO) -> Generator[LogEntry | None, None, None]:
         while _running:
             line = logfile.readline()
 
@@ -801,6 +802,10 @@ class JsonEntryReader(EntryReader):
                 brief = get_json_path(entry, brief_path)
                 if brief is None:
                     brief = line.strip()
+                elif isinstance(brief, (list, dict)):
+                    brief = json.dumps(brief)
+                else:
+                    brief = str(brief)
             else:
                 brief = line.strip()
 
@@ -811,76 +816,6 @@ class JsonEntryReader(EntryReader):
                 brief = brief,
                 formatted = formatted
             )
-
-def read_json_log_entries(
-        logfile: TextIO,
-        wait_line_incomplete: int|float = DEFAULT_WAIT_LINE_INCOMPLETE,
-) -> Generator[Any|None, None, None]:
-    while _running:
-        line = logfile.readline()
-
-        if not line:
-            yield None
-            continue
-
-        if not line.endswith('\n'):
-            sleep(wait_line_incomplete)
-            line += logfile.readline()
-
-        line = line.strip()
-
-        if not line or line.startswith('//'):
-            # ignore empty lines and support single line JavaScript style comments
-            continue
-
-        yield json.loads(line)
-
-def read_log_entries(
-        logfile: TextIO,
-        entry_start: Pattern[str],
-        wait_line_incomplete: int|float = DEFAULT_WAIT_LINE_INCOMPLETE,
-        max_entry_lines: int = DEFAULT_MAX_ENTRY_LINES,
-) -> Generator[str|None, None, None]:
-    buf: list[str] = []
-    next_line: Optional[str] = None
-    while _running:
-        if next_line is not None:
-            line = next_line
-            next_line = None
-        else:
-            line = logfile.readline()
-
-        if not line:
-            # singal no more entries for now
-            yield None
-            continue
-
-        buf.append(line)
-        if not line.endswith('\n'):
-            sleep(wait_line_incomplete)
-            buf.append(logfile.readline())
-
-        line_count = 1
-        while line_count < max_entry_lines:
-            line = logfile.readline()
-
-            if not line:
-                break
-
-            if not line.endswith('\n'):
-                sleep(wait_line_incomplete)
-                line += logfile.readline()
-
-            if entry_start.match(line):
-                next_line = line
-                break
-
-            buf.append(line)
-            line_count += 1
-
-        entry = ''.join(buf)
-        buf.clear()
-        yield entry
 
 class LimitsService:
     __slots__ = (
@@ -1009,6 +944,8 @@ def _logmon(
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
+    reader_factory = EntryReaderFactory.from_config(config)
+
     with EmailSender.from_config(config) as email_sender:
         seek_end = config.get('seek_end', True)
         use_inotify = config.get('use_inotify', Inotify is not None)
@@ -1034,11 +971,11 @@ def _logmon(
                         if seek_end:
                             logfp.seek(0, os.SEEK_END)
 
-                        reader = read_log_entries(logfp, entry_start_pattern, wait_line_incomplete, max_entry_lines)
+                        reader = reader_factory.create_reader(logfp)
 
                         while _running:
                             start_ts = monotonic()
-                            entries: list[str] = []
+                            entries: list[LogEntry] = []
                             try:
                                 for entry in reader:
                                     if entry is None:
@@ -1050,14 +987,7 @@ def _logmon(
                                         sleep(rem_time)
                                         continue
 
-                                    if error_match := error_pattern.search(entry):
-                                        if ignore_pattern is not None and (ignore_match := ignore_pattern.search(entry)):
-                                            if logger.isEnabledFor(logging.DEBUG):
-                                                error_reason  = error_match.group(0)
-                                                ignore_reason = ignore_match.group(0)
-                                                logger.debug(f'{logfile}: IGNORED: {error_reason} for {ignore_reason}')
-                                        else:
-                                            entries.append(entry)
+                                    entries.append(entry)
 
                                     if len(entries) >= max_entries:
                                         break
@@ -1067,26 +997,19 @@ def _logmon(
 
                             if entries:
                                 try:
+                                    str_entries = [entry.formatted for entry in entries]
                                     if limits.check():
-                                        brief = ''
-
-                                        for line in entry_start_pattern.sub('', entries[0]).split('\n'):
-                                            brief = line.lstrip().rstrip(' \r\n\t:{')
-                                            if brief:
-                                                break
-
-                                        if not brief:
-                                            brief = entries[0]
-
                                         email_sender.send_email(
                                             logfile = logfile,
-                                            entries = entries,
-                                            brief = brief,
+                                            entries = str_entries,
+                                            brief = entries[0].brief,
                                         )
                                     elif logger.isEnabledFor(logging.DEBUG):
-                                        first_entry = entries[0]
-                                        first_line = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-                                        logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {first_line}')
+                                        brief = entries[0].brief
+                                        templ_params = email_sender.get_templ_params(logfile, str_entries, brief)
+                                        subject = email_sender.subject_templ.format_map(templ_params)
+
+                                        logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {subject}')
 
                                 except Exception as exc:
                                     logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
@@ -1296,7 +1219,7 @@ class EmailSender(ABC):
                 msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
             logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
 
-    def get_email_params(self, logfile: str, entries: list[str], brief: str) -> Optional[tuple[dict[str, str], Optional[EmailMessage]]]:
+    def get_templ_params(self, logfile: str, entries: list[str], brief: str) -> dict[str, str]:
         entries_str = '\n\n'.join(entries)
         first_entry = entries[0]
         lines = first_entry.split('\n')
@@ -1313,6 +1236,9 @@ class EmailSender(ABC):
             'receivers': ', '.join(self.receivers),
         }
 
+        return templ_params
+
+    def check_logmails(self, logfile: str, templ_params: dict[str, str]) -> tuple[bool, Optional[EmailMessage]]:
         msg: Optional[EmailMessage]
         match self.logmails:
             case 'always':
@@ -1322,12 +1248,12 @@ class EmailSender(ABC):
             case 'instead':
                 msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
                 logger.info(f'{logfile}: Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
-                return None
+                return False, None
 
             case _:
                 msg = None
 
-        return templ_params, msg
+        return True, msg
 
 def get_default_port(config: EMailConfig) -> int:
     protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
@@ -1421,12 +1347,11 @@ class HttpEmailSender(RemoteEmailSender):
 
     @override
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
-        email_params = self.get_email_params(logfile, entries, brief)
+        templ_params = self.get_templ_params(logfile, entries, brief)
+        proceed, msg = self.check_logmails(logfile, templ_params)
 
-        if email_params is None:
+        if not proceed:
             return
-
-        templ_params, msg = email_params
 
         try:
             if logger.isEnabledFor(logging.DEBUG):
@@ -1631,12 +1556,11 @@ class SmtpEmailSender(SslEmailSender):
 
     @override
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
-        email_params = self.get_email_params(logfile, entries, brief)
+        templ_params = self.get_templ_params(logfile, entries, brief)
+        proceed, msg = self.check_logmails(logfile, templ_params)
 
-        if email_params is None:
+        if not proceed:
             return
-
-        templ_params, msg = email_params
 
         try:
             if msg is None:
@@ -1709,12 +1633,11 @@ class ImapEmailSender(SslEmailSender):
 
     @override
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
-        email_params = self.get_email_params(logfile, entries, brief)
+        templ_params = self.get_templ_params(logfile, entries, brief)
+        proceed, msg = self.check_logmails(logfile, templ_params)
 
-        if email_params is None:
+        if not proceed:
             return
-
-        templ_params, msg = email_params
 
         try:
             if msg is None:
