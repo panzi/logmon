@@ -13,9 +13,9 @@ read the log files. The command line options overwrite the default settings,
 but not the per-logfile settings. See below for the settings file format.
 
 ```
-Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
-                 [--subject TEMPLATE] [--body TEMPLATE]
-                 [--wait-file-not-found SECONDS]
+Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
+                 [--receivers EMAIL,...] [--subject TEMPLATE]
+                 [--body TEMPLATE] [--wait-file-not-found SECONDS]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
                  [--wait-before-send SECONDS] [--wait-after-crash SECONDS]
                  [--max-entries COUNT] [--max-entry-lines COUNT]
@@ -23,13 +23,22 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                  [--use-inotify | --no-use-inotify]
                  [--entry-start-pattern REGEXP] [--error-pattern REGEXP]
                  [--ignore-pattern REGEXP] [--seek-end | --no-seek-end]
-                 [--email-host HOST] [--email-port PORT] [--email-user USER]
+                 [--json] [--no-json] [--json-match PATH=VALUE]
+                 [--json-ignore PATH=VALUE] [--json-brief PATH]
+                 [--output-indent OUTPUT_INDENT] [--output-format {JSON,YAML}]
+                 [--systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}]
+                 [--systemd-match KEY=VALUE] [--email-host HOST]
+                 [--email-port PORT] [--email-user USER]
                  [--email-password PASSWORD]
                  [--email-secure {None,STARTTLS,SSL/TLS}]
-                 [--email-protocol {SMTP,IMAP}] [-d] [--pidfile PATH]
-                 [--log-file PATH]
+                 [--email-protocol {SMTP,IMAP,HTTP,HTTPS}]
+                 [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
+                 [--http-content-type {JSON,URL,multipart}] [-P HTTP_PARAM]
+                 [-H HTTP_HEADER] [--keep-connected] [--no-keep-connected]
+                 [-d] [--pidfile PATH] [--log-file PATH]
                  [--log-level {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
-                 [--log-format FORMAT] [--log-datefmt DATEFMT] [--logmails]
+                 [--log-format FORMAT] [--log-datefmt DATEFMT]
+                 [--logmails {always,never,onerror,instead}]
                  [logfiles ...]
 ```
 
@@ -45,11 +54,12 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
 ```
   -h, --help            show this help message and exit
   -v, --version         Print version and exit.
+  --license             Show license information and exit.
   --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
   --sender EMAIL
   --receivers EMAIL,...
   --subject TEMPLATE    Subject template for the emails. See --body for the
-                        template variables. [default: '[ERROR] {line1}']
+                        template variables. [default: '[ERROR] {brief}']
   --body TEMPLATE       Body template for the emails.
                         
                         Template variables:
@@ -107,7 +117,7 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                         pattern is matched or the end of the file is reached.
                         [default: ^\[\d\d\d\d-\d\d-\d\d[T
                         ]\d\d:\d\d:\d\d(?:\.\d+)?(?:
-                        ?(?:[-+]\d\d:?\d\d|Z))?\]]
+                        ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?)?]
   --error-pattern REGEXP
                         If this pattern is found within a log entry the whole
                         entry will be sent to the configured receivers.
@@ -119,12 +129,58 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                         Per default this is not set.
   --seek-end            Seek to the end of existing files. [default: True]
   --no-seek-end         Opposite of --seek-end
+  --json                Every line in the log file is parsed as a JSON
+                        document. [default: False]
+  --no-json             Opposite of --json
+  --json-match PATH=VALUE
+                        Nested properties of the JSON document to match
+                        against.
+                        
+                        Operators:
+                          = ........ equals
+                          != ....... not equals
+                          < ........ less than
+                          > ........ greater than
+                          <= ....... less than or equal
+                          >= ....... greater than or equal
+                          ~ ........ match regular expression
+                          in ....... value in a list or range of given values
+                          not in ... value not in a list or range of given
+                                     values
+                        
+                        The argument to in and not in can be a list like
+                        ["foo", "bar"] or a range definition like {"start": 0,
+                        "stop": 10}. Start is inclusive, stop is exclusive.
+                        
+                        When multiple --json-match are defined all have to
+                        match.
+                        Per no filter is defined.
+  --json-ignore PATH=VALUE
+                        Same match syntax as --json-match, but if this matches
+                        the log entry is ignored.
+  --json-brief PATH     Path to the JSON field
+  --output-indent OUTPUT_INDENT
+                        When JSON or YAML data is included in the email indent
+                        by this number of spaces. [default: 4]
+  --output-format {JSON,YAML}
+                        Format structured data in emails using this format.
+                        [default: YAML]
+  --systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}
+                        Only report log entries of this or higher priority.
+  --systemd-match KEY=VALUE
   --email-host HOST
   --email-port PORT
   --email-user USER
   --email-password PASSWORD
   --email-secure {None,STARTTLS,SSL/TLS}
-  --email-protocol {SMTP,IMAP}
+  --email-protocol {SMTP,IMAP,HTTP,HTTPS}
+  --http-method HTTP_METHOD
+  --http-path HTTP_PATH
+  --http-content-type {JSON,URL,multipart}
+  -P, --http-param HTTP_PARAM
+  -H, --http-header HTTP_HEADER
+  --keep-connected
+  --no-keep-connected
   -d, --daemonize       Fork process to the background. Send SIGTERM to the
                         logmon process for shutdown.
   --pidfile PATH        Write logmons PID to given file. Useful in combination
@@ -145,8 +201,8 @@ Usage: logmon.py [-h] [--config PATH] [--sender EMAIL] [--receivers EMAIL,...]
                         never ..... Never log emails
                         always .... Always log emails
                         onerror ... Log emails if sending failed
-                        instead ... Log emails instead of sending them.
-                                    Useful for debugging.
+                        instead ... Log emails instead of sending them. Useful
+                                    for debugging.
                         
                         [default: onerror]
 ```
@@ -192,6 +248,26 @@ default:
   max_entry_lines: 2048
   use_inotify: true
   seek_end: true
+  # json: true means the log file contains a JSON document per line.
+  json: false
+  json_match:
+    # operators: =, !=, <, >, <=, >=, in, not in
+    # in and not in can either have an array of values as the argument
+    # or an object in the form of: {"start": 0, "stop": 10} (int only)
+    level: ['in', ['ERROR', 'CRITICAL']]
+    some:
+      nested:
+        field: ['=', 12]
+    a_list:
+      15: ['>=', 123]
+  json_ignore:
+    message: ['~', '(?i)test']
+  json_brief: ['message']
+  output_indent: 4
+  output_format: YAML # or JSON
+  systemd_priority: ERROR
+  systemd_match:
+    _SYSTEMD_USER_UNIT: plasma-kwin_x11.service
 limits:
   max_emails_per_minute: 6
   max_emails_per_hour: 60

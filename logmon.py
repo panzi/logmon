@@ -90,7 +90,7 @@ try:
     HAS_YAML = True
 except ImportError:
     try:
-        from yaml import (
+        from yaml import ( # type: ignore
             safe_load as yaml_load,
             safe_dump as yaml_dump, # type: ignore
         )
@@ -104,7 +104,6 @@ except ImportError:
 
         def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
             raise NotImplementedError('Writing YAML files requires the `PyYAML` package.')
-
 
 HTTP_REDIRECT_STATUSES = frozenset((301, 302, 307, 308))
 
@@ -202,11 +201,13 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
-EmailProtocol = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS']
-Logmails = Literal['always', 'never', 'onerror', 'instead']
-ContentType = Literal['JSON', 'URL', 'multipart']
-OutputFormat = Literal['JSON', 'YAML']
+type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
+type EmailProtocol = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS']
+type Logmails = Literal['always', 'never', 'onerror', 'instead']
+type ContentType = Literal['JSON', 'URL', 'multipart']
+type OutputFormat = Literal['JSON', 'YAML']
+type JsonPath = list[str|int]
+type JsonCmp = Literal["<", ">", "<=", ">=", "=", "!=", "in", "not in"]
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
@@ -240,14 +241,13 @@ DEFAULT_HTTP_PARAMS = {
     'receivers': '{receivers}',
 }
 
+DEFAULT_JSON_BRIEF: JsonPath = ['message']
+
 ROOT_CONFIG_PATH = '/etc/logmonrc'
 
 JSON_PATH_PATTERN_STR = r'(?P<key>[\$_a-z][\$_a-z0-9]*)|\[(?:(?P<index>[0-9]+)|(?P<qkey>"(?:[^"\\]|\\.)*"))\]'
 JSON_PATH_START_PATTERN = re.compile(JSON_PATH_PATTERN_STR, re.I)
 JSON_PATH_TAIL_PATTERN = re.compile(r'\.' + JSON_PATH_PATTERN_STR, re.I)
-
-type JsonPath = list[str|int]
-type JsonCmp = Literal["<", ">", "<=", ">=", "=", "!=", "in", "not in"]
 
 class Range(pydantic.BaseModel):
     start: int
@@ -414,7 +414,7 @@ def compile_json_match_expr(expr: JsonExpr) -> Callable[[Any], bool]:
         case "in": return lambda value: value in expected # type: ignore
         case "not in": return lambda value: value not in expected # type: ignore
         case "~":
-            regex = re.compile(expected, re.I) # type: ignore
+            regex = re.compile(expected) # type: ignore
             def check(value: Any) -> bool:
                 if not isinstance(value, str):
                     return False
@@ -560,7 +560,7 @@ class LogfileConfig(TypedDict):
     output_indent: NotRequired[int]
     output_format: NotRequired[OutputFormat]
 
-SystemDPriority = Literal[
+type SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
     'DEBUG', 'INFO', 'ERROR', 'NOTICE',
 ]
@@ -822,7 +822,7 @@ class JsonEntryReaderFactory(EntryReaderFactory):
 
         self.match = compile_json_match(json_match)
         self.ignore = compile_json_match(json_ignore) if json_ignore is not None else None
-        self.brief_path = config.get('json_brief')
+        self.brief_path = config.get('json_brief', DEFAULT_JSON_BRIEF)
         self.wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
         self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
         self.output_format = config.get('output_format', DEFAULT_OUTPUT_FORMAT)
@@ -2188,6 +2188,26 @@ def main(argv: Optional[list[str]] = None) -> None:
               f'      max_entry_lines: {DEFAULT_MAX_ENTRY_LINES}\n'
               f'      use_inotify: true\n'
               f'      seek_end: true\n'
+               "       # json: true means the log file contains a JSON document per line.\n"
+               "       json: false\n"
+               "       json_match:\n"
+               "         # operators: =, !=, <, >, <=, >=, in, not in\n"
+               "         # in and not in can either have an array of values as the argument\n"
+               '         # or an object in the form of: {"start": 0, "stop": 10} (int only)\n'
+               "         level: ['in', ['ERROR', 'CRITICAL']]\n"
+               "         some:\n"
+               "           nested:\n"
+               "             field: ['=', 12]\n"
+               "         a_list:\n"
+               "           15: ['>=', 123]\n"
+               "       json_ignore:\n"
+               "         message: ['~', '(?i)test']\n"
+               "       json_brief: ['message']\n"
+               "       output_indent: 4\n"
+               "       output_format: YAML # or JSON\n"
+               "       systemd_priority: ERROR\n"
+               "       systemd_match:\n"
+               "         _SYSTEMD_USER_UNIT: plasma-kwin_x11.service\n"
                '    limits:\n'
               f'      max_emails_per_minute: {DEFAULT_MAX_EMAILS_PER_MINUTE}\n'
               f'      max_emails_per_hour: {DEFAULT_MAX_EMAILS_PER_HOUR}\n'
@@ -2297,24 +2317,50 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Seek to the end of existing files. [default: True]")
     seek_end_grp.add_argument('--no-seek-end', default=None, action='store_false', dest='seek_end',
         help='Opposite of --seek-end')
-    ap.add_argument('--json', action='store_true', default=None)
-    ap.add_argument('--no-json', action='store_false', dest='json')
-    ap.add_argument('--json-match', action='append', metavar='PATH=VALUE')
-    ap.add_argument('--json-ignore', action='append', metavar='PATH=VALUE')
-    ap.add_argument('--json-brief', default=None, metavar='PATH')
-    ap.add_argument('--output-indent', type=int, default=None)
-    ap.add_argument('--output-format', choices=get_args(OutputFormat), default=None)
-    ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority))
+    ap.add_argument('--json', action='store_true', default=None,
+        help='Every line in the log file is parsed as a JSON document. [default: False]')
+    ap.add_argument('--no-json', action='store_false', dest='json',
+        help='Opposite of --json')
+    ap.add_argument('--json-match', action='append', metavar='PATH=VALUE',
+        help='Nested properties of the JSON document to match against.\n'
+             '\n'
+             'Operators:\n'
+             '  = ........ equals\n'
+             '  != ....... not equals\n'
+             '  < ........ less than\n'
+             '  > ........ greater than\n'
+             '  <= ....... less than or equal\n'
+             '  >= ....... greater than or equal\n'
+             '  ~ ........ match regular expression\n'
+             '  in ....... value in a list or range of given values\n'
+             '  not in ... value not in a list or range of given values\n'
+             '\n'
+             'The argument to in and not in can be a list like ["foo", "bar"] '
+             'or a range definition like {"start": 0, "stop": 10}. Start is '
+             'inclusive, stop is exclusive.\n'
+             '\n'
+             'When multiple --json-match are defined all have to match.\n'
+             'Per no filter is defined.')
+    ap.add_argument('--json-ignore', action='append', metavar='PATH=VALUE',
+        help='Same match syntax as --json-match, but if this matches the log entry is ignored.')
+    ap.add_argument('--json-brief', default=None, metavar='PATH',
+        help='Path to the JSON field')
+    ap.add_argument('--output-indent', type=int, default=None,
+        help=f'When JSON or YAML data is included in the email indent by this number of spaces. [default: {DEFAULT_OUTPUT_INDENT}]')
+    ap.add_argument('--output-format', choices=get_args(OutputFormat.__value__), default=None,
+        help=f'Format structured data in emails using this format. [default: {DEFAULT_OUTPUT_FORMAT}]')
+    ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority.__value__),
+        help='Only report log entries of this or higher priority.')
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
     ap.add_argument('--email-host', default=None, metavar='HOST')
     ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT')
     ap.add_argument('--email-user', default=None, metavar='USER')
     ap.add_argument('--email-password', default=None, metavar='PASSWORD')
-    ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption)])
-    ap.add_argument('--email-protocol', default=None, choices=list(get_args(EmailProtocol)))
+    ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption.__value__)])
+    ap.add_argument('--email-protocol', default=None, choices=list(get_args(EmailProtocol.__value__)))
     ap.add_argument('--http-method', default=None)
     ap.add_argument('--http-path', default=None)
-    ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType)))
+    ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)))
     ap.add_argument('-P', '--http-param', action='append', default=[])
     ap.add_argument('-H', '--http-header', action='append', default=[])
     ap.add_argument('--keep-connected', action='store_true', default=None)
@@ -2331,7 +2377,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help=f'Format of log entries of logmon itself. [default: {esc_default_log_format}]')
     ap.add_argument('--log-datefmt', default=DEFAULT_LOG_DATEFMT, metavar='DATEFMT',
         help=f'Format of the timestamp of log entries of logmon itself. [default: {esc_default_log_datefmt}]')
-    ap.add_argument('--logmails', default=None, choices=list(get_args(Logmails)),
+    ap.add_argument('--logmails', default=None, choices=list(get_args(Logmails.__value__)),
         help='Log emails.\n'
              '\n'
              'never ..... Never log emails\n'
