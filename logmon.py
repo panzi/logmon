@@ -992,7 +992,7 @@ def _logmon(
         config: Config,
         limits: LimitsService,
 ) -> None:
-    if _is_systemd_path(logfile):
+    if is_systemd_path(logfile):
         return _logmon_systemd(logfile, config, limits)
 
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
@@ -1776,7 +1776,7 @@ try:
             else:
                 priority = None
 
-            mode, unit = _systemd_parse_path(logfile)
+            mode, unit = systemd_parse_path(logfile)
 
             reader = JournalReader()
             try:
@@ -1900,7 +1900,10 @@ except ImportError:
     ) -> None:
         raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
 
-def _systemd_parse_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]:
+def is_systemd_path(logfile: str) -> bool:
+    return logfile.startswith('systemd:')
+
+def systemd_parse_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]:
     path = logfile.split(':')
     if len(path) < 2 or len(path) > 3 or path[0] != 'systemd':
         raise ValueError(f'Illegal SystemD path: {logfile!r}')
@@ -1914,7 +1917,7 @@ def _systemd_parse_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]
     return mode, unit
 
 def make_abs_logfile(logfile: str, context_dir: str) -> str:
-    if _is_systemd_path(logfile):
+    if is_systemd_path(logfile):
         return logfile
 
     if logfile.startswith('file:'):
@@ -1923,7 +1926,7 @@ def make_abs_logfile(logfile: str, context_dir: str) -> str:
     return joinpath(context_dir, logfile)
 
 def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
-    logfile = normpath(abspath(logfile)) if not _is_systemd_path(logfile) else logfile
+    logfile = normpath(abspath(logfile)) if not is_systemd_path(logfile) else logfile
     wait_after_crash = config.get('wait_after_crash', DEFAULT_WAIT_AFTER_CRASH)
 
     while _running:
@@ -2036,9 +2039,6 @@ def logmon_mt(config: MTConfig):
         except Exception as exc:
             logger.warning(f"Error closing read_stopfd {read_stopfd}: {exc}", exc_info=exc)
         _read_stopfd = None
-
-def _is_systemd_path(logfile: str) -> bool:
-    return logfile.startswith('systemd:')
 
 # based on http://code.activestate.com/recipes/66012/
 def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: str = '/dev/null', rundir: str = '/') -> None:
@@ -2679,8 +2679,8 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     has_systemd = False
     for logfile in abslogfiles:
-        if _is_systemd_path(logfile):
-            _systemd_parse_path(logfile)
+        if is_systemd_path(logfile):
+            systemd_parse_path(logfile)
             has_systemd = True
 
     if has_systemd and not HAS_SYSTEMD:
