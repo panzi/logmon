@@ -38,7 +38,7 @@ __version__ = '0.3.0'
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
 
-DEFAULT_SUBJECT = '[ERROR] {brief}'
+DEFAULT_SUBJECT = '{brief}'
 DEFAULT_BODY = '{logfile}\n\n{entries}'
 DEFAULT_WAIT_FILE_NOT_FOUND = 30
 DEFAULT_WAIT_LINE_INCOMPLETE = 0.1
@@ -56,8 +56,7 @@ DEFAULT_LOGMAILS: Logmails = 'onerror'
 DEFAULT_OUTPUT_INDENT = 4
 DEFAULT_OUTPUT_FORMAT: OutputFormat = 'YAML' if HAS_YAML else 'JSON'
 
-# The optional err(or)/warn(ing)/crit(ical)/info/debug in this pattern is in order to strip away the non-essential prefix for subject lines.
-DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?\s*:?\s*)?', re.I)
+DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\]', re.I)
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
 
