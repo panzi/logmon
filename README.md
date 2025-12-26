@@ -84,19 +84,22 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
   --body TEMPLATE       Body template for the emails.
                         
                         Template variables:
-                          {entries} .... All entries for the message
-                                         concatenated into a string with two
-                                         newlines between each.
-                          {logfile} .... The path of the logfile.
-                          {entry1} ..... The first log entry of the message.
-                          {line1} ...... The first line of the first log
-                                         entry.
-                          {brief} ...... Like {line1}, but with the entry
-                                         start pattern removed.
-                          {entrynum} ... The number of entries in this
-                                         message.
-                          {{ ........... A literal {
-                          }} ........... A literal }
+                          {entries} ..... All entries for the message
+                                          concatenated into a string with two
+                                          newlines between each.
+                          {logfile} ..... The path of the logfile.
+                          {entry1} ...... The first log entry of the message.
+                          {line1} ....... The first line of the first log
+                                          entry.
+                          {brief} ....... Like {line1}, but with the entry
+                                          start pattern removed.
+                          {entrynum} .... The number of entries in this
+                                          message.
+                          {sender} ...... The sender email address.
+                          {receivers} ... Comma separated list of receiver
+                                          email addresses.
+                          {{ ............ A literal {
+                          }} ............ A literal }
                         
                         [default: '{logfile}\n\n{entries}']
   --wait-file-not-found SECONDS

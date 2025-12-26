@@ -70,7 +70,6 @@ class HttpEmailSender(RemoteEmailSender):
         'http_headers',
         'http_max_redirect',
         'http_connection',
-        'output_indent',
     )
     http_method: str
     http_path: str
@@ -79,7 +78,6 @@ class HttpEmailSender(RemoteEmailSender):
     http_headers: Optional[dict[str, str]]
     http_max_redirect: int
     http_connection: HTTPConnection
-    output_indent: int
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
@@ -95,7 +93,6 @@ class HttpEmailSender(RemoteEmailSender):
         self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
         self.http_connection = HTTPConnection(self.host, self.port) if self.protocol == 'HTTP' else \
                                HTTPSConnection(self.host, self.port)
-        self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
 
     @override
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:

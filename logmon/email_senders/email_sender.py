@@ -43,6 +43,7 @@ class EmailSender(ABC):
         'receivers',
         'logmails',
         'protocol',
+        'output_indent',
     )
 
     subject_templ: str
@@ -53,6 +54,7 @@ class EmailSender(ABC):
     protocol: EmailProtocol
 
     logmails: Logmails
+    output_indent: int
 
     @staticmethod
     def from_config(config: Config) -> "EmailSender":
@@ -88,6 +90,7 @@ class EmailSender(ABC):
         self.protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
 
         self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
+        self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
 
     @abstractmethod
     def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
@@ -113,12 +116,13 @@ class EmailSender(ABC):
 
         templ_params = {
             'entries': entries_str,
-            'entries_json': json.dumps(entries, indent=2),
+            'entries_json': json.dumps(entries, indent=self.output_indent),
             'logfile': logfile,
             'brief': brief,
             'line1': first_line,
             'entry1': first_entry,
             'entrynum': str(len(entries)),
+            'sender': self.sender,
             'receivers': ', '.join(self.receivers),
         }
 

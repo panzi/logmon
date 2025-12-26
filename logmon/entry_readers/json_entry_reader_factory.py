@@ -105,5 +105,5 @@ class JsonEntryReaderFactory(EntryReaderFactory):
             yield LogEntry(
                 data = entry,
                 brief = brief,
-                formatted = formatted
+                formatted = formatted,
             )
