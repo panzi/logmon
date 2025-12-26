@@ -475,7 +475,8 @@ def compile_json_match_expr(expr: JsonExpr) -> Callable[[Any], bool]:
 def _is_json_word(ch: str) -> bool:
     return ch.isalnum() or ch == '_' or ch == '$'
 
-Num = int|float
+type Num = int|float
+
 def in_range(parse: Callable[[str], Num], min: Optional[Num] = None, max: Optional[Num] = None) -> Callable[[str], Num]:
     def parse_in_range(value: str) -> Num:
         num = parse(value)
