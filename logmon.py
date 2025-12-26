@@ -207,7 +207,6 @@ type Logmails = Literal['always', 'never', 'onerror', 'instead']
 type ContentType = Literal['JSON', 'YAML', 'URL', 'multipart']
 type OutputFormat = Literal['JSON', 'YAML']
 type JsonPath = list[str|int]
-type JsonCmp = Literal["<", ">", "<=", ">=", "=", "!=", "in", "not in"]
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
