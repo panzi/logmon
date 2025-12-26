@@ -1,0 +1,70 @@
+import re
+
+from .types import EmailProtocol, Logmails, OutputFormat, ContentType, JsonPath
+from .yaml import HAS_YAML
+
+__all__ = (
+    'DEFAULT_EMAIL_HOST',
+    'DEFAULT_EMAIL_PROTOCOL',
+    'DEFAULT_SUBJECT',
+    'DEFAULT_BODY',
+    'DEFAULT_WAIT_FILE_NOT_FOUND',
+    'DEFAULT_WAIT_LINE_INCOMPLETE',
+    'DEFAULT_WAIT_NO_ENTRIES',
+    'DEFAULT_WAIT_BEFORE_SEND',
+    'DEFAULT_WAIT_AFTER_CRASH',
+    'DEFAULT_MAX_ENTRIES',
+    'DEFAULT_MAX_EMAILS_PER_MINUTE',
+    'DEFAULT_MAX_EMAILS_PER_HOUR',
+    'DEFAULT_MAX_ENTRY_LINES',
+    'DEFAULT_LOG_FORMAT',
+    'DEFAULT_LOG_DATEFMT',
+    'DEFAULT_LOGMAILS',
+    'DEFAULT_OUTPUT_INDENT',
+    'DEFAULT_OUTPUT_FORMAT',
+    'DEFAULT_ENTRY_START_PATTERN',
+    'DEFAULT_WARNING_PATTERN',
+    'DEFAULT_ERROR_PATTERN',
+    'DEFAULT_HTTP_MAX_REDIRECT',
+    'DEFAULT_HTTP_PARAMS',
+    'DEFAULT_HTTP_CONTENT_TYPE',
+    'DEFAULT_JSON_BRIEF',
+    'ROOT_CONFIG_PATH',
+)
+
+DEFAULT_EMAIL_HOST = 'localhost'
+DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
+
+DEFAULT_SUBJECT = '[ERROR] {brief}'
+DEFAULT_BODY = '{logfile}\n\n{entries}'
+DEFAULT_WAIT_FILE_NOT_FOUND = 30
+DEFAULT_WAIT_LINE_INCOMPLETE = 0.1
+DEFAULT_WAIT_NO_ENTRIES = 5
+DEFAULT_WAIT_BEFORE_SEND = 1
+DEFAULT_WAIT_AFTER_CRASH = 10
+DEFAULT_MAX_ENTRIES = 20
+DEFAULT_MAX_EMAILS_PER_MINUTE = 6
+DEFAULT_MAX_EMAILS_PER_HOUR = 60
+DEFAULT_MAX_ENTRY_LINES = 2048
+DEFAULT_LOG_FORMAT = '[%(asctime)s] [%(process)d] %(levelname)s: %(message)s'
+DEFAULT_LOG_DATEFMT = '%Y-%m-%dT%H:%M:%S%z'
+DEFAULT_LOGMAILS: Logmails = 'onerror'
+
+DEFAULT_OUTPUT_INDENT = 4
+DEFAULT_OUTPUT_FORMAT: OutputFormat = 'YAML' if HAS_YAML else 'JSON'
+
+# The optional err(or)/warn(ing)/crit(ical)/info/debug in this pattern is in order to strip away the non-essential prefix for subject lines.
+DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?\s*:?\s*)?', re.I)
+DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
+DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
+
+DEFAULT_HTTP_MAX_REDIRECT = 10
+DEFAULT_HTTP_PARAMS = {
+    'subject': '{subject}',
+    'receivers': '{receivers}',
+}
+DEFAULT_HTTP_CONTENT_TYPE: ContentType = 'URL'
+
+DEFAULT_JSON_BRIEF: JsonPath = ['message']
+
+ROOT_CONFIG_PATH = '/etc/logmonrc'

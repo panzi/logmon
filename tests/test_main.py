@@ -85,7 +85,8 @@ logfiles:
     write_file(logmonrc_path, logmonrc)
 
     proc = Popen(
-        [sys.executable, join_path(SRC_PATH, 'logmon.py'), '--config', logmonrc_path, '--logmails=instead'],
+        [sys.executable, '-m', 'logmon', '--config', logmonrc_path, '--logmails=instead'],
+        cwd=SRC_PATH,
         stdout=PIPE,
         stderr=PIPE,
     )
