@@ -39,8 +39,8 @@ class EMailConfigBase(TypedDict):
     keep_connected: NotRequired[bool]
 
 class EMailConfig(EMailConfigBase):
-    sender: str
-    receivers: list[str]
+    sender: NotRequired[str]
+    receivers: NotRequired[list[str]]
 
 class PartialEMailConfig(EMailConfigBase):
     sender: NotRequired[str]

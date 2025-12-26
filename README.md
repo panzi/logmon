@@ -76,8 +76,9 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
   -v, --version         Print version and exit.
   --license             Show license information and exit.
   --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
-  --sender EMAIL
+  --sender EMAIL        [default: logmon@<email-host>]
   --receivers EMAIL,...
+                        [default: <sender>]
   --subject TEMPLATE    Subject template for the emails. See --body for the
                         template variables. [default: '[ERROR] {brief}']
   --body TEMPLATE       Body template for the emails.

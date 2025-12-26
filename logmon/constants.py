@@ -5,6 +5,7 @@ from .yaml import HAS_YAML
 
 __all__ = (
     '__version__',
+    'DEFAULT_EMAIL_SENDER',
     'DEFAULT_EMAIL_HOST',
     'DEFAULT_EMAIL_PROTOCOL',
     'DEFAULT_SUBJECT',
@@ -35,6 +36,7 @@ __all__ = (
 
 __version__ = '0.3.0'
 
+DEFAULT_EMAIL_SENDER = 'logmon'
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
 

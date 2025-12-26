@@ -78,8 +78,13 @@ class EmailSender(ABC):
         self.subject_templ = config.get('subject', DEFAULT_SUBJECT)
         self.body_templ = config.get('body', DEFAULT_BODY)
 
-        self.sender = config['sender']
-        self.receivers = config['receivers']
+        sender = config.get('sender')
+        if not sender:
+            host = config.get('host', DEFAULT_EMAIL_HOST)
+            sender = f'{DEFAULT_EMAIL_SENDER}@{host}'
+
+        self.sender = sender
+        self.receivers = config.get('receivers') or [sender]
         self.protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
 
         self.logmails = config.get('logmails', DEFAULT_LOGMAILS)

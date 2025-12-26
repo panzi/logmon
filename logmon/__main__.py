@@ -316,8 +316,10 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Show license information and exit.')
     ap.add_argument('--config', default=None, metavar='PATH',
         help=f'Read settings from PATH. [default: {esc_default_config_path}]')
-    ap.add_argument('--sender', default=None, metavar='EMAIL')
-    ap.add_argument('--receivers', default=None, metavar='EMAIL,...')
+    ap.add_argument('--sender', default=None, metavar='EMAIL',
+        help=f'[default: {DEFAULT_EMAIL_SENDER}@<email-host>]')
+    ap.add_argument('--receivers', default=None, metavar='EMAIL,...',
+        help=f'[default: <sender>]')
     ap.add_argument('--subject', default=None, metavar='TEMPLATE',
         help=f'Subject template for the emails. See --body for the template variables. [default: {esc_default_subject!r}]')
     ap.add_argument('--body', default=None, metavar='TEMPLATE',
