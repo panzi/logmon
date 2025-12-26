@@ -23,7 +23,6 @@ from .global_state import handle_stop_signal
 from .json_match import JsonMatch, parse_json_match
 from .limits_service import LimitsService
 from .logmon import logmon_mt, _logmon_thread
-from . import __version__
 
 type Num = int|float
 

@@ -8,5 +8,3 @@ from .json_match import *
 from .systemd import *
 from .inotify import *
 from .global_state import *
-
-__version__ = '0.2.1'

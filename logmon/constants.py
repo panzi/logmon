@@ -4,6 +4,7 @@ from .types import EmailProtocol, Logmails, OutputFormat, ContentType, JsonPath
 from .yaml import HAS_YAML
 
 __all__ = (
+    '__version__',
     'DEFAULT_EMAIL_HOST',
     'DEFAULT_EMAIL_PROTOCOL',
     'DEFAULT_SUBJECT',
@@ -31,6 +32,8 @@ __all__ = (
     'DEFAULT_JSON_BRIEF',
     'ROOT_CONFIG_PATH',
 )
+
+__version__ = '0.2.1'
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
