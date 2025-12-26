@@ -663,7 +663,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.logfiles:
         config_logfiles = config.get('logfiles')
         if isinstance(config_logfiles, dict):
-            config['logfiles'] = { logfile: config_logfiles.get(logfile) or {} for logfile in args.logfile }
+            config['logfiles'] = { logfile: config_logfiles.get(logfile) or {} for logfile in args.logfiles }
         else:
             config['logfiles'] = args.logfiles
         context_dir = abspath('.')
