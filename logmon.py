@@ -501,22 +501,6 @@ def positive(parse: Callable[[str], Num]) -> Callable[[str], Num]:
     parse_positive.__name__ = f'positive_{parse.__name__}'
     return parse_positive
 
-def remove_smaller(items: list[float], cutoff: float) -> None:
-    index = 0
-    while index < len(items):
-        start_index = index
-        while index < len(items):
-            item = items[index]
-            if item >= cutoff:
-                break
-            index += 1
-        end_index = index
-        if start_index != end_index:
-            del items[start_index:end_index]
-            index = start_index
-        else:
-            index += 1
-
 def _parse_comma_list(value: str) -> list[str]:
     result: list[str] = []
     for item in value.split(','):
@@ -902,6 +886,22 @@ class JsonEntryReaderFactory(EntryReaderFactory):
                 brief = brief,
                 formatted = formatted
             )
+
+def remove_smaller(items: list[float], cutoff: float) -> None:
+    index = 0
+    while index < len(items):
+        start_index = index
+        while index < len(items):
+            item = items[index]
+            if item >= cutoff:
+                break
+            index += 1
+        end_index = index
+        if start_index != end_index:
+            del items[start_index:end_index]
+            index = start_index
+        else:
+            index += 1
 
 class LimitsService:
     __slots__ = (
@@ -2655,7 +2655,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         print('No logfiles configured!', file=sys.stderr)
         sys.exit(1)
 
-    if Inotify is None and config.get('use_inotify'):
+    if not HAS_INOTIFY and config.get('use_inotify'):
         _print_no_inotify()
         sys.exit(1)
 
@@ -2663,7 +2663,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     abslogfiles: dict[str, PartialConfig] = {}
     if isinstance(logfiles, dict):
         for logfile, cfg in logfiles.items():
-            if Inotify is None and cfg.get('use_inotify'):
+            if not HAS_INOTIFY and cfg.get('use_inotify'):
                 _print_no_inotify()
                 sys.exit(1)
             abslogfiles[make_abs_logfile(logfile, context_dir)] = cfg
