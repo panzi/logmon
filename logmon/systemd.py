@@ -13,6 +13,7 @@ from .schema import Config
 from .limits_service import LimitsService
 from .email_senders import EmailSender
 from .global_state import handle_keyboard_interrupt
+from .entry_readers import LogEntry
 
 __all__ = (
     'logmon_systemd',
@@ -113,51 +114,59 @@ try:
                         break
 
                     start_ts = monotonic()
-                    entries = list(reader)
+                    systemd_entries = list(reader)
                     duration = monotonic() - start_ts
 
                     try:
-                        while len(entries) < max_entries and duration < wait_before_send:
+                        while len(systemd_entries) < max_entries and duration < wait_before_send:
                             rem_time = wait_before_send - duration
                             logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
                             reader.wait(rem_time)
-                            entries.extend(reader)
+                            systemd_entries.extend(reader)
                             duration = monotonic() - start_ts
 
                     except KeyboardInterrupt:
                         handle_keyboard_interrupt()
 
-                    str_entries: list[str]
+                    entries: list[LogEntry] = []
 
-                    match output_format:
-                        case 'JSON':
-                            str_entries = [json.dumps(entry.data, indent=output_indent) for entry in entries]
+                    for systemd_entry in systemd_entries:
+                        match output_format:
+                            case 'JSON':
+                                formatted = json.dumps(systemd_entry.data, indent=output_indent)
 
-                        case 'YAML':
-                            str_entries = [yaml_dump(entry.data, indent=output_indent) for entry in entries]
+                            case 'YAML':
+                                formatted = yaml_dump(systemd_entry.data, indent=output_indent)
 
-                        case _:
-                            logger.error(f'{logfile}: Illegal output format: {output_format}')
-                            str_entries = [json.dumps(entry.data, indent=output_indent) for entry in entries]
+                            case _:
+                                logger.error(f'{logfile}: Illegal output format: {output_format}')
+                                formatted = json.dumps(systemd_entry.data, indent=output_indent)
 
-                    if str_entries:
+                        brief = systemd_entry.data.get('MESSAGE')
+
+                        if not brief:
+                            brief = formatted.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
+
+                        brief = cleanup_brief(brief)
+
+                        entries.append(LogEntry(
+                            data = systemd_entry.data,
+                            brief = brief,
+                            formatted = formatted,
+                        ))
+
+                    if systemd_entries:
                         try:
-                            brief = entries[0].data.get('MESSAGE')
-
-                            if not brief:
-                                first_entry = str_entries[0]
-                                brief = first_entry.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-
-                            brief = cleanup_brief(brief)
+                            brief = entries[0].brief
 
                             if limits.check():
                                 email_sender.send_email(
                                     logfile = logfile,
-                                    entries = str_entries,
+                                    entries = entries,
                                     brief = brief,
                                 )
                             elif logger.isEnabledFor(logging.DEBUG):
-                                logger.debug(f'{logfile}: Email with {len(str_entries)} entries was rate limited: {brief}')
+                                logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {brief}')
 
                         except Exception as exc:
                             logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)

@@ -14,6 +14,7 @@ from ..schema import Config
 from ..yaml import yaml_dump
 from ..constants import *
 from .remote_email_sender import RemoteEmailSender
+from ..entry_readers import LogEntry
 
 __all__ = (
     'HttpEmailSender',
@@ -95,7 +96,7 @@ class HttpEmailSender(RemoteEmailSender):
                                HTTPSConnection(self.host, self.port)
 
     @override
-    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+    def send_email(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
         proceed, msg = self.check_logmails(logfile, templ_params)
 

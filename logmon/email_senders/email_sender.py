@@ -9,6 +9,7 @@ from email.policy import SMTP
 
 from ..types import EmailProtocol, Logmails
 from ..schema import Config, EMailConfig
+from ..entry_readers import LogEntry
 from ..constants import *
 
 __all__ = (
@@ -93,7 +94,7 @@ class EmailSender(ABC):
         self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
 
     @abstractmethod
-    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+    def send_email(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         ...
 
     def __enter__(self) -> Self:
@@ -108,15 +109,15 @@ class EmailSender(ABC):
                 msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
             logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
 
-    def get_templ_params(self, logfile: str, entries: list[str], brief: str) -> dict[str, str]:
-        entries_str = '\n\n'.join(entries)
-        first_entry = entries[0]
+    def get_templ_params(self, logfile: str, entries: list[LogEntry], brief: str) -> dict[str, str]:
+        entries_str = '\n\n'.join(entry.formatted for entry in entries)
+        first_entry = entries[0].formatted
         lines = first_entry.split('\n')
         first_line = lines[0]
 
         templ_params = {
             'entries': entries_str,
-            'entries_json': json.dumps(entries, indent=self.output_indent),
+            'entries_json': json.dumps([entry.data for entry in entries], indent=self.output_indent),
             'logfile': logfile,
             'brief': brief,
             'line1': first_line,

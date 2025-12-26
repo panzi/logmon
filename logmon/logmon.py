@@ -88,16 +88,15 @@ def _logmon(
 
                             if entries:
                                 try:
-                                    str_entries = [entry.formatted for entry in entries]
                                     if limits.check():
                                         email_sender.send_email(
                                             logfile = logfile,
-                                            entries = str_entries,
+                                            entries = entries,
                                             brief = entries[0].brief,
                                         )
                                     elif logger.isEnabledFor(logging.DEBUG):
                                         brief = entries[0].brief
-                                        templ_params = email_sender.get_templ_params(logfile, str_entries, brief)
+                                        templ_params = email_sender.get_templ_params(logfile, entries, brief)
                                         subject = email_sender.subject_templ.format_map(templ_params)
 
                                         logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {subject}')

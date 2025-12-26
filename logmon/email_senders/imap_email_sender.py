@@ -8,6 +8,7 @@ import logging
 from ..schema import Config
 from .email_sender import make_message
 from .ssl_email_sender import SslEmailSender
+from ..entry_readers import LogEntry
 
 __all__ = (
     'ImapEmailSender',
@@ -64,7 +65,7 @@ class ImapEmailSender(SslEmailSender):
         return imap
 
     @override
-    def send_email(self, logfile: str, entries: list[str], brief: str) -> None:
+    def send_email(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
         proceed, msg = self.check_logmails(logfile, templ_params)
 
