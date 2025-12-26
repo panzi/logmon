@@ -105,8 +105,6 @@ except ImportError:
         def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
             return json.dumps(data, indent=indent)
 
-HTTP_REDIRECT_STATUSES = frozenset((301, 302, 307, 308))
-
 try:
     # inotify has no proper type annotations!
     from inotify.adapters import Inotify, TerminalEventException # type: ignore
@@ -183,8 +181,9 @@ try:
                         logger.error(f'{dirpath}: Error while removing inotify watch: {exc}', exc_info=exc)
         return False
 
+    HAS_INOTIFY = True
 except ImportError:
-    Inotify = None
+    HAS_INOTIFY = False
 
     # to appease the type checker:
     InotifyError = Exception
@@ -196,7 +195,23 @@ except ImportError:
     IN_DELETE = 512
     IN_MOVE_SELF = 2048
 
-    def _inotify_wait_for_exists(inotify, path: str) -> bool:
+    IN_ALL_EVENTS = 0xffff_ffff
+
+    class Inotify: # type: ignore
+        def add_watch(self, path_unicode: str, mask: int = IN_ALL_EVENTS) -> None:
+            raise Exception('needs inotify')
+
+        def remove_watch(self, path: str, superficial: bool = False) -> None:
+            raise Exception('needs inotify')
+
+        def event_gen(
+                self, timeout_s: Optional[float]=None, yield_nones=True, filter_predicate=None,
+                terminal_events=('IN_Q_OVERFLOW','IN_UNMOUNT')) -> Generator[tuple[Any, list[str], str, str]|None]:
+            raise Exception('needs inotify')
+            return
+            yield None, [], '', ''
+
+    def _inotify_wait_for_exists(inotify: Inotify, path: str) -> bool:
         raise Exception('needs inotify')
 
 logger = logging.getLogger(__name__)
@@ -988,10 +1003,10 @@ def _logmon(
 
     with EmailSender.from_config(config) as email_sender:
         seek_end = config.get('seek_end', True)
-        use_inotify = config.get('use_inotify', Inotify is not None)
+        use_inotify = config.get('use_inotify', HAS_INOTIFY)
 
         parentdir = dirname(logfile)
-        if use_inotify and Inotify is not None:
+        if use_inotify and HAS_INOTIFY:
             inotify = Inotify()
         else:
             inotify = None
@@ -1351,6 +1366,8 @@ class RemoteEmailSender(EmailSender):
         self.username = config.get('user')
         self.password = config.get('password')
         self.keep_connected = config.get('keep_connected', False)
+
+HTTP_REDIRECT_STATUSES = frozenset((301, 302, 307, 308))
 
 class HttpEmailSender(RemoteEmailSender):
     __slots__ = (
@@ -2315,7 +2332,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.set_defaults(use_inotify=None)
     inotify_grp = ap.add_mutually_exclusive_group()
     inotify_grp.add_argument('--use-inotify', default=None, action='store_true',
-        help=f'This is the default if the `inotify` Python package is installed. [default: {Inotify is not None}]')
+        help=f'This is the default if the `inotify` Python package is installed. [default: {HAS_INOTIFY}]')
     inotify_grp.add_argument('--no-use-inotify', default=None, action='store_false', dest='use_inotify',
         help='Opposite of --use-inotify')
     ap.add_argument('--entry-start-pattern', default=None, metavar='REGEXP',
