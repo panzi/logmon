@@ -33,7 +33,7 @@ __all__ = (
     'ROOT_CONFIG_PATH',
 )
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 
 DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
