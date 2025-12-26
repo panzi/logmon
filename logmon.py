@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, NamedTuple, get_args, override
+from typing import Callable, Generator, TextIO, Pattern, Optional, NotRequired, Literal, Any, Self, NamedTuple, Mapping, get_args, override
 from abc import ABC, abstractmethod
 from time import sleep, monotonic
 from email.message import EmailMessage
@@ -629,7 +629,7 @@ FIELD_NAME_PATTERN = re.compile(r'["\x00-\x1F]')
 def quote_field_name(name: str) -> str:
     return FIELD_NAME_PATTERN.sub(lambda m: '%%%02X' % ord(m[0]), name)
 
-def encode_multipart(fields: dict[str,str]|dict[str, MultipartFile]|dict[str, str|MultipartFile]) -> tuple[dict[str, str], bytes]:
+def encode_multipart(fields: Mapping[str, str|MultipartFile]) -> tuple[dict[str, str], bytes]:
     buf: list[bytes] = []
     boundary = uuid.uuid4().hex
     bin_boundary = f'--{boundary}\r\n'.encode()
