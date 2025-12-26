@@ -1854,7 +1854,7 @@ try:
                             str_entries = [yaml_dump(entry.data, indent=output_indent) for entry in entries]
 
                         case _:
-                            logger.error(f'{logfile.name}: Illegal output format: {output_format}')
+                            logger.error(f'{logfile}: Illegal output format: {output_format}')
                             str_entries = [json.dumps(entry.data, indent=output_indent) for entry in entries]
 
                     if str_entries:
