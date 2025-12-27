@@ -1,13 +1,13 @@
 import re
 
-from .types import EmailProtocol, Logmails, OutputFormat, ContentType, JsonPath
+from .types import ActionType, Logmails, OutputFormat, ContentType, JsonPath
 from .yaml import HAS_YAML
 
 __all__ = (
     '__version__',
     'DEFAULT_EMAIL_SENDER',
     'DEFAULT_EMAIL_HOST',
-    'DEFAULT_EMAIL_PROTOCOL',
+    'DEFAULT_ACTION',
     'DEFAULT_SUBJECT',
     'DEFAULT_BODY',
     'DEFAULT_WAIT_FILE_NOT_FOUND',
@@ -38,7 +38,7 @@ __version__ = '0.3.0'
 
 DEFAULT_EMAIL_SENDER = 'logmon'
 DEFAULT_EMAIL_HOST = 'localhost'
-DEFAULT_EMAIL_PROTOCOL: EmailProtocol = 'SMTP'
+DEFAULT_ACTION: ActionType = 'SMTP'
 
 DEFAULT_SUBJECT = '{brief}'
 DEFAULT_BODY = '{logfile}\n\n{entries}'

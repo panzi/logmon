@@ -56,4 +56,4 @@ except ImportError:
             raise NotImplementedError('Reading YAML files requires the `PyYAML` package.')
 
         def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
-            return json.dumps(data, indent=indent)
+            return json.dumps(data, indent=indent or None)

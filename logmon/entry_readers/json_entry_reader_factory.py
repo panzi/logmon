@@ -91,16 +91,17 @@ class JsonEntryReaderFactory(EntryReaderFactory):
             else:
                 brief = line.strip()
 
+            output_indent = self.output_indent or None
             match self.output_format:
                 case 'JSON':
-                    formatted = json.dumps(entry, indent=self.output_indent)
+                    formatted = json.dumps(entry, indent=output_indent)
 
                 case 'YAML':
-                    formatted = yaml_dump(entry, indent=self.output_indent)
+                    formatted = yaml_dump(entry, indent=output_indent)
 
                 case _:
                     logger.error(f'{logfile.name}: Illegal output format: {self.output_format}')
-                    formatted = json.dumps(entry, indent=self.output_indent)
+                    formatted = json.dumps(entry, indent=output_indent)
 
             yield LogEntry(
                 data = entry,

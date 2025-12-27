@@ -11,7 +11,7 @@ from .global_state import is_running, get_read_stopfd
 from .cleanup_brief import cleanup_brief
 from .schema import Config
 from .limits_service import LimitsService
-from .email_senders import EmailSender
+from .actions import Action
 from .global_state import handle_keyboard_interrupt
 from .entry_readers import LogEntry
 
@@ -41,13 +41,13 @@ try:
         wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
 
-        output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
+        output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT) or None
         output_format = config.get('output_format', DEFAULT_OUTPUT_FORMAT)
 
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-        with EmailSender.from_config(config) as email_sender:
+        with Action.from_config(config) as email_sender:
             seek_end = config.get('seek_end', True)
             raw_priority = config.get('systemd_priority')
             match_dict = config.get('systemd_match')
@@ -160,7 +160,7 @@ try:
                             brief = entries[0].brief
 
                             if limits.check():
-                                email_sender.send_email(
+                                email_sender.perform_action(
                                     logfile = logfile,
                                     entries = entries,
                                     brief = brief,

@@ -4,7 +4,7 @@ import ssl
 import smtplib
 
 from ..schema import Config
-from .email_sender import make_message
+from .action import make_message
 from .ssl_email_sender import SslEmailSender
 from ..entry_readers import LogEntry
 
@@ -44,7 +44,7 @@ class SmtpEmailSender(SslEmailSender):
             self.smtp.login(self.username or '', self.password or '')
 
     @override
-    def send_email(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
         proceed, msg = self.check_logmails(logfile, templ_params)
 

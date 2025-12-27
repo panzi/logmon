@@ -62,8 +62,8 @@ def test_simple(logmonrc_path: str, logfiles: list[str]):
     receivers = ["bob@example.com", "charly@example.com"]
     logmonrc = f'''\
 ---
-email:
-  protocol: SMTP
+do:
+  action: SMTP
   port: 587
   host: localhost
   sender: "{sender}"

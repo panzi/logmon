@@ -1,18 +1,18 @@
 from typing import Optional
 
-from ..schema import Config, EMailConfig
+from ..schema import Config, ActionConfig
 from ..constants import *
-from .email_sender import EmailSender
+from .action import Action
 
 __all__ = (
     'get_default_port',
     'RemoteEmailSender',
 )
 
-def get_default_port(config: EMailConfig) -> int:
-    protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+def get_default_port(config: ActionConfig) -> int:
+    action = config.get('action', DEFAULT_ACTION)
 
-    match protocol:
+    match action:
         case 'HTTP':
             return 80
 
@@ -39,9 +39,9 @@ def get_default_port(config: EMailConfig) -> int:
                     return 143
 
         case _:
-            raise ValueError(f'Illegal protocol: {protocol!r}')
+            raise ValueError(f'Illegal action: {action!r}')
 
-class RemoteEmailSender(EmailSender):
+class RemoteEmailSender(Action):
     __slots__ = (
         'host',
         'port',

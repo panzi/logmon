@@ -7,13 +7,13 @@ from abc import ABC, abstractmethod
 from email.message import EmailMessage
 from email.policy import SMTP
 
-from ..types import EmailProtocol, Logmails
-from ..schema import Config, EMailConfig
+from ..types import ActionType, Logmails
+from ..schema import Config
 from ..entry_readers import LogEntry
 from ..constants import *
 
 __all__ = (
-    'EmailSender',
+    'Action',
 )
 
 logger = logging.getLogger(__name__)
@@ -36,14 +36,14 @@ def make_message(
 
     return msg
 
-class EmailSender(ABC):
+class Action(ABC):
     __slots__ = (
         'subject_templ',
         'body_templ',
         'sender',
         'receivers',
         'logmails',
-        'protocol',
+        'action',
         'output_indent',
     )
 
@@ -52,16 +52,16 @@ class EmailSender(ABC):
 
     sender: str
     receivers: list[str]
-    protocol: EmailProtocol
+    action: ActionType
 
     logmails: Logmails
     output_indent: int
 
     @staticmethod
-    def from_config(config: Config) -> "EmailSender":
-        protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+    def from_config(config: Config) -> "Action":
+        action = config.get('action', DEFAULT_ACTION)
 
-        match protocol:
+        match action:
             case 'HTTP' | 'HTTPS':
                 from .http_email_sender import HttpEmailSender
                 return HttpEmailSender(config)
@@ -74,10 +74,14 @@ class EmailSender(ABC):
                 from .smtp_email_sender import SmtpEmailSender
                 return SmtpEmailSender(config)
 
-            case _:
-                raise ValueError(f'Illegal protocol: {protocol!r}')
+            case 'COMMAND':
+                from .command_action import CommandAction
+                return CommandAction(config)
 
-    def __init__(self, config: EMailConfig) -> None:
+            case _:
+                raise ValueError(f'Illegal action: {action!r}')
+
+    def __init__(self, config: Config) -> None:
         self.subject_templ = config.get('subject', DEFAULT_SUBJECT)
         self.body_templ = config.get('body', DEFAULT_BODY)
 
@@ -88,13 +92,13 @@ class EmailSender(ABC):
 
         self.sender = sender
         self.receivers = config.get('receivers') or [sender]
-        self.protocol = config.get('protocol', DEFAULT_EMAIL_PROTOCOL)
+        self.action = config.get('action', DEFAULT_ACTION)
 
         self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
         self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
 
     @abstractmethod
-    def send_email(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         ...
 
     def __enter__(self) -> Self:
@@ -117,7 +121,7 @@ class EmailSender(ABC):
 
         templ_params = {
             'entries': entries_str,
-            'entries_json': json.dumps([entry.data for entry in entries], indent=self.output_indent),
+            'entries_json': json.dumps([entry.data for entry in entries], indent=self.output_indent or None),
             'logfile': logfile,
             'brief': brief,
             'line1': first_line,

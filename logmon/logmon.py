@@ -11,7 +11,7 @@ from .limits_service import LimitsService
 from .systemd import is_systemd_path, logmon_systemd
 from .constants import *
 from .entry_readers import EntryReaderFactory, LogEntry
-from .email_senders import EmailSender
+from .actions import Action
 from .inotify import HAS_INOTIFY, Inotify, InotifyError, TerminalEventException, IN_MODIFY, IN_DELETE, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO, inotify_wait_for_exists
 from .global_state import is_running, handle_keyboard_interrupt, open_stopfds, close_stopfds, get_read_stopfd
 
@@ -37,7 +37,7 @@ def _logmon(
 
     reader_factory = EntryReaderFactory.from_config(config)
 
-    with EmailSender.from_config(config) as email_sender:
+    with Action.from_config(config) as email_sender:
         seek_end = config.get('seek_end', True)
         use_inotify = config.get('use_inotify', HAS_INOTIFY)
 
@@ -89,7 +89,7 @@ def _logmon(
                             if entries:
                                 try:
                                     if limits.check():
-                                        email_sender.send_email(
+                                        email_sender.perform_action(
                                             logfile = logfile,
                                             entries = entries,
                                             brief = entries[0].brief,
@@ -248,8 +248,8 @@ def _logmon(
                 except: pass
 
 def logmon_mt(config: MTConfig):
-    email_config = config.get('email')
-    base_config = dict(email_config)
+    action_config = config.get('do')
+    base_config = dict(action_config)
 
     default = config.get('default')
     if default:

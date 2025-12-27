@@ -218,8 +218,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                'Example:\n'
                '\n'
                '    ---\n'
-               '    email:\n'
-               '      protocol: SMTP # or IMAP\n'
+               '    do:\n'
+               '      action: SMTP # or IMAP, HTTP, HTTPS, COMMAND\n'
                '      host: mail.example.com\n'
                '      port: 25\n'
                '      secure: STARTTLS # or SSL/TLS or None\n'
@@ -420,11 +420,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--email-host', default=None, metavar='HOST',
         help=f'[default: {DEFAULT_EMAIL_HOST}]')
     ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT',
-        help='[default: depends on --email-protocol and --email-secure]')
+        help='[default: depends on --action and --email-secure]')
     ap.add_argument('--email-user', default=None, metavar='USER')
     ap.add_argument('--email-password', default=None, metavar='PASSWORD')
     ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption.__value__)])
-    ap.add_argument('--email-protocol', default=None, choices=list(get_args(EmailProtocol.__value__)))
+    ap.add_argument('--action', default=None, choices=list(get_args(ActionType.__value__)))
     ap.add_argument('--http-method', default=None, help='[default: GET]')
     ap.add_argument('--http-path', default=None, help='[default: /]')
     ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)),
@@ -432,6 +432,16 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
         help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS.items())}]')
     ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
+    ap.add_argument('--command')
+    ap.add_argument('--command-cwd')
+    ap.add_argument('--command-user')
+    ap.add_argument('--command-group')
+    ap.add_argument('-E', '--command-env', action='append', default=[], metavar='KEY=VALUE')
+    ap.add_argument('--command-stdin')
+    ap.add_argument('--command-stdout')
+    ap.add_argument('--command-stderr')
+    ap.add_argument('--command-interactive', action='store_true', default=None)
+    ap.add_argument('--command-no-interactive', action='store_false', default=None, dest='command_interactive')
     ap.add_argument('--keep-connected', action='store_true', default=None)
     ap.add_argument('--no-keep-connected', action='store_false', dest='keep_connected')
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
@@ -511,56 +521,56 @@ def main(argv: Optional[list[str]] = None) -> None:
     if limits_config is None:
         limits_config = config['limits'] = {}
 
-    email_config = config.get('email')
-    if email_config is None:
-        email_config = config['email'] = {}
+    action_config = config.get('do')
+    if action_config is None:
+        action_config = config['do'] = {}
 
     if args.sender is not None:
-        email_config['sender'] = args.sender
+        action_config['sender'] = args.sender
 
     if args.receivers is not None:
-        email_config['receivers'] = _parse_comma_list(args.receivers)
+        action_config['receivers'] = _parse_comma_list(args.receivers)
     else:
-        receivers_str = email_config.get('receivers')
+        receivers_str = action_config.get('receivers')
         if isinstance(receivers_str, str):
-            email_config['receivers'] = _parse_comma_list(receivers_str)
-        receiver = email_config.get('receiver')
+            action_config['receivers'] = _parse_comma_list(receivers_str)
+        receiver = action_config.get('receiver')
 
         if receiver is not None:
             if receivers_str is not None:
-                print(f"{config_path}: Only either email.receivers or email.receiver may be set!")
+                print(f"{config_path}: Only either do.receivers or do.receiver may be set!")
                 sys.exit(1)
-            email_config['receivers'] = [receiver]
+            action_config['receivers'] = [receiver]
 
     if args.body is not None:
-        email_config['body'] = args.body
+        action_config['body'] = args.body
 
     if args.email_host is not None:
-        email_config['host'] = args.email_host
+        action_config['host'] = args.email_host
 
     if args.email_port is not None:
-        email_config['port'] = args.email_port
+        action_config['port'] = args.email_port
 
     if args.email_user is not None:
-        email_config['user'] = args.email_user
+        action_config['user'] = args.email_user
 
     if args.email_password is not None:
-        email_config['password'] = args.email_password
+        action_config['password'] = args.email_password
 
     if args.email_secure is not None:
-        email_config['secure'] = args.email_secure if args.email_secure not in ('', 'None') else None
+        action_config['secure'] = args.email_secure if args.email_secure not in ('', 'None') else None
 
-    if args.email_protocol is not None:
-        email_config['protocol'] = args.email_protocol
+    if args.action is not None:
+        action_config['action'] = args.action
 
     if args.http_method is not None:
-        email_config['http_method'] = args.http_method
+        action_config['http_method'] = args.http_method
 
     if args.http_path is not None:
-        email_config['http_path'] = args.http_path
+        action_config['http_path'] = args.http_path
 
     if args.http_content_type is not None:
-        email_config['http_content_type'] = args.http_content_type
+        action_config['http_content_type'] = args.http_content_type
 
     if args.http_param:
         http_params: dict[str, str] = {}
@@ -571,7 +581,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         except ValueError:
             print(f'Illegal value for --http-param: {args.http_param}', file=sys.stderr)
             sys.exit(1)
-        email_config['http_params'] = http_params
+        action_config['http_params'] = http_params
 
     if args.http_header:
         http_headers: dict[str, str] = {}
@@ -582,10 +592,49 @@ def main(argv: Optional[list[str]] = None) -> None:
         except ValueError:
             print(f'Illegal value for --http-header: {args.http_param}', file=sys.stderr)
             sys.exit(1)
-        email_config['http_headers'] = http_headers
+        action_config['http_headers'] = http_headers
+
+    if args.command is not None:
+        import shlex
+        action_config['command'] = shlex.split(args.command)
+
+    if args.command_cwd is not None:
+        action_config['command_cwd'] = args.command_cwd
+
+    if args.command_user is not None:
+        action_config['command_user'] = args.command_user
+
+    if args.command_group is not None:
+        action_config['command_group'] = args.command_group
+
+    if args.command_stdin is not None:
+        action_config['command_stdin'] = args.command_stdin
+
+    if args.command_stdout is not None:
+        action_config['command_stdout'] = args.command_stdout
+
+    if args.command_stderr is not None:
+        action_config['command_stderr'] = args.command_stderr
+
+    if args.command_interactive is not None:
+        action_config['command_interactive'] = args.command_interactive
+
+    if args.command_env:
+        env: dict[str, str] = {}
+        var: str
+        for var in args.command_env:
+            parts = var.split('=', 1)
+            env_name = parts[0]
+            if len(parts) == 1:
+                env_value = os.getenv(env_name)
+                if env_value is not None:
+                    env[env_name] = env_value
+            else:
+                env[env_name] = parts[0]
+        action_config['command_env'] = env
 
     if args.logmails is not None:
-        email_config['logmails'] = args.logmails
+        action_config['logmails'] = args.logmails
 
     if args.wait_file_not_found is not None:
         default_config['wait_file_not_found'] = args.wait_file_not_found
@@ -761,7 +810,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     if len(abslogfiles) == 1:
         logfile, cfg = next(iter(abslogfiles.items()))
         cfg = {
-            **email_config,
+            **action_config,
             **default_config,
             **cfg
         }

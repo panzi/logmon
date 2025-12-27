@@ -6,7 +6,7 @@ from .types import *
 from .json_match import JsonMatch
 
 __all__ = (
-    'EMailConfig',
+    'ActionConfig',
     'PartialEMailConfig',
     'LimitsConfig',
     'LogfileConfig',
@@ -20,7 +20,8 @@ __all__ = (
     'ConfigFile',
 )
 
-class EMailConfigBase(TypedDict):
+class ActionConfigBase(TypedDict):
+    action: NotRequired[ActionType]
     subject: NotRequired[str]
     body: NotRequired[str]
     host: NotRequired[str]
@@ -28,7 +29,6 @@ class EMailConfigBase(TypedDict):
     user: NotRequired[str]
     password: NotRequired[str]
     secure: NotRequired[SecureOption]
-    protocol: NotRequired[EmailProtocol]
     logmails: NotRequired[Logmails]
     http_method: NotRequired[str]
     http_path: NotRequired[str]
@@ -37,12 +37,21 @@ class EMailConfigBase(TypedDict):
     http_headers: NotRequired[dict[str, str]]
     http_max_redirect: NotRequired[int]
     keep_connected: NotRequired[bool]
+    command: NotRequired[list[str]]
+    command_cwd: NotRequired[str]
+    command_user: NotRequired[str|int]
+    command_group: NotRequired[str|int]
+    command_env: NotRequired[dict[str, str]]
+    command_stdin: NotRequired[str]
+    command_stdout: NotRequired[str]
+    command_stderr: NotRequired[str]
+    command_interactive: NotRequired[bool]
 
-class EMailConfig(EMailConfigBase):
+class ActionConfig(ActionConfigBase):
     sender: NotRequired[str]
     receivers: NotRequired[list[str]]
 
-class PartialEMailConfig(EMailConfigBase):
+class PartialEMailConfig(ActionConfigBase):
     sender: NotRequired[str]
     receivers: NotRequired[list[str]]
 
@@ -75,7 +84,7 @@ class SystemDConfig(TypedDict):
     systemd_priority: NotRequired[SystemDPriority|int]
     systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
 
-class Config(EMailConfig, LogfileConfig, SystemDConfig, LimitsConfig):
+class Config(ActionConfig, LogfileConfig, SystemDConfig, LimitsConfig):
     pass
 
 class PartialConfig(PartialEMailConfig, LogfileConfig, SystemDConfig, LimitsConfig):
@@ -85,7 +94,7 @@ class DefaultConfig(LogfileConfig, SystemDConfig):
     pass
 
 class MTConfig(TypedDict):
-    email: EMailConfig
+    do: ActionConfig
     default: NotRequired[DefaultConfig]
     logfiles: dict[str, PartialConfig]|list[str]
     limits: NotRequired[LimitsConfig]

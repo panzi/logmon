@@ -51,7 +51,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                  [--email-port PORT] [--email-user USER]
                  [--email-password PASSWORD]
                  [--email-secure {None,STARTTLS,SSL/TLS}]
-                 [--email-protocol {SMTP,IMAP,HTTP,HTTPS}]
+                 [--action {SMTP,IMAP,HTTP,HTTPS,COMMAND}]
                  [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
                  [--http-content-type {JSON,URL,multipart}] [-P HTTP_PARAM]
                  [-H HTTP_HEADER] [--keep-connected] [--no-keep-connected]
@@ -194,12 +194,12 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                         Only report log entries of this or higher priority.
   --systemd-match KEY=VALUE
   --email-host HOST     [default: localhost]
-  --email-port PORT     [default: depends on --email-protocol and
+  --email-port PORT     [default: depends on --action and
                         --email-secure]
   --email-user USER
   --email-password PASSWORD
   --email-secure {None,STARTTLS,SSL/TLS}
-  --email-protocol {SMTP,IMAP,HTTP,HTTPS}
+  --action {SMTP,IMAP,HTTP,HTTPS,COMMAND}
   --http-method HTTP_METHOD
                         [default: GET]
   --http-path HTTP_PATH
@@ -247,8 +247,8 @@ Example:
 
 ```YAML
 ---
-email:
-  protocol: SMTP # or IMAP
+do:
+  action: SMTP # or IMAP, HTTP, HTTPS, COMMAND
   host: mail.example.com
   port: 25
   secure: STARTTLS # or SSL/TLS or None

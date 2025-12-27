@@ -92,11 +92,11 @@ class HttpEmailSender(RemoteEmailSender):
         self.http_content_type = config.get('http_content_type')
         self.http_headers = config.get('http_headers')
         self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
-        self.http_connection = HTTPConnection(self.host, self.port) if self.protocol == 'HTTP' else \
+        self.http_connection = HTTPConnection(self.host, self.port) if self.action == 'HTTP' else \
                                HTTPSConnection(self.host, self.port)
 
     @override
-    def send_email(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
         proceed, msg = self.check_logmails(logfile, templ_params)
 
@@ -107,7 +107,7 @@ class HttpEmailSender(RemoteEmailSender):
             subject = self.subject_templ.format_map(templ_params)
 
             if logger.isEnabledFor(logging.DEBUG):
-                debug_url = f'{self.protocol.lower()}://{self.host}:{self.port}{self.http_path}'
+                debug_url = f'{self.action.lower()}://{self.host}:{self.port}{self.http_path}'
                 logger.debug(f'{logfile}: {self.http_method}-ing to {debug_url}: {subject}')
 
             http_params = self.http_params
@@ -132,6 +132,7 @@ class HttpEmailSender(RemoteEmailSender):
                 body = None
             else:
                 http_content_type = self.http_content_type or DEFAULT_HTTP_CONTENT_TYPE
+                output_indent = self.output_indent or None
                 match http_content_type:
                     case 'URL':
                         body = urlencode(data).encode()
@@ -143,7 +144,7 @@ class HttpEmailSender(RemoteEmailSender):
                             if templ == '{entries_json}':
                                 json_data[key] = entries
 
-                        body = json.dumps(json_data, indent=self.output_indent).encode()
+                        body = json.dumps(json_data, indent=output_indent).encode()
                         content_type = 'application/json; charset=UTF-8'
 
                     case 'YAML':
@@ -152,7 +153,7 @@ class HttpEmailSender(RemoteEmailSender):
                             if templ == '{entries_json}':
                                 yaml_data[key] = entries
 
-                        body = yaml_dump(yaml_data, indent=self.output_indent).encode()
+                        body = yaml_dump(yaml_data, indent=output_indent).encode()
                         content_type = 'application/x-yaml; charset=UTF-8'
 
                     case 'multipart':
@@ -189,7 +190,7 @@ class HttpEmailSender(RemoteEmailSender):
             status = res.status
 
             if status in HTTP_REDIRECT_STATUSES:
-                scheme = self.protocol.lower()
+                scheme = self.action.lower()
                 url = f'{scheme}://{relative_url}'
 
                 if http_method != 'GET':

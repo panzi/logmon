@@ -2,7 +2,7 @@ from typing import Literal
 
 __all__ = (
     'SecureOption',
-    'EmailProtocol',
+    'ActionType',
     'Logmails',
     'ContentType',
     'OutputFormat',
@@ -11,7 +11,7 @@ __all__ = (
 )
 
 type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
-type EmailProtocol = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS']
+type ActionType = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS', 'COMMAND']
 type Logmails = Literal['always', 'never', 'onerror', 'instead']
 type ContentType = Literal['JSON', 'YAML', 'URL', 'multipart']
 type OutputFormat = Literal['JSON', 'YAML']
