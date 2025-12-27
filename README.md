@@ -33,7 +33,8 @@ read the log files. The command line options overwrite the default settings,
 but not the per-logfile settings. See below for the settings file format.
 
 ```
-Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
+Usage: logmon.py [-h] [-v] [--license] [--config PATH]
+                 [-A {SMTP,IMAP,HTTP,HTTPS,COMMAND}] [--sender EMAIL]
                  [--receivers EMAIL,...] [--subject TEMPLATE]
                  [--body TEMPLATE] [--wait-file-not-found SECONDS]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
@@ -51,11 +52,16 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                  [--email-port PORT] [--email-user USER]
                  [--email-password PASSWORD]
                  [--email-secure {None,STARTTLS,SSL/TLS}]
-                 [--action {SMTP,IMAP,HTTP,HTTPS,COMMAND}]
                  [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
-                 [--http-content-type {JSON,URL,multipart}] [-P HTTP_PARAM]
-                 [-H HTTP_HEADER] [--keep-connected] [--no-keep-connected]
-                 [-d] [--pidfile PATH] [--log-file PATH]
+                 [--http-content-type {JSON,YAML,URL,multipart}]
+                 [-P KEY=VALUE] [-H Header:Value] [--command COMMAND]
+                 [--command-cwd COMMAND_CWD] [--command-user COMMAND_USER]
+                 [--command-group COMMAND_GROUP] [-E KEY=VALUE]
+                 [--command-stdin COMMAND_STDIN]
+                 [--command-stdout COMMAND_STDOUT]
+                 [--command-stderr COMMAND_STDERR] [--command-interactive]
+                 [--command-no-interactive] [--keep-connected]
+                 [--no-keep-connected] [-d] [--pidfile PATH] [--log-file PATH]
                  [--log-level {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
                  [--log-format FORMAT] [--log-datefmt DATEFMT]
                  [--logmails {always,never,onerror,instead}]
@@ -76,11 +82,12 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
   -v, --version         Print version and exit.
   --license             Show license information and exit.
   --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
+  -A, --action {SMTP,IMAP,HTTP,HTTPS,COMMAND}
   --sender EMAIL        [default: logmon@<email-host>]
   --receivers EMAIL,...
                         [default: <sender>]
   --subject TEMPLATE    Subject template for the emails. See --body for the
-                        template variables. [default: '[ERROR] {brief}']
+                        template variables. [default: '{brief}']
   --body TEMPLATE       Body template for the emails.
                         
                         Template variables:
@@ -141,7 +148,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                         pattern is matched or the end of the file is reached.
                         [default: ^\[\d\d\d\d-\d\d-\d\d[T
                         ]\d\d:\d\d:\d\d(?:\.\d+)?(?:
-                        ?(?:[-+]\d\d:?\d\d|Z))?\](?:\s*\[?(?:err(?:or)?|warn(?:ing)?|info|debug|crit(?:ical)?)\b\]?\s*:?\s*)?]
+                        ?(?:[-+]\d\d:?\d\d|Z))?\]]
   --error-pattern REGEXP
                         If this pattern is found within a log entry the whole
                         entry will be sent to the configured receivers.
@@ -194,12 +201,10 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
                         Only report log entries of this or higher priority.
   --systemd-match KEY=VALUE
   --email-host HOST     [default: localhost]
-  --email-port PORT     [default: depends on --action and
-                        --email-secure]
+  --email-port PORT     [default: depends on --action and --email-secure]
   --email-user USER
   --email-password PASSWORD
   --email-secure {None,STARTTLS,SSL/TLS}
-  --action {SMTP,IMAP,HTTP,HTTPS,COMMAND}
   --http-method HTTP_METHOD
                         [default: GET]
   --http-path HTTP_PATH
@@ -209,6 +214,16 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH] [--sender EMAIL]
   -P, --http-param KEY=VALUE
                         [default: subject={subject} receivers={receivers}]
   -H, --http-header Header:Value
+  --command COMMAND
+  --command-cwd COMMAND_CWD
+  --command-user COMMAND_USER
+  --command-group COMMAND_GROUP
+  -E, --command-env KEY=VALUE
+  --command-stdin COMMAND_STDIN
+  --command-stdout COMMAND_STDOUT
+  --command-stderr COMMAND_STDERR
+  --command-interactive
+  --command-no-interactive
   --keep-connected
   --no-keep-connected
   -d, --daemonize       Fork process to the background. Send SIGTERM to the

@@ -316,6 +316,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Show license information and exit.')
     ap.add_argument('--config', default=None, metavar='PATH',
         help=f'Read settings from PATH. [default: {esc_default_config_path}]')
+    ap.add_argument('-A', '--action', default=None, choices=list(get_args(ActionType.__value__)))
     ap.add_argument('--sender', default=None, metavar='EMAIL',
         help=f'[default: {DEFAULT_EMAIL_SENDER}@<email-host>]')
     ap.add_argument('--receivers', default=None, metavar='EMAIL,...',
@@ -424,7 +425,6 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--email-user', default=None, metavar='USER')
     ap.add_argument('--email-password', default=None, metavar='PASSWORD')
     ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption.__value__)])
-    ap.add_argument('--action', default=None, choices=list(get_args(ActionType.__value__)))
     ap.add_argument('--http-method', default=None, help='[default: GET]')
     ap.add_argument('--http-path', default=None, help='[default: /]')
     ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)),
