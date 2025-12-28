@@ -51,7 +51,7 @@ def open_path(path: ParsedPath) -> IO[Any]|int|None:
 
 def parse_path(path: Optional[str], mode: Literal['r', 'w']) -> ParsedPath:
     if path is None:
-        return 'inherit', None, None
+        return 'null', None, None
 
     m = PATH_PATTERN.match(path)
 

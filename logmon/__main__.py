@@ -269,6 +269,13 @@ def main(argv: Optional[list[str]] = None) -> None:
                "       systemd_priority: ERROR\n"
                "       systemd_match:\n"
                "         _SYSTEMD_USER_UNIT: plasma-kwin_x11.service\n"
+               '       command: ["/usr/local/bin/my_command", "{sender}", "{receivers}", "{...entries}"]\n'
+               '       command_user: myuser\n'
+               '       command_group: mygroup\n'
+               '       command_stdin: "null:" # or file:..., inherit:, pipe:FORMAT\n'
+               '       command_stdout: "null:" # or file:..., append:..., inherit:\n'
+               '       command_stderr: "null:" # or file:..., append:..., inherit:, stdout:\n'
+               '       command_interactive: True\n'
                '    limits:\n'
               f'      max_emails_per_minute: {DEFAULT_MAX_EMAILS_PER_MINUTE}\n'
               f'      max_emails_per_hour: {DEFAULT_MAX_EMAILS_PER_HOUR}\n'
@@ -335,6 +342,7 @@ def main(argv: Optional[list[str]] = None) -> None:
              '  {entrynum} .... The number of entries in this message.\n'
              '  {sender} ...... The sender email address.\n'
              '  {receivers} ... Comma separated list of receiver email addresses.\n'
+             "  {nl} .......... A newline character ('\\n')\n"
              '  {{ ............ A literal {\n'
              '  }} ............ A literal }\n'
              '\n'
@@ -432,14 +440,34 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
         help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS.items())}]')
     ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
-    ap.add_argument('--command')
+    ap.add_argument('--command', metavar='''"/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"''',
+        help='When --action=COMMAND then run this command. The command is interpolated with the same '
+             'format as --body plus an additional special parameter {...entries} wich will repeat that '
+             'argument for each entry. E.g. if you have the command "mycommand --entry={...entries}" and '
+             'the entries are just "foo" and "bar" the command that will be executed is:\n'
+             '\n'
+             '    mycommand --entry=foo --entry=bar\n'
+             '\n'
+             "The command string is parsed as a list of strings with Python's `shlex.split()` before "
+             'interpolation takes place and is executed as that list with Popen(args=command) and not '
+             'with a shell in order pro prevent command injections.')
     ap.add_argument('--command-cwd')
     ap.add_argument('--command-user')
     ap.add_argument('--command-group')
     ap.add_argument('-E', '--command-env', action='append', default=[], metavar='KEY=VALUE')
-    ap.add_argument('--command-stdin')
-    ap.add_argument('--command-stdout')
-    ap.add_argument('--command-stderr')
+    ap.add_argument('--command-stdin', metavar='{file:/file/path,null:,inherit:,pipe:FORMAT,/absolute/file/path}',
+        help='When using pipe: the FORMAT is interpolated and written to stdin of the spawned process. '
+             'It has the same parameters as the format of --body plus an additional special parameter '
+             '{...entries} which will repeat the whole format for each log entry. Meaning if FORMAT is '
+             '"before {...entries} after{nl}" and the entries are just "foo" and "bar" then this is '
+             'written to stdin:\n'
+             '\n'
+             '    before foo after\n'
+             '    before bar after\n'
+             '\n'
+             '[default: null:]')
+    ap.add_argument('--command-stdout', metavar='{file:/file/path,append:/file/path,null:,inherit:,/absolute/file/path}')
+    ap.add_argument('--command-stderr', metavar='{file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}')
     ap.add_argument('--command-interactive', action='store_true', default=None)
     ap.add_argument('--command-no-interactive', action='store_false', default=None, dest='command_interactive')
     ap.add_argument('--keep-connected', action='store_true', default=None)

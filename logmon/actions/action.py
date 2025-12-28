@@ -129,6 +129,7 @@ class Action(ABC):
             'entrynum': str(len(entries)),
             'sender': self.sender,
             'receivers': ', '.join(self.receivers),
+            'nl': '\n',
         }
 
         return templ_params
