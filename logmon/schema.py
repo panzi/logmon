@@ -46,6 +46,7 @@ class ActionConfigBase(TypedDict):
     command_stdout: NotRequired[str]
     command_stderr: NotRequired[str]
     command_interactive: NotRequired[bool]
+    command_timeout: NotRequired[Optional[float]]
 
 class ActionConfig(ActionConfigBase):
     sender: NotRequired[str]

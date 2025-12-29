@@ -54,13 +54,15 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--email-secure {None,STARTTLS,SSL/TLS}]
                  [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
                  [--http-content-type {JSON,YAML,URL,multipart}]
-                 [-P KEY=VALUE] [-H Header:Value] [--command COMMAND]
-                 [--command-cwd COMMAND_CWD] [--command-user COMMAND_USER]
-                 [--command-group COMMAND_GROUP] [-E KEY=VALUE]
-                 [--command-stdin COMMAND_STDIN]
-                 [--command-stdout COMMAND_STDOUT]
-                 [--command-stderr COMMAND_STDERR] [--command-interactive]
-                 [--command-no-interactive] [--keep-connected]
+                 [-P KEY=VALUE] [-H Header:Value]
+                 [--command "/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"]
+                 [--command-cwd PATH] [--command-user USER]
+                 [--command-group GROUP] [-E NAME[=VALUE]]
+                 [--command-stdin {file:/file/path,null:,inherit:,pipe:FORMAT,/absolute/file/path}]
+                 [--command-stdout {file:/file/path,append:/file/path,null:,inherit:,/absolute/file/path}]
+                 [--command-stderr {file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}]
+                 [--command-interactive] [--command-no-interactive]
+                 [--command-timeout SECONDS|NONE] [--keep-connected]
                  [--no-keep-connected] [-d] [--pidfile PATH] [--log-file PATH]
                  [--log-level {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
                  [--log-format FORMAT] [--log-datefmt DATEFMT]
@@ -105,6 +107,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                           {sender} ...... The sender email address.
                           {receivers} ... Comma separated list of receiver
                                           email addresses.
+                          {nl} .......... A newline character ('\n')
                           {{ ............ A literal {
                           }} ............ A literal }
                         
@@ -214,16 +217,61 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   -P, --http-param KEY=VALUE
                         [default: subject={subject} receivers={receivers}]
   -H, --http-header Header:Value
-  --command COMMAND
-  --command-cwd COMMAND_CWD
-  --command-user COMMAND_USER
-  --command-group COMMAND_GROUP
-  -E, --command-env KEY=VALUE
-  --command-stdin COMMAND_STDIN
-  --command-stdout COMMAND_STDOUT
-  --command-stderr COMMAND_STDERR
+  --command "/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"
+                        When --action=COMMAND then run this command. The
+                        command is interpolated with the same format as --body
+                        plus an additional special parameter {...entries} wich
+                        will repeat that argument for each entry. E.g. if you
+                        have the command "mycommand --entry={...entries}" and
+                        the entries are just "foo" and "bar" the command that
+                        will be executed is:
+                        
+                            mycommand --entry=foo --entry=bar
+                        
+                        The command string is parsed as a list of strings with
+                        Python's `shlex.split()` before interpolation takes
+                        place and is executed as that list with
+                        `Popen(args=command)` and not with a shell in order
+                        pro prevent command injections.
+  --command-cwd PATH    Run command in PATH. All other paths are thus relative
+                        to this.
+                        [default is the current working directory of logmon]
+  --command-user USER   Run command as USER.
+                        [default is the user of the logmon process]
+  --command-group GROUP
+                        Run command as GROUP.
+                        [default is the group of the logmon process]
+  -E, --command-env NAME[=VALUE]
+                        Replace the environment of the command. Pass this
+                        option multiple times for multiple environment
+                        variables. Only pass a NAME in order to copy the value
+                        from the environment of the logmon process.
+                        [default is the environment of the logmon process]
+  --command-stdin {file:/file/path,null:,inherit:,pipe:FORMAT,/absolute/file/path}
+                        When using "pipe:" the FORMAT is interpolated and
+                        written to stdin of the spawned process. It has the
+                        same parameters as the format of --body plus an
+                        additional special parameter {...entries} which will
+                        repeat the whole format for each log entry. Meaning if
+                        FORMAT is "before {...entries} after{nl}" and the
+                        entries are just "foo" and "bar" then this is written
+                        to stdin:
+                        
+                            before foo after
+                            before bar after
+                        
+                        [default: null:]
+  --command-stdout {file:/file/path,append:/file/path,null:,inherit:,/absolute/file/path}
+  --command-stderr {file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}
   --command-interactive
+                        Use this when the spawned process is
   --command-no-interactive
+                        Opposite of --command-interactive
+  --command-timeout SECONDS|NONE
+                        Wait SECONDS for process to finish. If the procress is
+                        still running on shutdown and the timeout is exceeded
+                        the process will be killed.
+                        [default: NONE]
   --keep-connected
   --no-keep-connected
   -d, --daemonize       Fork process to the background. Send SIGTERM to the
@@ -313,6 +361,15 @@ default:
   systemd_priority: ERROR
   systemd_match:
     _SYSTEMD_USER_UNIT: plasma-kwin_x11.service
+  command: ["/usr/local/bin/my_command", "{sender}", "{receivers}",
+  "{...entries}"]
+  command_user: myuser
+  command_group: mygroup
+  command_stdin: "null:" # or file:..., inherit:, pipe:FORMAT
+  command_stdout: "null:" # or file:..., append:..., inherit:
+  command_stderr: "null:" # or file:..., append:..., inherit:, stdout:
+  command_interactive: True
+  command_timeout: 3.5 # or None
 limits:
   max_emails_per_minute: 6
   max_emails_per_hour: 60

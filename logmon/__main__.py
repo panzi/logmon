@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Callable, Optional, get_args
+from typing import Callable, Optional, TypeVar, get_args
 
 import re
 import os
@@ -34,7 +34,7 @@ def in_range(parse: Callable[[str], Num], min: Optional[Num] = None, max: Option
         if max is not None and num > max:
             raise ValueError(f'value may not be greater than {max} but was {num}')
         return num
-    parse_in_range.__name__ = f'{parse.__name__}_between_{min}_and_{max}'
+    parse_in_range.__name__ = f'in_range({parse.__name__}, {min!r}, {max!r})'
     return parse_in_range
 
 def non_negative(parse: Callable[[str], Num]) -> Callable[[str], Num]:
@@ -47,8 +47,41 @@ def positive(parse: Callable[[str], Num]) -> Callable[[str], Num]:
         if num <= 0:
             raise ValueError(f'value needs to be greater than 0 but was {num}')
         return num
-    parse_positive.__name__ = f'positive_{parse.__name__}'
+    parse_positive.__name__ = f'positive({parse.__name__})'
     return parse_positive
+
+T = TypeVar('T')
+
+def optional(parse: Callable[[str], T], *none_values: str) -> Callable[[str], Optional[T]]:
+    def parse_optional(value: str) -> Optional[T]:
+        if not value.strip() or value in none_values:
+            return None
+        return parse(value)
+    fmt_args = ''.join(f", {val!r}" for val in none_values)
+    parse_optional.__name__ = f'optional({parse.__name__}{fmt_args})'
+    return parse_optional
+
+T1 = TypeVar('T1')
+T2 = TypeVar('T2')
+
+def either(parse1: Callable[[str], T1], parse2: Callable[[str], T2]) -> Callable[[str], T1|T2]:
+    def parse_either(value: str) -> T1|T2:
+        try:
+            return parse1(value)
+        except:
+            return parse2(value)
+    parse_either.__name__ = f'either({parse1.__name__}, {parse2.__name__})'
+    return parse_either
+
+S = TypeVar('S', bound=str)
+
+def literal(expected: S) -> Callable[[str], S]:
+    def parse_literal(actual: str) -> S:
+        if actual != expected:
+            raise ValueError(f'expected: {expected!r}, actual: {actual!r}')
+        return expected
+    parse_literal.__name__ = f'literal({expected!r})'
+    return parse_literal
 
 def _parse_comma_list(value: str) -> list[str]:
     result: list[str] = []
@@ -249,33 +282,34 @@ def main(argv: Optional[list[str]] = None) -> None:
               f'      max_entry_lines: {DEFAULT_MAX_ENTRY_LINES}\n'
               f'      use_inotify: true\n'
               f'      seek_end: true\n'
-               "       # json: true means the log file contains a JSON document per line.\n"
-               "       json: false\n"
-               "       json_match:\n"
-               "         # operators: =, !=, <, >, <=, >=, in, not in\n"
-               "         # in and not in can either have an array of values as the argument\n"
-               '         # or an object in the form of: {"start": 0, "stop": 10} (int only)\n'
-               "         level: ['in', ['ERROR', 'CRITICAL']]\n"
-               "         some:\n"
-               "           nested:\n"
-               "             field: ['=', 12]\n"
-               "         a_list:\n"
-               "           15: ['>=', 123]\n"
-               "       json_ignore:\n"
-               "         message: ['~', '(?i)test']\n"
-               "       json_brief: ['message']\n"
-               "       output_indent: 4\n"
-               "       output_format: YAML # or JSON\n"
-               "       systemd_priority: ERROR\n"
-               "       systemd_match:\n"
-               "         _SYSTEMD_USER_UNIT: plasma-kwin_x11.service\n"
-               '       command: ["/usr/local/bin/my_command", "{sender}", "{receivers}", "{...entries}"]\n'
-               '       command_user: myuser\n'
-               '       command_group: mygroup\n'
-               '       command_stdin: "null:" # or file:..., inherit:, pipe:FORMAT\n'
-               '       command_stdout: "null:" # or file:..., append:..., inherit:\n'
-               '       command_stderr: "null:" # or file:..., append:..., inherit:, stdout:\n'
-               '       command_interactive: True\n'
+               "      # json: true means the log file contains a JSON document per line.\n"
+               "      json: false\n"
+               "      json_match:\n"
+               "        # operators: =, !=, <, >, <=, >=, in, not in\n"
+               "        # in and not in can either have an array of values as the argument\n"
+               '        # or an object in the form of: {"start": 0, "stop": 10} (int only)\n'
+               "        level: ['in', ['ERROR', 'CRITICAL']]\n"
+               "        some:\n"
+               "          nested:\n"
+               "            field: ['=', 12]\n"
+               "        a_list:\n"
+               "          15: ['>=', 123]\n"
+               "      json_ignore:\n"
+               "        message: ['~', '(?i)test']\n"
+               "      json_brief: ['message']\n"
+               "      output_indent: 4\n"
+               "      output_format: YAML # or JSON\n"
+               "      systemd_priority: ERROR\n"
+               "      systemd_match:\n"
+               "        _SYSTEMD_USER_UNIT: plasma-kwin_x11.service\n"
+               '      command: ["/usr/local/bin/my_command", "{sender}", "{receivers}", "{...entries}"]\n'
+               '      command_user: myuser\n'
+               '      command_group: mygroup\n'
+               '      command_stdin: "null:" # or file:..., inherit:, pipe:FORMAT\n'
+               '      command_stdout: "null:" # or file:..., append:..., inherit:\n'
+               '      command_stderr: "null:" # or file:..., append:..., inherit:, stdout:\n'
+               '      command_interactive: True\n'
+               '      command_timeout: 3.5 # or None\n'
                '    limits:\n'
               f'      max_emails_per_minute: {DEFAULT_MAX_EMAILS_PER_MINUTE}\n'
               f'      max_emails_per_hour: {DEFAULT_MAX_EMAILS_PER_HOUR}\n'
@@ -449,14 +483,24 @@ def main(argv: Optional[list[str]] = None) -> None:
              '    mycommand --entry=foo --entry=bar\n'
              '\n'
              "The command string is parsed as a list of strings with Python's `shlex.split()` before "
-             'interpolation takes place and is executed as that list with Popen(args=command) and not '
+             'interpolation takes place and is executed as that list with `Popen(args=command)` and not '
              'with a shell in order pro prevent command injections.')
-    ap.add_argument('--command-cwd')
-    ap.add_argument('--command-user')
-    ap.add_argument('--command-group')
-    ap.add_argument('-E', '--command-env', action='append', default=[], metavar='KEY=VALUE')
+    ap.add_argument('--command-cwd', metavar='PATH',
+        help='Run command in PATH. All other paths are thus relative to this.\n'
+             '[default is the current working directory of logmon]')
+    ap.add_argument('--command-user', metavar='USER',
+        help='Run command as USER.\n'
+             '[default is the user of the logmon process]')
+    ap.add_argument('--command-group', metavar='GROUP',
+        help='Run command as GROUP.\n'
+             '[default is the group of the logmon process]')
+    ap.add_argument('-E', '--command-env', action='append', default=[], metavar='NAME[=VALUE]',
+        help='Replace the environment of the command. Pass this option multiple times for multiple '
+             'environment variables. Only pass a NAME in order to copy the value from the environment '
+             'of the logmon process.\n'
+             '[default is the environment of the logmon process]')
     ap.add_argument('--command-stdin', metavar='{file:/file/path,null:,inherit:,pipe:FORMAT,/absolute/file/path}',
-        help='When using pipe: the FORMAT is interpolated and written to stdin of the spawned process. '
+        help='When using "pipe:" the FORMAT is interpolated and written to stdin of the spawned process. '
              'It has the same parameters as the format of --body plus an additional special parameter '
              '{...entries} which will repeat the whole format for each log entry. Meaning if FORMAT is '
              '"before {...entries} after{nl}" and the entries are just "foo" and "bar" then this is '
@@ -468,8 +512,15 @@ def main(argv: Optional[list[str]] = None) -> None:
              '[default: null:]')
     ap.add_argument('--command-stdout', metavar='{file:/file/path,append:/file/path,null:,inherit:,/absolute/file/path}')
     ap.add_argument('--command-stderr', metavar='{file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}')
-    ap.add_argument('--command-interactive', action='store_true', default=None)
-    ap.add_argument('--command-no-interactive', action='store_false', default=None, dest='command_interactive')
+    ap.add_argument('--command-interactive', action='store_true', default=None,
+        help='Use this when the spawned process is ')
+    ap.add_argument('--command-no-interactive', action='store_false', default=None, dest='command_interactive',
+        help='Opposite of --command-interactive')
+    ap.add_argument('--command-timeout', metavar='SECONDS|NONE', default='unset',
+        type=either(literal('unset'), optional(non_negative(float),'NONE')),
+        help='Wait SECONDS for process to finish. If the procress is still running on shutdown and '
+             'the timeout is exceeded the process will be killed.\n'
+             '[default: NONE]')
     ap.add_argument('--keep-connected', action='store_true', default=None)
     ap.add_argument('--no-keep-connected', action='store_false', dest='keep_connected')
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
@@ -660,6 +711,9 @@ def main(argv: Optional[list[str]] = None) -> None:
             else:
                 env[env_name] = parts[0]
         action_config['command_env'] = env
+
+    if args.command_timeout != 'unset':
+        action_config['command_timeout'] = args.command_timeout
 
     if args.logmails is not None:
         action_config['logmails'] = args.logmails

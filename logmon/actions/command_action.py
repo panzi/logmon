@@ -1,9 +1,11 @@
 from typing import Optional, Literal, Any, override, IO
 
 import re
+import os
 import logging
 
-from subprocess import Popen, PIPE, DEVNULL, STDOUT
+from subprocess import Popen, TimeoutExpired, PIPE, DEVNULL, STDOUT
+from math import inf
 
 from .action import Action
 from ..schema import Config
@@ -25,7 +27,7 @@ type ParsedPath = (
     tuple[Literal['pipe'], str, None]
 )
 
-def open_path(path: ParsedPath) -> IO[Any]|int|None:
+def open_io(path: ParsedPath) -> IO[Any]|int|None:
     match path:
         case ('file', file_path, mode):
             # XXX: mypy somehow gets a totally wrong type for file_path
@@ -48,6 +50,13 @@ def open_path(path: ParsedPath) -> IO[Any]|int|None:
 
         case _:
             raise ValueError(f'Illegal path: {path!r}')
+
+def close_io(obj: IO[Any]|int|None) -> None:
+    if isinstance(obj, int):
+        if obj >= 0:
+            os.close(obj)
+    elif isinstance(obj, IO):
+        obj.close()
 
 def parse_path(path: Optional[str], mode: Literal['r', 'w']) -> ParsedPath:
     if path is None:
@@ -117,6 +126,7 @@ class CommandAction(Action):
         'interactive',
         'proc',
         'pipe_fmt',
+        'timeout',
     )
 
     command: list[str]
@@ -133,6 +143,7 @@ class CommandAction(Action):
     interactive: bool
     proc: Optional[Popen]
     pipe_fmt: Optional[str]
+    timeout: Optional[float]
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
@@ -159,12 +170,16 @@ class CommandAction(Action):
         self.stdout_path = parse_path(self.stdout, 'w')
         self.stderr_path = parse_path(self.stderr, 'w')
         self.interactive = interactive or False
-        self.proc = None
+        self.proc     = None
         self.pipe_fmt = None
+        self.timeout  = config.get('command_timeout')
+        if self.timeout == inf:
+            self.timeout = None
 
     def create_process(self, entries: list[LogEntry], templ_params: dict[str, str]) -> tuple[Popen, str|None]:
         command: list[str] = []
         for arg in self.command:
+            # FIXME: this fails for {{...entries}} and similar!
             parts = [item.format_map(templ_params) for item in arg.split('{...entries}')]
 
             if len(parts) > 1:
@@ -177,16 +192,31 @@ class CommandAction(Action):
         if env is not None:
             env = {key: value.format_map(templ_params) for key, value in env.items()}
 
-        proc = Popen(
-            args   = command,
-            env    = env,
-            cwd    = self.cwd,
-            user   = self.user,
-            group  = self.group,
-            stdin  = open_path(self.stdin_path),
-            stdout = open_path(self.stdout_path),
-            stderr = open_path(self.stderr_path),
-        )
+        stdin = open_io(self.stdin_path)
+        try:
+            stdout = open_io(self.stdout_path)
+            try:
+                stderr = open_io(self.stderr_path)
+                try:
+                    proc = Popen(
+                        args   = command,
+                        env    = env,
+                        cwd    = self.cwd,
+                        user   = self.user,
+                        group  = self.group,
+                        stdin  = open_io(self.stdin_path),
+                        stdout = open_io(self.stdout_path),
+                        stderr = open_io(self.stderr_path),
+                    )
+                except:
+                    close_io(stderr)
+                    raise
+            except:
+                close_io(stdout)
+                raise
+        except:
+            close_io(stdin)
+            raise
 
         match self.stdin_path:
             case ('pipe', pipe_fmt, _):
@@ -196,13 +226,32 @@ class CommandAction(Action):
                 return proc, None
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.stop_process(kill_on_timeout=True)
+
+    def stop_process(self, kill_on_timeout: bool = False) -> None:
         proc = self.proc
         if proc is not None:
-            if proc.poll() is None:
-                proc.terminate()
+            pid = proc.pid
+            try:
+                if (status := proc.poll()) is None:
+                    proc.terminate()
+                    try:
+                        status = proc.wait(self.timeout)
+                    except TimeoutExpired:
+                        logger.error(f'Termination timeout for process (PID: {pid}) exceeded: {proc.args!r}')
+                        if kill_on_timeout:
+                            logger.error(f'Killing process {pid} now!')
+                            proc.kill()
+                    else:
+                        if status != 0:
+                            logger.error(f'Error terminating process (PID: {pid}): {proc.args!r} status: {status}')
+                elif status != 0:
+                    logger.error(f'Error terminating process (PID: {pid}): {proc.args!r} status: {status}')
+            except Exception as exc:
+                logger.error(f'Error terminating process (PID: {pid}): {proc.args!r}: {exc}', exc_info=exc)
+            finally:
                 self.proc = None
-
-        return super().__exit__(exc_type, exc_value, traceback)
+                self.pipe_fmt = None
 
     @override
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
@@ -238,16 +287,30 @@ class CommandAction(Action):
                 if (status := proc.poll()) is not None and status != 0:
                     logger.error(f'Interactive process failed: {proc.args!r} status: {status}')
             else:
+                if self.proc is not None:
+                    self.stop_process(kill_on_timeout=True)
+
                 proc, pipe_fmt = self.create_process(entries, templ_params)
+                pid = proc.pid
+                self.proc = proc
+                self.pipe_fmt = pipe_fmt
 
-                if pipe_fmt is not None:
-                    write_stdin(proc, entries, pipe_fmt, templ_params)
-                    if proc.stdin is not None:
-                        proc.stdin.close()
+                try:
+                    if pipe_fmt is not None:
+                        write_stdin(proc, entries, pipe_fmt, templ_params)
+                        if proc.stdin is not None:
+                            proc.stdin.close()
 
-                status = proc.wait()
-                if status != 0:
-                    raise Exception(f'Error running program: {proc.args!r} status: {status}', proc.args, status)
+                    try:
+                        status = proc.wait(self.timeout)
+                    except TimeoutExpired:
+                        logger.error(f'Termination timeout for process (PID: {pid}) exceeded: {proc.args!r}')
+                    else:
+                        if status != 0:
+                            raise Exception(f'Error running program: {proc.args!r} status: {status}', proc.args, status)
+                finally:
+                    self.proc = None
+                    self.pipe_fmt = None
 
         except Exception as exc:
             self.handle_error(msg, templ_params, exc)
@@ -256,6 +319,7 @@ class CommandAction(Action):
 def write_stdin(proc: Popen, entries: list[LogEntry], pipe_fmt: str, templ_params: dict[str, str]) -> None:
     stdin = proc.stdin
     if stdin is not None:
+        # FIXME: this fails for {{...entries}} and similar!
         parts = [item.format_map(templ_params) for item in pipe_fmt.split('{...entries}')]
 
         if len(parts) > 1:
@@ -265,4 +329,3 @@ def write_stdin(proc: Popen, entries: list[LogEntry], pipe_fmt: str, templ_param
         else:
             stdin.write(parts[0].encode())
             stdin.write(b'\n')
-
