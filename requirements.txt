@@ -1,3 +1,0 @@
-pydantic==1.10.* # probably works with 2.* too, used to parse config
-PyYAML==6.0.* # optional, fallback to JSON, used to parse config
-inotify==0.2.10 # optional, strongly recommended
