@@ -67,15 +67,11 @@ class ImapEmailSender(SslEmailSender):
     @override
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
-        proceed, msg = self.check_logmails(logfile, templ_params)
-
-        if not proceed:
+        if not self.check_logmails(logfile, templ_params):
             return
 
         try:
-            if msg is None:
-                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
-
+            msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
             msg_bytes = msg.as_bytes()
 
             try:
@@ -96,5 +92,5 @@ class ImapEmailSender(SslEmailSender):
                     self.__exit__(None, None, None)
 
         except Exception as exc:
-            self.handle_error(msg, templ_params, exc)
+            self.handle_error(templ_params, exc)
             raise

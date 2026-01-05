@@ -152,35 +152,29 @@ logfiles:
 
     expected1 = f'''\
 {logfiles[0]}: Simulate sending email
-> Subject: {errmsg1hdr}\r
-> From: {sender}\r
-> To: {', '.join(receivers)}\r
-> Content-Type: text/plain; charset="utf-8"\r
-> Content-Transfer-Encoding: 7bit\r
-> MIME-Version: 1.0\r
-> \r
-> {logfiles[0]}\r
-> \r
-> {errmsg1}\r
-> \r
-> \r
-> {errmsg2}\r
+> Subject: {errmsg1hdr}
+> From: {sender}
+> To: {', '.join(receivers)}
+> 
+> {logfiles[0]}
+> 
+> {errmsg1}
+> 
+> 
+> {errmsg2}
 > 
 '''
 
     expected2 = f'''\
 {logfiles[1]}: Simulate sending email
-> Subject: {errmsg3hdr}\r
-> From: {sender}\r
-> To: {', '.join(receivers)}\r
-> Content-Type: text/plain; charset="utf-8"\r
-> Content-Transfer-Encoding: 7bit\r
-> MIME-Version: 1.0\r
-> \r
-> {logfiles[1]}\r
-> \r
-> {errmsg3_1}\r
-> {errmsg3_2}\r
+> Subject: {errmsg3hdr}
+> From: {sender}
+> To: {', '.join(receivers)}
+> 
+> {logfiles[1]}
+> 
+> {errmsg3_1}
+> {errmsg3_2}
 > 
 '''
 

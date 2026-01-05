@@ -1,11 +1,9 @@
-from typing import Optional, Self
+from typing import TypedDict, Self, Any
 
-import json
 import logging
 
 from abc import ABC, abstractmethod
 from email.message import EmailMessage
-from email.policy import SMTP
 
 from ..types import ActionType, Logmails
 from ..schema import Config
@@ -18,10 +16,23 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
+class TemplParams(TypedDict):
+    entries: list[str]
+    entries_str: str
+    entries_raw: list[Any]
+    logfile: str
+    brief: str
+    line1: str
+    entry1: str
+    entrynum: str
+    sender: str
+    receivers: str
+    nl: str
+
 def make_message(
         sender: str,
         receivers: list[str],
-        templ_params: dict[str, str],
+        templ_params: TemplParams,
         subject_templ: str,
         body_templ: str,
 ) -> EmailMessage:
@@ -36,6 +47,26 @@ def make_message(
 
     return msg
 
+def debug_message(
+        sender: str,
+        receivers: list[str],
+        templ_params: TemplParams,
+        subject_templ: str,
+        body_templ: str,
+        line_prefix: str = '',
+) -> str:
+    subject = subject_templ.format_map(templ_params)
+    body = body_templ.format_map(templ_params)
+
+    prefixed_body = f'\n{line_prefix}'.join(body.split('\n')) if line_prefix else body
+
+    return f'''\
+{line_prefix}Subject: {subject}
+{line_prefix}From: {sender}
+{line_prefix}To: {", ".join(receivers)}
+{line_prefix}
+{line_prefix}{prefixed_body}'''
+
 class Action(ABC):
     __slots__ = (
         'subject_templ',
@@ -45,6 +76,7 @@ class Action(ABC):
         'logmails',
         'action',
         'output_indent',
+        'line_prefix',
     )
 
     subject_templ: str
@@ -56,6 +88,7 @@ class Action(ABC):
 
     logmails: Logmails
     output_indent: int
+    line_prefix: str
 
     @staticmethod
     def from_config(config: Config) -> "Action":
@@ -96,6 +129,7 @@ class Action(ABC):
 
         self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
         self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
+        self.line_prefix = '> '
 
     @abstractmethod
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
@@ -107,21 +141,21 @@ class Action(ABC):
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         pass
 
-    def handle_error(self, msg: Optional[EmailMessage], templ_params: dict[str, str], exc: Exception) -> None:
+    def handle_error(self, templ_params: TemplParams, exc: Exception) -> None:
         if self.logmails == 'onerror':
-            if msg is None:
-                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
-            logger.error('Error while sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+            msg_str = debug_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ, line_prefix=self.line_prefix)
+            logger.error(f'Error while sending email: {exc}\n{msg_str}')
 
-    def get_templ_params(self, logfile: str, entries: list[LogEntry], brief: str) -> dict[str, str]:
+    def get_templ_params(self, logfile: str, entries: list[LogEntry], brief: str) -> TemplParams:
         entries_str = '\n\n'.join(entry.formatted for entry in entries)
         first_entry = entries[0].formatted
         lines = first_entry.split('\n')
         first_line = lines[0]
 
-        templ_params = {
-            'entries': entries_str,
-            'entries_json': json.dumps([entry.data for entry in entries], indent=self.output_indent or None),
+        templ_params: TemplParams = {
+            'entries': [entry.formatted for entry in entries],
+            'entries_str': entries_str,
+            'entries_raw': [entry.data for entry in entries],
             'logfile': logfile,
             'brief': brief,
             'line1': first_line,
@@ -134,19 +168,15 @@ class Action(ABC):
 
         return templ_params
 
-    def check_logmails(self, logfile: str, templ_params: dict[str, str]) -> tuple[bool, Optional[EmailMessage]]:
-        msg: Optional[EmailMessage]
+    def check_logmails(self, logfile: str, templ_params: TemplParams) -> bool:
         match self.logmails:
             case 'always':
-                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
-                logger.info(f'{logfile}: Sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
+                msg = debug_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ, line_prefix=self.line_prefix)
+                logger.info(f'{logfile}: Sending email\n{msg}')
 
             case 'instead':
-                msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
-                logger.info(f'{logfile}: Simulate sending email\n> ' + '\n> '.join(msg.as_string(policy=SMTP).split('\n')))
-                return False, None
+                msg = debug_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ, line_prefix=self.line_prefix)
+                logger.info(f'{logfile}: Simulate sending email\n{msg}')
+                return False
 
-            case _:
-                msg = None
-
-        return True, msg
+        return True

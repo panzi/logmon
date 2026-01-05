@@ -41,7 +41,7 @@ DEFAULT_EMAIL_HOST = 'localhost'
 DEFAULT_ACTION: ActionType = 'SMTP'
 
 DEFAULT_SUBJECT = '{brief}'
-DEFAULT_BODY = '{logfile}\n\n{entries}'
+DEFAULT_BODY = '{logfile}\n\n{entries_str}'
 DEFAULT_WAIT_FILE_NOT_FOUND = 30
 DEFAULT_WAIT_LINE_INCOMPLETE = 0.1
 DEFAULT_WAIT_NO_ENTRIES = 5

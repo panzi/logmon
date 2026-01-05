@@ -406,7 +406,7 @@ pidfile: /var/run/logmon.pid
 License
 -------
 
-Copyright &copy; 2025  Mathias Panzenböck
+Copyright &copy; 2025-2026  Mathias Panzenböck
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

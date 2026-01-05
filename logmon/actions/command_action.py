@@ -7,9 +7,10 @@ import logging
 from subprocess import Popen, TimeoutExpired, PIPE, DEVNULL, STDOUT
 from math import inf
 
-from .action import Action
+from .action import Action, TemplParams
 from ..schema import Config
 from ..entry_readers import LogEntry
+from ..template import expand_args_inline, expand
 
 logger = logging.getLogger(__name__)
 
@@ -176,17 +177,8 @@ class CommandAction(Action):
         if self.timeout == inf:
             self.timeout = None
 
-    def create_process(self, entries: list[LogEntry], templ_params: dict[str, str]) -> tuple[Popen, str|None]:
-        command: list[str] = []
-        for arg in self.command:
-            # FIXME: this fails for {{...entries}} and similar!
-            parts = [item.format_map(templ_params) for item in arg.split('{...entries}')]
-
-            if len(parts) > 1:
-                for entry in entries:
-                    command.append(entry.formatted.join(parts))
-            else:
-                command.append(parts[0])
+    def create_process(self, templ_params: TemplParams) -> tuple[Popen, str|None]:
+        command: list[str] = expand_args_inline(self.command, templ_params)
 
         env = self.env
         if env is not None:
@@ -256,9 +248,7 @@ class CommandAction(Action):
     @override
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
-        proceed, msg = self.check_logmails(logfile, templ_params)
-
-        if not proceed:
+        if not self.check_logmails(logfile, templ_params):
             return
 
         try:
@@ -268,19 +258,19 @@ class CommandAction(Action):
                     if status != 0:
                         logger.error(f'Interactive process failed: {proc.args!r} status: {status}')
 
-                    proc, pipe_fmt = self.create_process(entries, templ_params)
+                    proc, pipe_fmt = self.create_process(templ_params)
                     self.proc = proc
                     self.pipe_fmt = pipe_fmt
 
                 elif proc is None:
-                    proc, pipe_fmt = self.create_process(entries, templ_params)
+                    proc, pipe_fmt = self.create_process(templ_params)
                     self.proc = proc
                     self.pipe_fmt = pipe_fmt
                 else:
                     pipe_fmt = self.pipe_fmt
 
                 if pipe_fmt is not None:
-                    write_stdin(proc, entries, pipe_fmt, templ_params)
+                    write_stdin(proc, pipe_fmt, templ_params)
                     if proc.stdin is not None:
                         proc.stdin.flush()
 
@@ -290,14 +280,14 @@ class CommandAction(Action):
                 if self.proc is not None:
                     self.stop_process(kill_on_timeout=True)
 
-                proc, pipe_fmt = self.create_process(entries, templ_params)
+                proc, pipe_fmt = self.create_process(templ_params)
                 pid = proc.pid
                 self.proc = proc
                 self.pipe_fmt = pipe_fmt
 
                 try:
                     if pipe_fmt is not None:
-                        write_stdin(proc, entries, pipe_fmt, templ_params)
+                        write_stdin(proc, pipe_fmt, templ_params)
                         if proc.stdin is not None:
                             proc.stdin.close()
 
@@ -313,19 +303,12 @@ class CommandAction(Action):
                     self.pipe_fmt = None
 
         except Exception as exc:
-            self.handle_error(msg, templ_params, exc)
+            self.handle_error(templ_params, exc)
             raise
 
-def write_stdin(proc: Popen, entries: list[LogEntry], pipe_fmt: str, templ_params: dict[str, str]) -> None:
+def write_stdin(proc: Popen, pipe_fmt: str, templ_params: TemplParams) -> None:
     stdin = proc.stdin
     if stdin is not None:
-        # FIXME: this fails for {{...entries}} and similar!
-        parts = [item.format_map(templ_params) for item in pipe_fmt.split('{...entries}')]
-
-        if len(parts) > 1:
-            for entry in entries:
-                stdin.write(entry.formatted.join(parts).encode())
-                stdin.write(b'\n')
-        else:
-            stdin.write(parts[0].encode())
+        for line in expand(pipe_fmt, templ_params):
+            stdin.write(line.encode())
             stdin.write(b'\n')

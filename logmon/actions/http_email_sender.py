@@ -98,9 +98,7 @@ class HttpEmailSender(RemoteEmailSender):
     @override
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
         templ_params = self.get_templ_params(logfile, entries, brief)
-        proceed, msg = self.check_logmails(logfile, templ_params)
-
-        if not proceed:
+        if not self.check_logmails(logfile, templ_params):
             return
 
         try:
@@ -116,6 +114,7 @@ class HttpEmailSender(RemoteEmailSender):
 
             http_params = { **http_params, 'subject': subject }
 
+            # XXX: support JSON entries in JSON body again! using template.expand()?
             data = {
                 key: templ.format_map(templ_params)
                 for key, templ in http_params.items()
@@ -139,21 +138,11 @@ class HttpEmailSender(RemoteEmailSender):
                         content_type = 'application/x-www-form-urlencoded'
 
                     case 'JSON':
-                        json_data: dict[str, Any] = data
-                        for key, templ in http_params.items():
-                            if templ == '{entries_json}':
-                                json_data[key] = entries
-
-                        body = json.dumps(json_data, indent=output_indent).encode()
+                        body = json.dumps(data, indent=output_indent).encode()
                         content_type = 'application/json; charset=UTF-8'
 
                     case 'YAML':
-                        yaml_data: dict[str, Any] = data
-                        for key, templ in http_params.items():
-                            if templ == '{entries_json}':
-                                yaml_data[key] = entries
-
-                        body = yaml_dump(yaml_data, indent=output_indent).encode()
+                        body = yaml_dump(data, indent=output_indent).encode()
                         content_type = 'application/x-yaml; charset=UTF-8'
 
                     case 'multipart':
@@ -266,7 +255,7 @@ class HttpEmailSender(RemoteEmailSender):
                 raise HTTPException(f'HTTP status error: {status} {res.reason}')
 
         except Exception as exc:
-            self.handle_error(msg, templ_params, exc)
+            self.handle_error(templ_params, exc)
             raise
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
