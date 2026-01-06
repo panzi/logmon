@@ -84,11 +84,19 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --license             Show license information and exit.
   --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
   -A, --action {{http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}
-                        If given parameters like host etc. defined here
-                        overwrite values passed via --host etc. [default:
-                        SMTP]
+                        Parameters defined here overwrite values passed via
+                        other options.
+                        
+                        For SMTP and IMAP these query parameters are
+                        supported:
+                          sender ...... same as --sender
+                          receivers ... same as --receivers
+                          secure ...... same as --email-secure
+                        
+                        [default: SMTP]
   --sender EMAIL        [default: logmon@<host>]
   --receivers EMAIL,...
+                        Comma separated list of email addresses.
                         [default: <sender>]
   --subject TEMPLATE    Subject template for the emails. See --body for the
                         template variables. [default: '{brief}']

@@ -37,7 +37,7 @@ def _logmon(
 
     reader_factory = EntryReaderFactory.from_config(config)
 
-    with Action.from_config(config) as email_sender:
+    with Action.from_config(config) as action:
         seek_end = config.get('seek_end', True)
         use_inotify = config.get('use_inotify', HAS_INOTIFY)
 
@@ -87,22 +87,25 @@ def _logmon(
                                 handle_keyboard_interrupt()
 
                             if entries:
-                                try:
-                                    if limits.check():
-                                        email_sender.perform_action(
-                                            logfile = logfile,
-                                            entries = entries,
-                                            brief = entries[0].brief,
-                                        )
-                                    elif logger.isEnabledFor(logging.DEBUG):
-                                        brief = entries[0].brief
-                                        templ_params = email_sender.get_templ_params(logfile, entries, brief)
-                                        subject = email_sender.subject_templ.format_map(templ_params)
+                                for offset in range(0, len(entries), max_entries):
+                                    try:
+                                        chunk = entries[offset:offset + max_entries]
+                                        brief = chunk[0].brief
 
-                                        logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {subject}')
+                                        if limits.check():
+                                            action.perform_action(
+                                                logfile = logfile,
+                                                entries = chunk,
+                                                brief = brief,
+                                            )
+                                        elif logger.isEnabledFor(logging.DEBUG):
+                                            templ_params = action.get_templ_params(logfile, chunk, brief)
+                                            subject = action.subject_templ.format_map(templ_params)
 
-                                except Exception as exc:
-                                    logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+                                            logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {subject}')
+
+                                    except Exception as exc:
+                                        logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
 
                             if len(entries) < max_entries and is_running():
                                 # If there are max_entries that means there are probably already more in the

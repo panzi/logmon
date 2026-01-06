@@ -47,7 +47,7 @@ try:
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-        with Action.from_config(config) as email_sender:
+        with Action.from_config(config) as action:
             seek_end = config.get('seek_end', True)
             raw_priority = config.get('systemd_priority')
             match_dict = config.get('systemd_match')
@@ -155,21 +155,23 @@ try:
                             formatted = formatted,
                         ))
 
-                    if systemd_entries:
-                        try:
-                            brief = entries[0].brief
+                    if entries:
+                        for offset in range(0, len(entries), max_entries):
+                            try:
+                                chunk = entries[offset:offset + max_entries]
+                                brief = chunk[0].brief
 
-                            if limits.check():
-                                email_sender.perform_action(
-                                    logfile = logfile,
-                                    entries = entries,
-                                    brief = brief,
-                                )
-                            elif logger.isEnabledFor(logging.DEBUG):
-                                logger.debug(f'{logfile}: Email with {len(entries)} entries was rate limited: {brief}')
+                                if limits.check():
+                                    action.perform_action(
+                                        logfile = logfile,
+                                        entries = chunk,
+                                        brief = brief,
+                                    )
+                                elif logger.isEnabledFor(logging.DEBUG):
+                                    logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {brief}')
 
-                        except Exception as exc:
-                            logger.error(f'{logfile}: Error sending email: {exc}', exc_info=exc)
+                            except Exception as exc:
+                                logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
 
             except KeyboardInterrupt:
                 handle_keyboard_interrupt()

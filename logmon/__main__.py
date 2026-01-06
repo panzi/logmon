@@ -203,21 +203,56 @@ def parse_action(cfg: dict[str, Any]) -> None:
             cfg['http_path'] = path
 
         if query is not None:
-            http_params: dict[str, str] = {}
-            if query:
-                for item in query.split('&'):
-                    pair = item.split('=', 1)
-                    key = unquote_plus(pair[0])
-                    value = unquote_plus(pair[1]) if len(pair) == 2 else ''
-                    http_params[key] = value
-
-            cfg['http_params'] = http_params
+            cfg['http_params'] = parse_query(query)
     else:
         if path:
             logging.warning(f'Non-HTTP(S) URLs may not have a path component: {action!r}')
 
         if query:
-            logging.warning(f'Non-HTTP(S) URLs may not have a query component: {action!r}')
+            if prot in ('SMTP', 'IMAP'):
+                params = parse_query(query)
+
+                sender = params.pop('sender', None)
+                receivers_str = params.pop('receivers', None)
+                secure = params.pop('secure', None)
+
+                if params:
+                    raise ValueError(f'Unsupported parameters ({", ".join(params.keys())}) in action: {action!r}')
+
+                if sender:
+                    cfg['sender'] = sender
+
+                if receivers_str:
+                    cfg['receivers'] = [receiver.strip() for receiver in receivers_str.split(',')]
+
+                if secure:
+                    match secure.upper():
+                        case 'STARTTLS':
+                            cfg['email_secure'] = 'STARTTLS'
+
+                        case 'SSL/TLS':
+                            cfg['email_secure'] = 'SSL/TLS'
+
+                        case 'NONE' | '':
+                            cfg['email_secure'] = None
+
+                        case _:
+                            raise ValueError(f'Illegal value for secure parameter in action: {action!r}')
+
+            else:
+                logging.warning(f'Non-HTTP(S) URLs may not have a query component: {action!r}')
+
+def parse_query(query: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+
+    if query:
+        for item in query.split('&'):
+            pair = item.split('=', 1)
+            key = unquote_plus(pair[0])
+            value = unquote_plus(pair[1]) if len(pair) == 2 else ''
+            parsed[key] = value
+
+    return parsed
 
 def main(argv: Optional[list[str]] = None) -> None:
     from pathlib import Path
@@ -435,11 +470,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     non_command_actions.remove('command')
     ap.add_argument('-A', '--action', default=None,
         metavar=f"{{{{{','.join(sorted(non_command_actions))}}}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}}",
-        help=f'If given parameters like host etc. defined here overwrite values passed via --host etc. [default: {DEFAULT_ACTION}]')
+        help='Parameters defined here overwrite values passed via other options.\n'
+             '\n'
+             'For SMTP and IMAP these query parameters are supported:\n'
+             '  sender ...... same as --sender\n'
+             '  receivers ... same as --receivers\n'
+             '  secure ...... same as --email-secure\n'
+             '\n'
+             f'[default: {DEFAULT_ACTION}]')
     ap.add_argument('--sender', default=None, metavar='EMAIL',
         help=f'[default: {DEFAULT_EMAIL_SENDER}@<host>]')
     ap.add_argument('--receivers', default=None, metavar='EMAIL,...',
-        help=f'[default: <sender>]')
+        help='Comma separated list of email addresses.\n'
+             '[default: <sender>]')
     ap.add_argument('--subject', default=None, metavar='TEMPLATE',
         help=f'Subject template for the emails. See --body for the template variables. [default: {esc_default_subject!r}]')
     ap.add_argument('--body', default=None, metavar='TEMPLATE',
