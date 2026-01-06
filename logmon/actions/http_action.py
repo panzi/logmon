@@ -1,4 +1,4 @@
-from typing import Any, Optional, NotRequired, TypedDict, Mapping, override
+from typing import Iterable, Optional, NotRequired, TypedDict, override
 
 import re
 import uuid
@@ -15,9 +15,10 @@ from ..yaml import yaml_dump
 from ..constants import *
 from .remote_email_sender import RemoteEmailSender
 from ..entry_readers import LogEntry
+from ..template import expand, expand_object
 
 __all__ = (
-    'HttpEmailSender',
+    'HttpAction',
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ FIELD_NAME_PATTERN = re.compile(r'["\x00-\x1F]')
 def quote_field_name(name: str) -> str:
     return FIELD_NAME_PATTERN.sub(lambda m: '%%%02X' % ord(m[0]), name)
 
-def encode_multipart(fields: Mapping[str, str|MultipartFile]) -> tuple[dict[str, str], bytes]:
+def encode_multipart(fields: Iterable[tuple[str, str|MultipartFile]]) -> tuple[dict[str, str], bytes]:
     buf: list[bytes] = []
     boundary = uuid.uuid4().hex
     bin_boundary = f'--{boundary}\r\n'.encode()
@@ -42,7 +43,7 @@ def encode_multipart(fields: Mapping[str, str|MultipartFile]) -> tuple[dict[str,
         'Content-Type': f'multipart/form-data; boundary={boundary}'
     }
 
-    for key, value in fields.items():
+    for key, value in fields:
         buf.append(bin_boundary)
         if isinstance(value, str):
             buf.append(f'Content-Disposition: form-data; name="{quote_field_name(key)}"\r\n'.encode())
@@ -62,7 +63,7 @@ def encode_multipart(fields: Mapping[str, str|MultipartFile]) -> tuple[dict[str,
 
     return headers, body
 
-class HttpEmailSender(RemoteEmailSender):
+class HttpAction(RemoteEmailSender):
     __slots__ = (
         'http_method',
         'http_path',
@@ -74,7 +75,7 @@ class HttpEmailSender(RemoteEmailSender):
     )
     http_method: str
     http_path: str
-    http_params: Optional[dict[str, str]]
+    http_params: Optional[list[tuple[str, str]]]
     http_content_type: Optional[ContentType]
     http_headers: Optional[dict[str, str]]
     http_max_redirect: int
@@ -88,7 +89,8 @@ class HttpEmailSender(RemoteEmailSender):
         if not http_path.startswith('/'):
             http_path = f'/{http_path}'
         self.http_path = http_path
-        self.http_params = config.get('http_params')
+        http_params = config.get('http_params')
+        self.http_params = list(http_params.items()) if isinstance(http_params, dict) else http_params
         self.http_content_type = config.get('http_content_type')
         self.http_headers = config.get('http_headers')
         self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
@@ -103,6 +105,7 @@ class HttpEmailSender(RemoteEmailSender):
 
         try:
             subject = self.subject_templ.format_map(templ_params)
+            templ_params['subject'] = subject
 
             if logger.isEnabledFor(logging.DEBUG):
                 debug_url = f'{self.action.lower()}://{self.host}:{self.port}{self.http_path}'
@@ -112,21 +115,17 @@ class HttpEmailSender(RemoteEmailSender):
             if http_params is None:
                 http_params = DEFAULT_HTTP_PARAMS
 
-            http_params = { **http_params, 'subject': subject }
-
-            # XXX: support JSON entries in JSON body again! using template.expand()?
-            data = {
-                key: templ.format_map(templ_params)
-                for key, templ in http_params.items()
-            }
-
             body: Optional[bytes]
             content_type: Optional[str] = None
             http_method = self.http_method
             relative_url = self.http_path
 
             if http_method == 'GET':
-                query = urlencode(data)
+                query = urlencode([
+                    (key, value)
+                    for key, templ in http_params
+                    for value in expand(templ, templ_params)
+                ])
                 relative_url = f'{relative_url}?{query}'
                 body = None
             else:
@@ -134,19 +133,29 @@ class HttpEmailSender(RemoteEmailSender):
                 output_indent = self.output_indent or None
                 match http_content_type:
                     case 'URL':
-                        body = urlencode(data).encode()
+                        body = urlencode([
+                            (key, value)
+                            for key, templ in http_params
+                            for value in expand(templ, templ_params)
+                        ]).encode()
                         content_type = 'application/x-www-form-urlencoded'
 
                     case 'JSON':
+                        data = expand_object(http_params, templ_params)
                         body = json.dumps(data, indent=output_indent).encode()
                         content_type = 'application/json; charset=UTF-8'
 
                     case 'YAML':
+                        data = expand_object(http_params, templ_params)
                         body = yaml_dump(data, indent=output_indent).encode()
                         content_type = 'application/x-yaml; charset=UTF-8'
 
                     case 'multipart':
-                        headers, body = encode_multipart(data)
+                        headers, body = encode_multipart([
+                            (key, value)
+                            for key, templ in http_params
+                            for value in expand(templ, templ_params)
+                        ])
 
                     case _:
                         raise ValueError(f'illegal http_content_type: {http_content_type}')

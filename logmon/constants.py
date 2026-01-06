@@ -63,10 +63,10 @@ DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
 
 DEFAULT_HTTP_MAX_REDIRECT = 10
-DEFAULT_HTTP_PARAMS = {
-    'subject': '{subject}',
-    'receivers': '{receivers}',
-}
+DEFAULT_HTTP_PARAMS = [
+    ('subject', '{subject}'),
+    ('receivers', '{receivers}'),
+]
 DEFAULT_HTTP_CONTENT_TYPE: ContentType = 'URL'
 
 DEFAULT_JSON_BRIEF: JsonPath = ['message']

@@ -32,7 +32,7 @@ class ActionConfigBase(TypedDict):
     logmails: NotRequired[Logmails]
     http_method: NotRequired[str]
     http_path: NotRequired[str]
-    http_params: NotRequired[dict[str, str]]
+    http_params: NotRequired[dict[str, str]|list[tuple[str, str]]]
     http_content_type: NotRequired[ContentType]
     http_headers: NotRequired[dict[str, str]]
     http_max_redirect: NotRequired[int]

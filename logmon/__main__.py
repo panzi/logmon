@@ -474,7 +474,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)),
         help=f'[default: {DEFAULT_HTTP_CONTENT_TYPE}]')
     ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
-        help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS.items())}]')
+        help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS)}]')
     ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
     ap.add_argument('--command', metavar='''"/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"''',
         help='When --action=COMMAND then run this command. The command is interpolated with the same '
@@ -654,11 +654,11 @@ def main(argv: Optional[list[str]] = None) -> None:
         action_config['http_content_type'] = args.http_content_type
 
     if args.http_param:
-        http_params: dict[str, str] = {}
+        http_params: list[tuple[str, str]] = []
         try:
             for param in args.http_param:
                 key, value = param.split('=', 1)
-                http_params[key] = value
+                http_params.append((key, value))
         except ValueError:
             print(f'Illegal value for --http-param: {args.http_param}', file=sys.stderr)
             sys.exit(1)

@@ -1,4 +1,4 @@
-from typing import TypedDict, Self, Any
+from typing import TypedDict, Self, Any, NotRequired
 
 import logging
 
@@ -28,6 +28,7 @@ class TemplParams(TypedDict):
     sender: str
     receivers: str
     nl: str
+    subject: NotRequired[str]
 
 def make_message(
         sender: str,
@@ -58,7 +59,7 @@ def debug_message(
     subject = subject_templ.format_map(templ_params)
     body = body_templ.format_map(templ_params)
 
-    prefixed_body = f'\n{line_prefix}'.join(body.split('\n')) if line_prefix else body
+    prefixed_body = body.replace('\n', f'\n{line_prefix}') if line_prefix else body
 
     return f'''\
 {line_prefix}Subject: {subject}
@@ -96,8 +97,8 @@ class Action(ABC):
 
         match action:
             case 'HTTP' | 'HTTPS':
-                from .http_email_sender import HttpEmailSender
-                return HttpEmailSender(config)
+                from .http_action import HttpAction
+                return HttpAction(config)
 
             case 'IMAP':
                 from .imap_email_sender import ImapEmailSender
