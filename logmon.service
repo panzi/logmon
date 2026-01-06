@@ -1,5 +1,5 @@
 [Unit]
-Description="Monitor log files and send emails"
+Description="Monitor log files perform actions"
 StartLimitBurst=5
 StartLimitIntervalSec=10
 

@@ -27,6 +27,7 @@ class TemplParams(TypedDict):
     entrynum: str
     sender: str
     receivers: str
+    receiver_list: list[str]
     nl: str
     subject: NotRequired[str]
 
@@ -150,8 +151,7 @@ class Action(ABC):
     def get_templ_params(self, logfile: str, entries: list[LogEntry], brief: str) -> TemplParams:
         entries_str = '\n\n'.join(entry.formatted for entry in entries)
         first_entry = entries[0].formatted
-        lines = first_entry.split('\n')
-        first_line = lines[0]
+        first_line = first_entry.split('\n', 1)[0]
 
         templ_params: TemplParams = {
             'entries': [entry.formatted for entry in entries],
@@ -164,6 +164,7 @@ class Action(ABC):
             'entrynum': str(len(entries)),
             'sender': self.sender,
             'receivers': ', '.join(self.receivers),
+            'receiver_list': self.receivers,
             'nl': '\n',
         }
 
