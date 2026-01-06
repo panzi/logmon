@@ -150,7 +150,7 @@ def expand_object(object: Iterable[tuple[str, str]], params: Mapping[str, Any]) 
                 if not isinstance(obj, list):
                     raise TypeError(f'Conflict: path {strpath} expects list but found {type(obj).__name__}')
 
-                new_obj = [] if next_key is None else {}
+                new_obj: dict[str, Any]|list[Any] = [] if next_key is None else {}
                 obj.append(new_obj)
                 obj = new_obj
             elif not isinstance(obj, dict):
@@ -166,6 +166,7 @@ def expand_object(object: Iterable[tuple[str, str]], params: Mapping[str, Any]) 
         key = path[-1]
         m = match_templ(templ)
         extend = False
+        value: Any
 
         if m is None:
             value = templ

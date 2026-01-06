@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 
-from typing import Callable, Optional, TypeVar, get_args
+from typing import Any, Callable, Optional, TypeVar, get_args
 
 import re
 import os
 import sys
 import json
+import shlex
 import signal
 import logging
 import pydantic
 
 from os.path import abspath, join as joinpath, dirname
+from urllib.parse import unquote_plus
 
 from .schema import PartialConfig, ConfigFile
 from .yaml import HAS_YAML, yaml_load
@@ -23,6 +25,8 @@ from .global_state import handle_stop_signal
 from .json_match import JsonMatch, parse_json_match
 from .limits_service import LimitsService
 from .logmon import logmon_mt, _logmon_thread
+
+ACTIONS: set[ActionType] = set(get_args(ActionType.__value__))
 
 type Num = int|float
 
@@ -145,6 +149,76 @@ def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: st
     so.close()
     se.close()
 
+URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
+
+def parse_action(cfg: dict[str, Any]) -> None:
+    action = cfg.get('action')
+    if action is None:
+        return
+
+    if not isinstance(action, str):
+        raise TypeError(f'illegal action type: {action!r} ({type(action).__name__})')
+
+    m = URL_PATTERN.match(action)
+    if m is None:
+        raise ValueError(f'illegal action: {action!r}')
+
+    if m.group('iscommand'):
+        cfg['action'] = 'COMMAND'
+
+        command: Optional[str] = m.group('command')
+        if command:
+            cfg['command'] = shlex.split(command)
+
+        return
+
+    prot: str = m.group('prot').upper()
+    user: Optional[str] = m.group('user')
+    password: Optional[str] = m.group('password')
+    host: Optional[str] = m.group('host') # TODO: do we need to use this?: m.group('ipv6') or m.group('host')
+    port_str: Optional[str] = m.group('port')
+    port: Optional[int] = int(port_str, 10) if port_str is not None else None
+    path: Optional[str] = m.group('path')
+    query: Optional[str] = m.group('query')
+
+    if prot not in ACTIONS:
+        raise ValueError(f'illegal action: {action!r}')
+
+    cfg['action'] = prot # type: ignore
+
+    if user is not None:
+        cfg['user'] = unquote_plus(user)
+
+    if password is not None:
+        cfg['password'] = unquote_plus(password)
+
+    if host is not None:
+        cfg['host'] = host
+
+    if port is not None:
+        cfg['port'] = port
+
+    if prot in ('HTTP', 'HTTPS'):
+        if path is not None:
+            cfg['http_path'] = path
+
+        if query is not None:
+            http_params: dict[str, str] = {}
+            if query:
+                for item in query.split('&'):
+                    pair = item.split('=', 1)
+                    key = unquote_plus(pair[0])
+                    value = unquote_plus(pair[1]) if len(pair) == 2 else ''
+                    http_params[key] = value
+
+            cfg['http_params'] = http_params
+    else:
+        if path:
+            logging.warning(f'Non-HTTP(S) URLs may not have a path component: {action!r}')
+
+        if query:
+            logging.warning(f'Non-HTTP(S) URLs may not have a query component: {action!r}')
+
 def main(argv: Optional[list[str]] = None) -> None:
     from pathlib import Path
     import argparse
@@ -252,7 +326,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                '\n'
                '    ---\n'
                '    do:\n'
-               '      action: SMTP # or IMAP, HTTP, HTTPS, COMMAND\n'
+               '      action: SMTP # same syntax as --action\n'
                '      host: mail.example.com\n'
                '      port: 25\n'
                '      secure: STARTTLS # or SSL/TLS or None\n'
@@ -357,9 +431,13 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Show license information and exit.')
     ap.add_argument('--config', default=None, metavar='PATH',
         help=f'Read settings from PATH. [default: {esc_default_config_path}]')
-    ap.add_argument('-A', '--action', default=None, choices=list(get_args(ActionType.__value__)))
+    non_command_actions = set(action.lower() for action in ACTIONS)
+    non_command_actions.remove('command')
+    ap.add_argument('-A', '--action', default=None,
+        metavar=f"{{{{{','.join(sorted(non_command_actions))}}}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}}",
+        help=f'If given parameters like host etc. defined here overwrite values passed via --host etc. [default: {DEFAULT_ACTION}]')
     ap.add_argument('--sender', default=None, metavar='EMAIL',
-        help=f'[default: {DEFAULT_EMAIL_SENDER}@<email-host>]')
+        help=f'[default: {DEFAULT_EMAIL_SENDER}@<host>]')
     ap.add_argument('--receivers', default=None, metavar='EMAIL,...',
         help=f'[default: <sender>]')
     ap.add_argument('--subject', default=None, metavar='TEMPLATE',
@@ -462,12 +540,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority.__value__),
         help='Only report log entries of this or higher priority.')
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
-    ap.add_argument('--email-host', default=None, metavar='HOST',
+    ap.add_argument('--host', default=None, metavar='HOST',
         help=f'[default: {DEFAULT_EMAIL_HOST}]')
-    ap.add_argument('--email-port', type=positive(int), default=None, metavar='PORT',
+    ap.add_argument('--port', type=positive(int), default=None, metavar='PORT',
         help='[default: depends on --action and --email-secure]')
-    ap.add_argument('--email-user', default=None, metavar='USER')
-    ap.add_argument('--email-password', default=None, metavar='PASSWORD')
+    ap.add_argument('--user', default=None, metavar='USER')
+    ap.add_argument('--password', default=None, metavar='PASSWORD')
     ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption.__value__)])
     ap.add_argument('--http-method', default=None, help='[default: GET]')
     ap.add_argument('--http-path', default=None, help='[default: /]')
@@ -605,6 +683,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     action_config = config.get('do')
     if action_config is None:
         action_config = config['do'] = {}
+    elif not isinstance(action_config, dict):
+        print(f"{config_path}: Key 'do' must be a dict", file=sys.stderr)
+        sys.exit(1)
 
     if args.sender is not None:
         action_config['sender'] = args.sender
@@ -626,23 +707,24 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.body is not None:
         action_config['body'] = args.body
 
-    if args.email_host is not None:
-        action_config['host'] = args.email_host
+    action: Optional[str] = args.action
+    if action is not None:
+        action_config['action'] = action
 
-    if args.email_port is not None:
-        action_config['port'] = args.email_port
+    if args.host is not None:
+        action_config['host'] = args.host
 
-    if args.email_user is not None:
-        action_config['user'] = args.email_user
+    if args.port is not None:
+        action_config['port'] = args.port
 
-    if args.email_password is not None:
-        action_config['password'] = args.email_password
+    if args.user is not None:
+        action_config['user'] = args.user
+
+    if args.password is not None:
+        action_config['password'] = args.password
 
     if args.email_secure is not None:
         action_config['secure'] = args.email_secure if args.email_secure not in ('', 'None') else None
-
-    if args.action is not None:
-        action_config['action'] = args.action
 
     if args.http_method is not None:
         action_config['http_method'] = args.http_method
@@ -676,7 +758,6 @@ def main(argv: Optional[list[str]] = None) -> None:
         action_config['http_headers'] = http_headers
 
     if args.command is not None:
-        import shlex
         action_config['command'] = shlex.split(args.command)
 
     if args.command_cwd is not None:
@@ -719,6 +800,8 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.logmails is not None:
         action_config['logmails'] = args.logmails
+
+    parse_action(action_config)
 
     if args.wait_file_not_found is not None:
         default_config['wait_file_not_found'] = args.wait_file_not_found
@@ -800,6 +883,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.logfiles:
         config_logfiles = config.get('logfiles')
         if isinstance(config_logfiles, dict):
+            for raw_cfg in config_logfiles.values():
+                parse_action(raw_cfg)
+
             config['logfiles'] = { logfile: config_logfiles.get(logfile) or {} for logfile in args.logfiles }
         else:
             config['logfiles'] = args.logfiles
@@ -821,7 +907,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         print('No logfiles configured!', file=sys.stderr)
         sys.exit(1)
 
-    if HAS_INOTIFY and config.get('use_inotify'):
+    if not HAS_INOTIFY and config.get('use_inotify'):
         _print_no_inotify()
         sys.exit(1)
 
@@ -829,7 +915,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     abslogfiles: dict[str, PartialConfig] = {}
     if isinstance(logfiles, dict):
         for logfile, cfg in logfiles.items():
-            if HAS_INOTIFY and cfg.get('use_inotify'):
+            if not HAS_INOTIFY and cfg.get('use_inotify'):
                 _print_no_inotify()
                 sys.exit(1)
             abslogfiles[make_abs_logfile(logfile, context_dir)] = cfg

@@ -34,8 +34,8 @@ but not the per-logfile settings. See below for the settings file format.
 
 ```
 Usage: logmon.py [-h] [-v] [--license] [--config PATH]
-                 [-A {SMTP,IMAP,HTTP,HTTPS,COMMAND}] [--sender EMAIL]
-                 [--receivers EMAIL,...] [--subject TEMPLATE]
+                 [-A {{http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}]
+                 [--sender EMAIL] [--receivers EMAIL,...] [--subject TEMPLATE]
                  [--body TEMPLATE] [--wait-file-not-found SECONDS]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
                  [--wait-before-send SECONDS] [--wait-after-crash SECONDS]
@@ -48,9 +48,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--json-ignore PATH=VALUE] [--json-brief PATH]
                  [--output-indent OUTPUT_INDENT] [--output-format {JSON,YAML}]
                  [--systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}]
-                 [--systemd-match KEY=VALUE] [--email-host HOST]
-                 [--email-port PORT] [--email-user USER]
-                 [--email-password PASSWORD]
+                 [--systemd-match KEY=VALUE] [--host HOST] [--port PORT]
+                 [--user USER] [--password PASSWORD]
                  [--email-secure {None,STARTTLS,SSL/TLS}]
                  [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
                  [--http-content-type {JSON,YAML,URL,multipart}]
@@ -84,8 +83,11 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   -v, --version         Print version and exit.
   --license             Show license information and exit.
   --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
-  -A, --action {SMTP,IMAP,HTTP,HTTPS,COMMAND}
-  --sender EMAIL        [default: logmon@<email-host>]
+  -A, --action {{http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}
+                        If given parameters like host etc. defined here
+                        overwrite values passed via --host etc. [default:
+                        SMTP]
+  --sender EMAIL        [default: logmon@<host>]
   --receivers EMAIL,...
                         [default: <sender>]
   --subject TEMPLATE    Subject template for the emails. See --body for the
@@ -93,25 +95,32 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --body TEMPLATE       Body template for the emails.
                         
                         Template variables:
-                          {entries} ..... All entries for the message
-                                          concatenated into a string with two
-                                          newlines between each.
-                          {logfile} ..... The path of the logfile.
-                          {entry1} ...... The first log entry of the message.
-                          {line1} ....... The first line of the first log
-                                          entry.
-                          {brief} ....... Like {line1}, but with the entry
-                                          start pattern removed.
-                          {entrynum} .... The number of entries in this
-                                          message.
-                          {sender} ...... The sender email address.
-                          {receivers} ... Comma separated list of receiver
-                                          email addresses.
-                          {nl} .......... A newline character ('\n')
-                          {{ ............ A literal {
-                          }} ............ A literal }
+                          {entries} ....... All entries formatted with the
+                                            --output-format and
+                                            --output-indent options
+                          {entries_str} ... All entries for the message
+                                            concatenated into a string with
+                                            two newlines between each.
+                          {entries_raw} ... Raw entries (list[str] for normal
+                                            log files or list[dict] for
+                                            SystemD or JSON log files).
+                          {logfile} ....... The path of the logfile.
+                          {entry1} ........ The first log entry of the
+                                            message.
+                          {line1} ......... The first line of the first log
+                                            entry.
+                          {brief} ......... Like {line1}, but with the entry
+                                            start pattern removed.
+                          {entrynum} ...... The number of entries in this
+                                            message.
+                          {sender} ........ The sender email address.
+                          {receivers} ..... Comma separated list of receiver
+                                            email addresses.
+                          {nl} ............ A newline character ('\n')
+                          {{ .............. A literal {
+                          }} .............. A literal }
                         
-                        [default: '{logfile}\n\n{entries}']
+                        [default: '{logfile}\n\n{entries_str}']
   --wait-file-not-found SECONDS
                         Wait SECONDS before retry if file was not found. Not
                         used if inotify is used. [default: 30]
@@ -198,15 +207,14 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         by this number of spaces. [default: 4]
   --output-format {JSON,YAML}
                         Format structured data in emails using this format.
-                        [default: "YAML" if `PyYAML` or `ruramel.yaml` is
-                         available, otherwise "JSON"]
+                        [default: YAML]
   --systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}
                         Only report log entries of this or higher priority.
   --systemd-match KEY=VALUE
-  --email-host HOST     [default: localhost]
-  --email-port PORT     [default: depends on --action and --email-secure]
-  --email-user USER
-  --email-password PASSWORD
+  --host HOST           [default: localhost]
+  --port PORT           [default: depends on --action and --email-secure]
+  --user USER
+  --password PASSWORD
   --email-secure {None,STARTTLS,SSL/TLS}
   --http-method HTTP_METHOD
                         [default: GET]
@@ -311,7 +319,7 @@ Example:
 ```YAML
 ---
 do:
-  action: SMTP # or IMAP, HTTP, HTTPS, COMMAND
+  action: SMTP # same syntax as --action
   host: mail.example.com
   port: 25
   secure: STARTTLS # or SSL/TLS or None

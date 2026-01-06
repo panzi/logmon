@@ -221,9 +221,7 @@ def test_http(logmonrc_path: str, logfiles: list[str]):
     logmonrc = f'''\
 ---
 do:
-  action: HTTP
-  port: 8080
-  host: localhost
+  action: http://localhost:8080/log
   http_method: POST
   http_content_type: JSON
   http_params:
@@ -252,19 +250,29 @@ logfiles:
     entries: list[Any] = []
     server_errors: list[Exception] = []
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            try:
-                self.send_response(403)
-                self.end_headers()
-                self.wfile.write(b'')
+    def do_illegal_method(self: BaseHTTPRequestHandler) -> None:
+        try:
+            self.send_response(405)
+            self.end_headers()
+            self.wfile.write(b'')
 
-                raise Exception("unexpected GET request")
-            except Exception as exc:
-                server_errors.append(exc)
+            raise Exception(f"unexpected {self.command} request")
+        except Exception as exc:
+            server_errors.append(exc)
+
+    class Handler(BaseHTTPRequestHandler):
+        do_GET     = do_illegal_method
+        do_PUT     = do_illegal_method
+        do_PATCH   = do_illegal_method
+        do_DELETE  = do_illegal_method
+        do_HEAD    = do_illegal_method
+        do_OPTIONS = do_illegal_method
+        do_TRACE   = do_illegal_method
 
         def do_POST(self):
             try:
+                assert self.path == "/log"
+
                 content_type = self.headers.get('Content-Type')
                 content_len = int(self.headers.get('Content-Length') or '0')
                 post_body = self.rfile.read(content_len)
@@ -282,6 +290,7 @@ logfiles:
                 self.wfile.write('{"success": true}'.encode())
             except Exception as exc:
                 server_errors.append(exc)
+
 
     server = HTTPServer(('localhost', 8080), Handler)
     thread = Thread(target=lambda: server.serve_forever())
