@@ -1,7 +1,8 @@
-from typing import NotRequired, TypedDict, Optional
+from typing import NotRequired, TypedDict, Optional, Annotated
 
 import pydantic
 
+from pydantic import Field
 from datetime import timedelta
 
 from .types import *
@@ -9,16 +10,14 @@ from .json_match import JsonMatch
 
 __all__ = (
     'ActionConfig',
-    'PartialEMailConfig',
     'LimitsConfig',
     'LogfileConfig',
     'SystemDConfig',
     'Config',
-    'PartialConfig',
     'DefaultConfig',
     'MTConfig',
     'AppLogConfig',
-    'AppConfig',
+    'LogmonConfig',
     'ConfigFile',
 )
 
@@ -31,7 +30,7 @@ class ActionConfigBase(TypedDict):
     user: NotRequired[str]
     password: NotRequired[str]
     secure: NotRequired[SecureOption]
-    logmails: NotRequired[Logmails]
+    logmails: Annotated[NotRequired[Logmails], Field(description="Write messages to logmon's log instead of/in addition to performing the action.")]
     keep_connected: NotRequired[bool]
 
     http_method: NotRequired[str]
@@ -61,10 +60,6 @@ class ActionConfigBase(TypedDict):
     command_timeout: NotRequired[Optional[float]]
 
 class ActionConfig(ActionConfigBase):
-    sender: NotRequired[str]
-    receivers: NotRequired[list[str]]
-
-class PartialEMailConfig(ActionConfigBase):
     sender: NotRequired[str]
     receivers: NotRequired[list[str]]
 
@@ -100,16 +95,13 @@ class SystemDConfig(TypedDict):
 class Config(ActionConfig, LogfileConfig, SystemDConfig, LimitsConfig):
     pass
 
-class PartialConfig(PartialEMailConfig, LogfileConfig, SystemDConfig, LimitsConfig):
-    pass
-
 class DefaultConfig(LogfileConfig, SystemDConfig):
     pass
 
 class MTConfig(TypedDict):
     do: ActionConfig
     default: NotRequired[DefaultConfig]
-    logfiles: dict[str, PartialConfig]|list[str]
+    logfiles: dict[str, Config]|list[str]
     limits: NotRequired[LimitsConfig]
 
 class AppLogConfig(TypedDict):
@@ -121,9 +113,9 @@ class AppLogConfig(TypedDict):
     format: NotRequired[str]
     datefmt: NotRequired[str]
 
-class AppConfig(MTConfig):
+class LogmonConfig(MTConfig):
     log: NotRequired[AppLogConfig]
     pidfile: NotRequired[str]
 
 class ConfigFile(pydantic.BaseModel):
-    config: AppConfig
+    config: LogmonConfig

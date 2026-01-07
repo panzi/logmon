@@ -1,5 +1,24 @@
 #!/usr/bin/env python3
 
+"""\
+logmon - Monitor log files and send emails or run actions if errors are detected
+
+Copyright (c) 2025-2026  Mathias Panzenböck
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 from typing import Any, Callable, Optional, TypeVar, get_args
 
 import re
@@ -15,8 +34,8 @@ from os.path import abspath, join as joinpath, dirname
 from urllib.parse import unquote_plus
 from datetime import timedelta
 
-from .schema import PartialConfig, ConfigFile
-from .yaml import HAS_YAML, yaml_load
+from .schema import Config, ConfigFile, LogmonConfig
+from .yaml import HAS_YAML, yaml_load, yaml_dump
 from .inotify import HAS_INOTIFY
 from .json_match import parse_json_path
 from .types import *
@@ -588,7 +607,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Path to the JSON field')
     ap.add_argument('--output-indent', type=int, default=None,
         help=f'When JSON or YAML data is included in the email indent by this number of spaces. [default: {DEFAULT_OUTPUT_INDENT}]')
-    ap.add_argument('--output-format', choices=get_args(OutputFormat.__value__), default=None,
+    ap.add_argument('--output-format', type=str.upper, choices=get_args(OutputFormat.__value__), default=None,
         help=f'Format structured data in emails using this format. [default: {DEFAULT_OUTPUT_FORMAT}]')
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority.__value__),
         help='Only report log entries of this or higher priority.')
@@ -687,6 +706,8 @@ def main(argv: Optional[list[str]] = None) -> None:
              'instead ... Log emails instead of sending them. Useful for debugging.\n'
              '\n'
             f'[default: {esc_default_logmails}]')
+    ap.add_argument('--config-schema', default=False, action='store_true',
+        help="Dump config file schema and exit. Uses --output-format and --output-indent.")
     ap.add_argument('logfiles', nargs='*', default=[],
         help='Overwrite the logfiles form the settings. If the given logfile is also configured in the '
              'settings it still uses the logfile specific settings for the given logfile.')
@@ -699,6 +720,25 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.license:
         assert __doc__
         print(__doc__.strip())
+        return
+
+    if args.config_schema:
+        output_fromat: OutputFormat = args.output_format or DEFAULT_OUTPUT_FORMAT
+        output_indent: Optional[int] = args.output_indent
+        if output_indent is None:
+            output_indent = DEFAULT_OUTPUT_INDENT
+
+        schema = pydantic.TypeAdapter(LogmonConfig).json_schema()
+
+        match output_fromat:
+            case 'JSON':
+                json.dump(schema, sys.stdout, indent=output_indent)
+
+            case 'YAML':
+                print(yaml_dump(schema, indent=output_indent))
+
+            case _:
+                raise ValueError(f'illegal output format: {output_fromat}')
         return
 
     config_path: str
@@ -996,7 +1036,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         sys.exit(1)
 
     # make all paths absolute before daemonize
-    abslogfiles: dict[str, PartialConfig] = {}
+    abslogfiles: dict[str, Config] = {}
     if isinstance(logfiles, dict):
         for logfile, cfg in logfiles.items():
             if not HAS_INOTIFY and cfg.get('use_inotify'):

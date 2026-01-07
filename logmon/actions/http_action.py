@@ -212,7 +212,7 @@ class HttpAction(RemoteEmailSender):
                     if response.status < 200 or response.status >= 300:
                         msg = f"[{oauth2_token_url}] HTTP status {response.status} when fetching access token"
                         if isinstance(data, dict) and 'error' in data:
-                            msg = f"{msg}, response body: {body}"
+                            msg = f"{msg}, response body:\n{body.decode(errors='replace')}"
                         raise HTTPException(msg)
 
                     try:

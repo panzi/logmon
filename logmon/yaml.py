@@ -29,6 +29,8 @@ try:
     def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
         yaml = YAML(typ='safe', pure=True)
         yaml.Representer = YamlRepresenter
+        yaml.default_flow_style = False
+        yaml.allow_unicode = True
 
         if indent is not None:
             yaml.indent = indent
