@@ -1,6 +1,8 @@
 import re
 
-from .types import ActionType, Logmails, OutputFormat, ContentType, JsonPath
+from datetime import timedelta
+
+from .types import ActionType, Logmails, OutputFormat, ContentType, JsonPath, OAuth2GrantType
 from .yaml import HAS_YAML
 
 __all__ = (
@@ -30,6 +32,8 @@ __all__ = (
     'DEFAULT_HTTP_MAX_REDIRECT',
     'DEFAULT_HTTP_PARAMS',
     'DEFAULT_HTTP_CONTENT_TYPE',
+    'DEFAULT_OAUTH2_GRANT_TYPE',
+    'DEFAULT_OAUTH2_REFRESH_MARGIN',
     'DEFAULT_JSON_BRIEF',
     'ROOT_CONFIG_PATH',
 )
@@ -68,6 +72,8 @@ DEFAULT_HTTP_PARAMS = [
     ('receivers', '{receivers}'),
 ]
 DEFAULT_HTTP_CONTENT_TYPE: ContentType = 'URL'
+DEFAULT_OAUTH2_GRANT_TYPE: OAuth2GrantType = 'client_credentials'
+DEFAULT_OAUTH2_REFRESH_MARGIN = timedelta(seconds=30)
 
 DEFAULT_JSON_BRIEF: JsonPath = ['message']
 

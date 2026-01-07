@@ -4,12 +4,15 @@ import re
 import uuid
 import json
 import logging
+import pydantic
 
-from http.client import HTTPConnection, HTTPSConnection, NotConnected, HTTPException
+from http.client import HTTPConnection, HTTPSConnection, NotConnected, HTTPException, HTTPResponse
 from urllib.parse import urlencode, urljoin, urlparse
 from base64 import b64encode
+from datetime import timedelta, datetime
+from urllib.request import urlopen, Request
 
-from ..types import ContentType
+from ..types import ContentType, OAuth2GrantType
 from ..schema import Config
 from ..yaml import yaml_dump
 from ..constants import *
@@ -63,6 +66,19 @@ def encode_multipart(fields: Iterable[tuple[str, str|MultipartFile]]) -> tuple[d
 
     return headers, body
 
+class OAuth2Token(pydantic.BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: Optional[int|float] = None
+    refresh_token: Optional[str] = None
+
+class OAuth2Error(pydantic.BaseModel):
+    error: str
+    error_description: Optional[str] = None
+
+class OAuth2Response(pydantic.BaseModel):
+    response: OAuth2Token|OAuth2Error
+
 class HttpAction(RemoteEmailSender):
     __slots__ = (
         'http_method',
@@ -72,6 +88,14 @@ class HttpAction(RemoteEmailSender):
         'http_headers',
         'http_max_redirect',
         'http_connection',
+        'oauth2_grant_type',
+        'oauth2_token_url',
+        'oauth2_client_id',
+        'oauth2_client_secret',
+        'oauth2_scope',
+        'oauth2_refresh_margin',
+        'oauth2_token',
+        'oauth2_token_expires_at',
     )
     http_method: str
     http_path: str
@@ -80,6 +104,15 @@ class HttpAction(RemoteEmailSender):
     http_headers: Optional[dict[str, str]]
     http_max_redirect: int
     http_connection: HTTPConnection
+
+    oauth2_grant_type: OAuth2GrantType
+    oauth2_token_url: Optional[str]
+    oauth2_client_id: Optional[str]
+    oauth2_client_secret: Optional[str]
+    oauth2_scope: Optional[list[str]]
+    oauth2_refresh_margin: timedelta
+    oauth2_token: Optional[OAuth2Token]
+    oauth2_token_expires_at: Optional[datetime]
 
     def __init__(self, config: Config) -> None:
         super().__init__(config)
@@ -96,6 +129,90 @@ class HttpAction(RemoteEmailSender):
         self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
         self.http_connection = HTTPConnection(self.host, self.port) if self.action == 'HTTP' else \
                                HTTPSConnection(self.host, self.port)
+        self.oauth2_grant_type = config.get('oauth2_grant_type') or DEFAULT_OAUTH2_GRANT_TYPE
+        self.oauth2_token_url = config.get('oauth2_token_url')
+        self.oauth2_client_id = config.get('oauth2_client_id')
+        self.oauth2_client_secret = config.get('oauth2_client_secret')
+        self.oauth2_scope = config.get('oauth2_scope')
+        oauth2_refresh_margin = config.get('oauth2_refresh_margin')
+        self.oauth2_refresh_margin = oauth2_refresh_margin if oauth2_refresh_margin is not None else timedelta(0)
+        self.oauth2_token = None
+        self.oauth2_token_expires_at = None
+
+    def connect(self) -> None:
+        if self.http_connection.sock is None:
+            self.http_connection.connect()
+
+    def refresh_token_if_needed(self) -> None:
+        oauth2_token_url = self.oauth2_token_url
+        if oauth2_token_url:
+            expires_at = self.oauth2_token_expires_at
+            if self.oauth2_token is None or expires_at is not None and expires_at <= datetime.now() - self.oauth2_refresh_margin:
+                grant_type = self.oauth2_grant_type
+                data: dict[str, str|None] = {
+                    "grant_type": grant_type,
+                }
+                # TODO: support refresh token
+                match grant_type:
+                    case 'client_credentials':
+                        data['client_id'] = self.oauth2_client_id
+                        data['client_secret'] = self.oauth2_client_secret
+
+                    case 'password':
+                        data['username'] = self.username
+                        data['password'] = self.password
+
+                    case _:
+                        raise ValueError(f'[{oauth2_token_url}] Illegal grant type: {grant_type}')
+
+                request = Request(
+                    oauth2_token_url,
+                    method = 'POST',
+                    data = urlencode(data).encode(),
+                    headers = {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                )
+                response: HTTPResponse
+                now = datetime.now()
+                with urlopen(request) as response:
+                    body = response.read()
+
+                    content_type = response.headers.get('Content-Type') or 'application/json'
+                    pure_content_type = content_type.split(';')[0]
+
+                    try:
+                        data = json.loads(body)
+                    except Exception as exc:
+                        raise HTTPException(f"[{oauth2_token_url}] Error parsing OAuth2 response: {exc}") from exc
+
+                    if pure_content_type != 'application/json':
+                        raise HTTPException(f"[{oauth2_token_url}] Illegal content-type of OAuth2 token endpoint response: {content_type}")
+
+                    if response.status < 200 or response.status >= 300:
+                        msg = f"[{oauth2_token_url}] HTTP status {response.status} when fetching access token"
+                        if isinstance(data, dict) and 'error' in data:
+                            msg = f"{msg}, response body: {body}"
+                        raise HTTPException(msg)
+
+                    try:
+                        oauth2_response = OAuth2Response(
+                            response=data # type: ignore
+                        ).response
+
+                        if isinstance(oauth2_response, OAuth2Error):
+                            raise HTTPException(f"[{oauth2_token_url}] OAuth2 error: {oauth2_response.error} {oauth2_response.error_description or ''}")
+
+                        self.oauth2_token = oauth2_response
+
+                        expires_in = oauth2_response.expires_in
+                        if expires_in is None:
+                            self.oauth2_token_expires_at = None
+                        else:
+                            self.oauth2_token_expires_at = now + timedelta(seconds=expires_in)
+
+                    except Exception as exc:
+                        raise HTTPException(f"[{oauth2_token_url}] Error parsing OAuth2 response: {exc}") from exc
 
     @override
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
@@ -171,35 +288,38 @@ class HttpAction(RemoteEmailSender):
             if self.keep_connected:
                 headers['Connection'] = 'keep-alive'
 
-            if self.username or self.password:
+            self.connect()
+            self.refresh_token_if_needed()
+
+            token = self.oauth2_token
+            if token is not None:
+                headers['Authorization'] = f"{token.token_type} {token.access_token}"
+
+            elif self.username or self.password:
                 credentials = f'{self.username or ''}:{self.password or ''}'.encode()
                 headers['Authorization'] = f"Basic {b64encode(credentials).decode('ASCII')}"
-
-            if self.http_connection.sock is None:
-                self.http_connection.connect()
 
             try:
                 self.http_connection.request(http_method, relative_url, body, headers)
             except NotConnected:
-                self.http_connection.connect()
+                self.connect()
                 self.http_connection.request(http_method, relative_url, body, headers)
 
             res = self.http_connection.getresponse()
             status = res.status
 
-            if status in HTTP_REDIRECT_STATUSES:
-                scheme = self.action.lower()
-                url = f'{scheme}://{relative_url}'
+            # TODO: check for token expiration error and retry?
 
+            scheme = self.action.lower()
+            url = f'{scheme}://{relative_url}'
+
+            if status in HTTP_REDIRECT_STATUSES:
                 if http_method != 'GET':
                     raise HTTPException(f'Got {status} {res.reason} for {http_method} request to {url}')
 
                 visited = {url}
 
-                if self.http_headers:
-                    new_headers = dict(self.http_headers)
-                else:
-                    new_headers = {}
+                new_headers = dict(self.http_headers) if self.http_headers else {}
 
                 if content_type:
                     new_headers['Content-Type'] = content_type
@@ -235,10 +355,10 @@ class HttpAction(RemoteEmailSender):
 
                     if self.keep_connected and new_url_obj.scheme == scheme and new_url_obj.netloc == self.host and new_port == self.port:
                         try:
-                            self.http_connection.request('GET', new_relative_url, body, { **new_headers, 'Connection': 'keep-alive' })
+                            self.http_connection.request(http_method, new_relative_url, body, { **new_headers, 'Connection': 'keep-alive' })
                         except NotConnected:
-                            self.http_connection.connect()
-                            self.http_connection.request('GET', new_relative_url, body, { **new_headers, 'Connection': 'keep-alive' })
+                            self.connect()
+                            self.http_connection.request(http_method, new_relative_url, body, { **new_headers, 'Connection': 'keep-alive' })
 
                         res = self.http_connection.getresponse()
                     else:
@@ -246,7 +366,7 @@ class HttpAction(RemoteEmailSender):
                                HTTPSConnection(new_url_obj.netloc, new_port)
                         try:
                             conn.connect()
-                            conn.request('GET', new_relative_url, body, new_headers)
+                            conn.request(http_method, new_relative_url, body, new_headers)
                             res = self.http_connection.getresponse()
                         finally:
                             conn.close()
@@ -261,7 +381,7 @@ class HttpAction(RemoteEmailSender):
                         raise HTTPException(f'HTTP status error: {status} {res.reason}')
 
             elif status < 200 or status >= 300:
-                raise HTTPException(f'HTTP status error: {status} {res.reason}')
+                raise HTTPException(f'[{url}] HTTP status error: {status} {res.reason}')
 
         except Exception as exc:
             self.handle_error(templ_params, exc)

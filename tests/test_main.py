@@ -170,10 +170,10 @@ logfiles:
     sys.stderr.buffer.write(stderr)
     sys.stderr.flush()
 
-    assert proc.returncode == 0
-
     stdout = stdout.decode()
     stderr = stderr.decode()
+
+    assert proc.returncode == 0, f"logmon.py error status: {proc.returncode}\n\nstderr:\n{stderr}\n\nstdout:\n{stdout}"
 
     expected1 = f'''\
 {logfiles[0]}: Simulate sending email
@@ -291,7 +291,6 @@ logfiles:
             except Exception as exc:
                 server_errors.append(exc)
 
-
     server = HTTPServer(('localhost', 8080), Handler)
     thread = Thread(target=lambda: server.serve_forever())
     thread.start()
@@ -341,10 +340,10 @@ logfiles:
     sys.stderr.buffer.write(stderr)
     sys.stderr.flush()
 
-    assert proc.returncode == 0
-
     stdout = stdout.decode()
     stderr = stderr.decode()
+
+    assert proc.returncode == 0, f"logmon.py error status: {proc.returncode}\n\nstderr:\n{stderr}\n\nstdout:\n{stdout}"
 
     server.shutdown()
     thread.join()

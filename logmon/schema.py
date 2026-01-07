@@ -2,6 +2,8 @@ from typing import NotRequired, TypedDict, Optional
 
 import pydantic
 
+from datetime import timedelta
+
 from .types import *
 from .json_match import JsonMatch
 
@@ -30,13 +32,22 @@ class ActionConfigBase(TypedDict):
     password: NotRequired[str]
     secure: NotRequired[SecureOption]
     logmails: NotRequired[Logmails]
+    keep_connected: NotRequired[bool]
+
     http_method: NotRequired[str]
     http_path: NotRequired[str]
     http_params: NotRequired[dict[str, str]|list[tuple[str, str]]]
     http_content_type: NotRequired[ContentType]
     http_headers: NotRequired[dict[str, str]]
     http_max_redirect: NotRequired[int]
-    keep_connected: NotRequired[bool]
+
+    oauth2_grant_type: NotRequired[OAuth2GrantType]
+    oauth2_token_url: NotRequired[Optional[str]] # explicit None for explicit no-oauth2
+    oauth2_client_id: NotRequired[str]
+    oauth2_client_secret: NotRequired[str]
+    oauth2_scope: NotRequired[list[str]]
+    oauth2_refresh_margin: NotRequired[timedelta]
+
     command: NotRequired[list[str]]
     command_cwd: NotRequired[str]
     command_user: NotRequired[str|int]

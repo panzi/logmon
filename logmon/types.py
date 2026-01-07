@@ -8,6 +8,7 @@ __all__ = (
     'OutputFormat',
     'JsonPath',
     'SystemDPriority',
+    'OAuth2GrantType',
 )
 
 type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
@@ -21,3 +22,5 @@ type SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
     'DEBUG', 'INFO', 'ERROR', 'NOTICE',
 ]
+
+type OAuth2GrantType = Literal['client_credentials', 'password']
