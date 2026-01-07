@@ -53,7 +53,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--email-secure {None,STARTTLS,SSL/TLS}]
                  [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
                  [--http-content-type {JSON,YAML,URL,multipart}]
-                 [-P KEY=VALUE] [-H Header:Value]
+                 [--http-timeout SECONDS|NONE] [-P KEY=VALUE]
+                 [-H Header:Value]
                  [--oauth2-grant-type {client_credentials,password}]
                  [--oauth2-token-url OAUTH2_TOKEN_URL]
                  [--oauth2-client-id OAUTH2_CLIENT_ID]
@@ -238,6 +239,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         [default: /]
   --http-content-type {JSON,YAML,URL,multipart}
                         [default: URL]
+  --http-timeout SECONDS|NONE
+                        [default: no timeout]
   -P, --http-param KEY=VALUE
                         [default: subject={subject} receivers={receivers}]
   -H, --http-header Header:Value
