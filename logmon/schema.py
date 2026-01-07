@@ -71,7 +71,7 @@ class LogfileConfig(TypedDict):
     entry_start_pattern: NotRequired[str | list[str]]
     error_pattern: NotRequired[str | list[str]]
     #warning_pattern: NotRequired[str|list[str]]
-    ignore_pattern: NotRequired[str | list[str] | None]
+    ignore_pattern: Annotated[NotRequired[str | list[str] | None], Field(description="Even if the `error_pattern` matches, if this pattern also matches the log entry is ignored.")]
     wait_line_incomplete: NotRequired[int | float]
     wait_file_not_found: NotRequired[int | float]
     wait_no_entries: NotRequired[int | float]
@@ -79,14 +79,14 @@ class LogfileConfig(TypedDict):
     wait_after_crash: NotRequired[int | float]
     max_entries: NotRequired[int]
     max_entry_lines: NotRequired[int]
-    use_inotify: NotRequired[bool]
-    seek_end: NotRequired[bool] # default: True
-    json: NotRequired[bool] # default: False
-    json_match: NotRequired[Optional[JsonMatch]]
-    json_ignore: NotRequired[Optional[JsonMatch]]
-    json_brief: NotRequired[Optional[JsonPath]]
-    output_indent: NotRequired[int]
-    output_format: NotRequired[OutputFormat]
+    use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `True`.")]
+    seek_end: Annotated[NotRequired[bool], Field(default=True)]
+    json: Annotated[NotRequired[bool], Field(default=False, description="If `True` parses each line of the log file as a JSON document.")]
+    json_match: Annotated[NotRequired[Optional[JsonMatch]], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
+    json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
+    json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description="Use property at this path as the `{brief}` template variable. Per default the whole JSON document is used.")]
+    output_indent: Annotated[NotRequired[int], Field(description="Indent JSON log entries in output.")]
+    output_format: Annotated[NotRequired[OutputFormat], Field(description="Use this format when writing JSON log entries to the output.")]
 
 class SystemDConfig(TypedDict):
     systemd_priority: NotRequired[SystemDPriority|int]
@@ -115,7 +115,7 @@ class AppLogConfig(TypedDict):
 
 class LogmonConfig(MTConfig):
     log: NotRequired[AppLogConfig]
-    pidfile: NotRequired[str]
+    pidfile: Annotated[NotRequired[str], Field(title="PID File", description="Write the process Id of the logmon process to this file.")]
 
 class ConfigFile(pydantic.BaseModel):
-    config: LogmonConfig
+    config: Annotated[LogmonConfig, Field(description="Contents of the config file.")]
