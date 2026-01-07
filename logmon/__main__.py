@@ -13,6 +13,7 @@ import pydantic
 
 from os.path import abspath, join as joinpath, dirname
 from urllib.parse import unquote_plus
+from datetime import timedelta
 
 from .schema import PartialConfig, ConfigFile
 from .yaml import HAS_YAML, yaml_load
@@ -29,6 +30,14 @@ from .logmon import logmon_mt, _logmon_thread
 ACTIONS: set[ActionType] = set(get_args(ActionType.__value__))
 
 type Num = int|float
+
+parse_timedelta = pydantic.TypeAdapter(timedelta).validate_python
+
+def parse_optional_timedelta(value: Any) -> Optional[timedelta]:
+    if not value:
+        return None
+
+    return parse_timedelta(value)
 
 def in_range(parse: Callable[[str], Num], min: Optional[Num] = None, max: Optional[Num] = None) -> Callable[[str], Num]:
     def parse_in_range(value: str) -> Num:
@@ -598,6 +607,14 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
         help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS)}]')
     ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
+    ap.add_argument('--oauth2-grant-type', choices=list(get_args(OAuth2GrantType.__value__)),
+        help=f'[default: {DEFAULT_OAUTH2_GRANT_TYPE}]')
+    ap.add_argument('--oauth2-token-url', default=None)
+    ap.add_argument('--oauth2-client-id', default=None)
+    ap.add_argument('--oauth2-client-secret', default=None)
+    ap.add_argument('--oauth2-scope', default=None)
+    ap.add_argument('--oauth2-refresh-margin', type=parse_optional_timedelta, default=None, metavar='#:##:##',
+        help='Subtract this time-span from the access token expiration date. [default: 0]')
     ap.add_argument('--command', metavar='''"/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"''',
         help='When --action=COMMAND then run this command. The command is interpolated with the same '
              'format as --body plus an additional special parameter {...entries} wich will repeat that '
@@ -800,6 +817,24 @@ def main(argv: Optional[list[str]] = None) -> None:
             print(f'Illegal value for --http-header: {args.http_param}', file=sys.stderr)
             sys.exit(1)
         action_config['http_headers'] = http_headers
+
+    if args.oauth2_grant_type is not None:
+        action_config['oauth2_grant_type'] = args.oauth2_grant_type
+
+    if args.oauth2_token_url is not None:
+        action_config['oauth2_token_url'] = args.oauth2_token_url
+
+    if args.oauth2_client_id is not None:
+        action_config['oauth2_client_id'] = args.oauth2_client_id
+
+    if args.oauth2_client_secret is not None:
+        action_config['oauth2_client_secret'] = args.oauth2_client_secret
+
+    if args.oauth2_scope is not None:
+        action_config['oauth2_scope'] = args.oauth2_scope.split()
+
+    if args.oauth2_refresh_margin is not None:
+        action_config['oauth2_refresh_margin'] = args.oauth2_refresh_margin
 
     if args.command is not None:
         action_config['command'] = shlex.split(args.command)

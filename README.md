@@ -54,6 +54,12 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--http-method HTTP_METHOD] [--http-path HTTP_PATH]
                  [--http-content-type {JSON,YAML,URL,multipart}]
                  [-P KEY=VALUE] [-H Header:Value]
+                 [--oauth2-grant-type {client_credentials,password}]
+                 [--oauth2-token-url OAUTH2_TOKEN_URL]
+                 [--oauth2-client-id OAUTH2_CLIENT_ID]
+                 [--oauth2-client-secret OAUTH2_CLIENT_SECRET]
+                 [--oauth2-scope OAUTH2_SCOPE]
+                 [--oauth2-refresh-margin #:##:##]
                  [--command "/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"]
                  [--command-cwd PATH] [--command-user USER]
                  [--command-group GROUP] [-E NAME[=VALUE]]
@@ -103,30 +109,32 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --body TEMPLATE       Body template for the emails.
                         
                         Template variables:
-                          {entries} ....... All entries formatted with the
-                                            --output-format and
-                                            --output-indent options
-                          {entries_str} ... All entries for the message
-                                            concatenated into a string with
-                                            two newlines between each.
-                          {entries_raw} ... Raw entries (list[str] for normal
-                                            log files or list[dict] for
-                                            SystemD or JSON log files).
-                          {logfile} ....... The path of the logfile.
-                          {entry1} ........ The first log entry of the
-                                            message.
-                          {line1} ......... The first line of the first log
-                                            entry.
-                          {brief} ......... Like {line1}, but with the entry
-                                            start pattern removed.
-                          {entrynum} ...... The number of entries in this
-                                            message.
-                          {sender} ........ The sender email address.
-                          {receivers} ..... Comma separated list of receiver
-                                            email addresses.
-                          {nl} ............ A newline character ('\n')
-                          {{ .............. A literal {
-                          }} .............. A literal }
+                          {entries} ......... All entries formatted with the
+                                              --output-format and
+                                              --output-indent options.
+                          {entries_str} ..... All entries for the message
+                                              concatenated into a string with
+                                              two newlines between each.
+                          {entries_raw} ..... Raw entries (list[str] for
+                                              normal log files or list[dict]
+                                              for SystemD or JSON log files).
+                          {logfile} ......... The path of the logfile.
+                          {entry1} .......... The first log entry of the
+                                              message.
+                          {line1} ........... The first line of the first log
+                                              entry.
+                          {brief} ........... Like {line1}, but with the entry
+                                              start pattern removed.
+                          {entrynum} ........ The number of entries in this
+                                              message.
+                          {sender} .......... The sender email address.
+                          {receivers} ....... Comma separated list of receiver
+                                              email addresses.
+                          {receiver_list} ... List of receiver email addresses
+                                              (list[str]).
+                          {nl} .............. A newline character ('\n')
+                          {{ ................ A literal {
+                          }} ................ A literal }
                         
                         [default: '{logfile}\n\n{entries_str}']
   --wait-file-not-found SECONDS
@@ -233,6 +241,15 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   -P, --http-param KEY=VALUE
                         [default: subject={subject} receivers={receivers}]
   -H, --http-header Header:Value
+  --oauth2-grant-type {client_credentials,password}
+                        [default: client_credentials]
+  --oauth2-token-url OAUTH2_TOKEN_URL
+  --oauth2-client-id OAUTH2_CLIENT_ID
+  --oauth2-client-secret OAUTH2_CLIENT_SECRET
+  --oauth2-scope OAUTH2_SCOPE
+  --oauth2-refresh-margin #:##:##
+                        Subtract this time-span from the access token
+                        expiration date. [default: 0]
   --command "/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"
                         When --action=COMMAND then run this command. The
                         command is interpolated with the same format as --body

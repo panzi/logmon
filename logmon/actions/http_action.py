@@ -165,6 +165,10 @@ class HttpAction(RemoteEmailSender):
                     case _:
                         raise ValueError(f'[{oauth2_token_url}] Illegal grant type: {grant_type}')
 
+                scope = self.oauth2_scope
+                if scope:
+                    data['scope'] = ' '.join(scope)
+
                 request = Request(
                     oauth2_token_url,
                     method = 'POST',
