@@ -40,6 +40,7 @@ class ActionConfigBase(TypedDict):
     http_content_type: NotRequired[ContentType]
     http_headers: NotRequired[dict[str, str]]
     http_max_redirect: NotRequired[int]
+    http_timeout: NotRequired[float]
 
     oauth2_grant_type: NotRequired[OAuth2GrantType]
     oauth2_token_url: NotRequired[Optional[str]] # explicit None for explicit no-oauth2

@@ -604,6 +604,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--http-path', default=None, help='[default: /]')
     ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)),
         help=f'[default: {DEFAULT_HTTP_CONTENT_TYPE}]')
+    ap.add_argument('--http-timeout', type=either(literal('unset'), optional(non_negative(float), 'NONE')), default='unset', metavar='SECONDS|NONE',
+        help="[default: no timeout]")
     ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
         help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS)}]')
     ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
@@ -795,6 +797,9 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.http_content_type is not None:
         action_config['http_content_type'] = args.http_content_type
+
+    if args.http_timeout != 'unset':
+        action_config['http_timeout'] = args.http_timeout
 
     if args.http_param:
         http_params: list[tuple[str, str]] = []
