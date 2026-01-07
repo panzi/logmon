@@ -325,7 +325,7 @@ logfiles:
 
             assert status == 0
 
-    sleep(0.25)
+    sleep(0.5)
 
     proc.terminate()
 
