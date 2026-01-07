@@ -38,7 +38,7 @@ __all__ = (
     'ROOT_CONFIG_PATH',
 )
 
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 
 DEFAULT_EMAIL_SENDER = 'logmon'
 DEFAULT_EMAIL_HOST = 'localhost'
