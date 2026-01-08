@@ -497,7 +497,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     non_command_actions = set(action.lower() for action in ACTIONS)
     non_command_actions.remove('command')
     ap.add_argument('-A', '--action', default=None,
-        metavar=f"{{{{{','.join(sorted(non_command_actions))}}}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}}",
+        metavar=f"{{{{{','.join(sorted(non_command_actions))}}}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]]}}",
         help='Parameters defined here overwrite values passed via other options.\n'
              '\n'
              'For SMTP and IMAP these query parameters are supported:\n'

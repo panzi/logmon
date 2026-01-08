@@ -23,13 +23,33 @@ __all__ = (
 )
 
 class ActionConfigBase(TypedDict):
-    action: Annotated[NotRequired[ActionType], Field(description="Action to perform.", default=DEFAULT_ACTION)]
+    action: Annotated[NotRequired[ActionType], Field(
+        description="Action to perform.\n"
+                    "This can also be a string in the form of:\n"
+                    "```\n"
+                    "    {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]\n"
+                    "```\n"
+                    "\n"
+                    "or:\n"
+                    "```\n"
+                    "    command[:<command> [<option>...]]}\n"
+                    "```\n"
+                    "\n"
+                    'Parameters defined here overwrite values passed via other options.\n'
+                    '\n'
+                    'For SMTP and IMAP these query parameters are supported:\n'
+                    '\n'
+                    '* `sender`\n'
+                    '* `receivers`\n'
+                    '* `secure`\n',
+        default=DEFAULT_ACTION,
+    )]
     subject: Annotated[NotRequired[str], Field(description="Email subject template.", default=DEFAULT_SUBJECT)]
     body: Annotated[NotRequired[str], Field(description="Email body template.", default=DEFAULT_BODY)]
     host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).", default="localhost")]
     port: Annotated[NotRequired[int], Field(description="Port to connect to for SMTP/IMAP/HTTP(S) if not the standard port.")]
-    user: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP or HTTP basic auth.")]
-    password: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP or HTTP basic auth.")]
+    user: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
+    password: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
     secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.", default=None)]
     logmails: Annotated[NotRequired[Logmails], Field(description="Write messages to logmon's log instead of/in addition to performing the action.", default=DEFAULT_LOGMAILS)]
     keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).", default=False)]
