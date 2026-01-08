@@ -57,7 +57,8 @@ def close_io(obj: IO[Any]|int|None) -> None:
         if obj >= 0:
             os.close(obj)
     elif isinstance(obj, IO):
-        obj.close()
+        if not obj.closed:
+            obj.close()
 
 def parse_path(path: Optional[str], mode: Literal['r', 'w']) -> ParsedPath:
     if path is None:
@@ -159,11 +160,24 @@ class CommandAction(Action):
             else:
                 command = ['echo', '{...entries}']
 
+        env_raw = config.get('command_env')
+        env: Optional[dict[str, str]]
+        if env_raw is None:
+            env = None
+        else:
+            env = {}
+            for key, value in env_raw.items():
+                if value is None:
+                    value = os.getenv(key)
+
+                if value is not None:
+                    env[key] = value
+
         self.command = command
         self.cwd     = config.get('command_cwd')
         self.user    = config.get('command_user')
         self.group   = config.get('command_group')
-        self.env     = config.get('command_env')
+        self.env     = env
         self.stdin   = config.get('command_stdin')
         self.stdout  = config.get('command_stdout')
         self.stderr  = config.get('command_stderr')
@@ -196,9 +210,9 @@ class CommandAction(Action):
                         cwd    = self.cwd,
                         user   = self.user,
                         group  = self.group,
-                        stdin  = open_io(self.stdin_path),
-                        stdout = open_io(self.stdout_path),
-                        stderr = open_io(self.stderr_path),
+                        stdin  = stdin,
+                        stdout = stdout,
+                        stderr = stderr,
                     )
                 except:
                     close_io(stderr)
