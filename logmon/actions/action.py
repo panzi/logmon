@@ -1,4 +1,4 @@
-from typing import TypedDict, Self, Any, NotRequired
+from typing import TypedDict, Self, Any, NotRequired, Optional
 
 import logging
 
@@ -89,7 +89,7 @@ class Action(ABC):
     action: ActionType
 
     logmails: Logmails
-    output_indent: int
+    output_indent: Optional[int]
     line_prefix: str
 
     @staticmethod

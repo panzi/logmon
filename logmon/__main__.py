@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Any, Callable, Optional, TypeVar, get_args
+from typing import Any, Callable, Optional, TypeVar, Literal, get_args
 
 import re
 import os
@@ -605,7 +605,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Same match syntax as --json-match, but if this matches the log entry is ignored.')
     ap.add_argument('--json-brief', default=None, metavar='PATH',
         help='Path to the JSON field')
-    ap.add_argument('--output-indent', type=int, default=None,
+    ap.add_argument('--output-indent', type=either(literal('unset'), optional(non_negative(int),'NONE')), default='unset', metavar='WIDTH|NONE',
         help=f'When JSON or YAML data is included in the email indent by this number of spaces. [default: {DEFAULT_OUTPUT_INDENT}]')
     ap.add_argument('--output-format', type=str.upper, choices=get_args(OutputFormat.__value__), default=None,
         help=f'Format structured data in emails using this format. [default: {DEFAULT_OUTPUT_FORMAT}]')
@@ -724,8 +724,8 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.config_schema:
         output_fromat: OutputFormat = args.output_format or DEFAULT_OUTPUT_FORMAT
-        output_indent: Optional[int] = args.output_indent
-        if output_indent is None:
+        output_indent: Optional[int]|Literal['unset'] = args.output_indent
+        if output_indent == 'unset':
             output_indent = DEFAULT_OUTPUT_INDENT
 
         schema = pydantic.TypeAdapter(LogmonConfig).json_schema()
@@ -984,7 +984,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.json_brief is not None:
         default_config['json_brief'] = parse_json_path(args.json_brief)
 
-    if args.output_indent is not None:
+    if args.output_indent != 'unset':
         default_config['output_indent'] = args.output_indent
 
     if args.output_format is not None:

@@ -32,7 +32,7 @@ class JsonEntryReaderFactory(EntryReaderFactory):
     ignore: Optional[CompiledJsonMatch]
     brief_path: Optional[JsonPath]
     wait_line_incomplete: int|float
-    output_indent: int
+    output_indent: Optional[int]
     output_format: OutputFormat
 
     def __init__(self, config: Config) -> None:
