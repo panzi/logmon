@@ -6,7 +6,7 @@ from .action import Action
 
 __all__ = (
     'get_default_port',
-    'RemoteEmailSender',
+    'RemoteAction',
 )
 
 def get_default_port(config: ActionConfig) -> int:
@@ -41,7 +41,7 @@ def get_default_port(config: ActionConfig) -> int:
         case _:
             raise ValueError(f'Illegal action: {action!r}')
 
-class RemoteEmailSender(Action):
+class RemoteAction(Action):
     __slots__ = (
         'host',
         'port',

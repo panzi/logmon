@@ -34,7 +34,7 @@ from os.path import abspath, join as joinpath, dirname
 from urllib.parse import unquote_plus
 from datetime import timedelta
 
-from .schema import Config, ConfigFile, LogmonConfig
+from .schema import Config, ConfigFile, LogmonConfig, FILE_MODE_PATTERN
 from .yaml import HAS_YAML, yaml_load, yaml_dump
 from .inotify import HAS_INOTIFY
 from .json_match import parse_json_path
@@ -177,7 +177,7 @@ def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: st
     so.close()
     se.close()
 
-URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<file_prot>file|append)(?:(?P<file>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
+URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<file_prot>file|append|fifo)(?::(?P<file>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
 
 def parse_action(cfg: dict[str, Any]) -> None:
     action = cfg.get('action')
@@ -204,12 +204,16 @@ def parse_action(cfg: dict[str, Any]) -> None:
     if file_prot:
         cfg['action'] = 'FILE'
 
-        if file_prot.lower() == 'append':
-            cfg['file_append'] = True
+        match file_prot.lower():
+            case 'append':
+                cfg['file_append'] = True
 
-        path = m.group('file')
-        if path:
-            cfg['file'] = path
+            case 'fifo':
+                cfg['file_type'] = 'fifo'
+
+        file_path = m.group('file')
+        if file_path:
+            cfg['file'] = file_path
 
         return
 
@@ -591,6 +595,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Seek to the end of existing files. [default: True]")
     seek_end_grp.add_argument('--no-seek-end', default=None, action='store_false', dest='seek_end',
         help='Opposite of --seek-end')
+
     ap.add_argument('--json', action='store_true', default=None,
         help='Every line in the log file is parsed as a JSON document. [default: False]')
     ap.add_argument('--no-json', action='store_false', dest='json',
@@ -619,13 +624,16 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Same match syntax as --json-match, but if this matches the log entry is ignored.')
     ap.add_argument('--json-brief', default=None, metavar='PATH',
         help='Path to the JSON field')
+
     ap.add_argument('--output-indent', type=either(literal('unset'), optional(non_negative(int),'NONE')), default='unset', metavar='WIDTH|NONE',
         help=f'When JSON or YAML data is included in the email indent by this number of spaces. [default: {DEFAULT_OUTPUT_INDENT}]')
     ap.add_argument('--output-format', type=str.upper, choices=get_args(OutputFormat.__value__), default=None,
         help=f'Format structured data in emails using this format. [default: {DEFAULT_OUTPUT_FORMAT}]')
+
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority.__value__),
         help='Only report log entries of this or higher priority.')
     ap.add_argument('--systemd-match', action='append', metavar='KEY=VALUE')
+
     ap.add_argument('--host', default=None, metavar='HOST',
         help=f'[default: {DEFAULT_EMAIL_HOST}]')
     ap.add_argument('--port', type=positive(int), default=None, metavar='PORT',
@@ -633,6 +641,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--user', default=None, metavar='USER')
     ap.add_argument('--password', default=None, metavar='PASSWORD')
     ap.add_argument('--email-secure', default=None, choices=[str(arg) for arg in get_args(SecureOption.__value__)])
+
     ap.add_argument('--http-method', default=None, help='[default: GET]')
     ap.add_argument('--http-path', default=None, help='[default: /]')
     ap.add_argument('--http-content-type', default=None, choices=list(get_args(ContentType.__value__)),
@@ -642,6 +651,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('-P', '--http-param', action='append', default=[], metavar='KEY=VALUE',
         help=f'[default: {' '.join(f"{key}={value}" for key, value in DEFAULT_HTTP_PARAMS)}]')
     ap.add_argument('-H', '--http-header', action='append', default=[], metavar='Header:Value')
+
     ap.add_argument('--oauth2-grant-type', choices=list(get_args(OAuth2GrantType.__value__)),
         help=f'[default: {DEFAULT_OAUTH2_GRANT_TYPE}]')
     ap.add_argument('--oauth2-token-url', default=None)
@@ -650,6 +660,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--oauth2-scope', default=None)
     ap.add_argument('--oauth2-refresh-margin', type=parse_optional_timedelta, default=None, metavar='#:##:##',
         help='Subtract this time-span from the access token expiration date. [default: 0]')
+
     ap.add_argument('--command', metavar='''"/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"''',
         help='When --action=COMMAND then run this command. The command is interpolated with the same '
              'format as --body plus an additional special parameter {...entries} wich will repeat that '
@@ -697,6 +708,28 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Wait SECONDS for process to finish. If the procress is still running on shutdown and '
              'the timeout is exceeded the process will be killed.\n'
              '[default: NONE]')
+
+    ap.add_argument('--file', default=None)
+    ap.add_argument('--file-encoding', default=None, metavar='ENCODING',
+        help='[default: "UTF-8"]')
+    ap.add_argument('--file-append', action='store_true', default=None)
+    ap.add_argument('--no-file-append', action='store_false', dest='file_append')
+    ap.add_argument('--file-user', metavar='USER', default=None)
+    ap.add_argument('--file-group', metavar='GROUP', default=None)
+    ap.add_argument('--file-type', choices=list(get_args(FileType.__value__)), default=None)
+
+    def parse_file_mode(value: str|None) -> str|None:
+        if not value:
+            return None
+
+        if not FILE_MODE_PATTERN.match(value):
+            raise ValueError(f'illegal file mode: {value!r}')
+
+        return value
+
+    ap.add_argument('--file-mode', type=parse_file_mode, metavar='MODE',
+        help='File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.')
+
     ap.add_argument('--keep-connected', action='store_true', default=None)
     ap.add_argument('--no-keep-connected', action='store_false', dest='keep_connected')
     ap.add_argument('-d', '--daemonize', default=False, action='store_true',
@@ -935,6 +968,27 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.command_timeout != 'unset':
         action_config['command_timeout'] = args.command_timeout
+
+    if args.file is not None:
+        action_config['file'] = args.file
+
+    if args.file_encoding is not None:
+        action_config['file_encoding'] = args.file_encoding
+
+    if args.file_append is not None:
+        action_config['file_append'] = args.file_append
+
+    if args.file_user is not None:
+        action_config['file_user'] = args.file_user
+
+    if args.file_group is not None:
+        action_config['file_group'] = args.file_group
+
+    if args.file_type is not None:
+        action_config['file_type'] = args.file_type
+
+    if args.file_mode is not None:
+        action_config['file_mode'] = args.file_mode
 
     if args.logmails is not None:
         action_config['logmails'] = args.logmails

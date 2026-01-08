@@ -35,6 +35,7 @@ __all__ = (
     'DEFAULT_HTTP_CONTENT_TYPE',
     'DEFAULT_OAUTH2_GRANT_TYPE',
     'DEFAULT_OAUTH2_REFRESH_MARGIN',
+    'DEFAULT_FILE_MODE',
     'DEFAULT_JSON_BRIEF',
     'ROOT_CONFIG_PATH',
 )
@@ -77,6 +78,8 @@ DEFAULT_HTTP_PARAMS: list[tuple[str, str]] = [
 DEFAULT_HTTP_CONTENT_TYPE: ContentType = 'URL'
 DEFAULT_OAUTH2_GRANT_TYPE: OAuth2GrantType = 'client_credentials'
 DEFAULT_OAUTH2_REFRESH_MARGIN = timedelta(seconds=30)
+
+DEFAULT_FILE_MODE = 0o664
 
 DEFAULT_JSON_BRIEF: JsonPath = ['message']
 

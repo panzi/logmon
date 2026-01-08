@@ -4,13 +4,13 @@ import ssl
 
 from ..types import SecureOption
 from ..schema import Config
-from .remote_email_sender import RemoteEmailSender
+from .remote_action import RemoteAction
 
 __all__ = (
     'SslEmailSender',
 )
 
-class SslEmailSender(RemoteEmailSender):
+class SslEmailSender(RemoteAction):
     __slots__ = (
         'secure',
         'ssl_context',

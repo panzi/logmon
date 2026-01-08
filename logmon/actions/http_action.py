@@ -1,7 +1,6 @@
 from typing import Iterable, Optional, NotRequired, TypedDict, override
 
 import re
-import sys
 import uuid
 import json
 import logging
@@ -17,7 +16,7 @@ from ..types import ContentType, OAuth2GrantType
 from ..schema import Config
 from ..yaml import yaml_dump
 from ..constants import *
-from .remote_email_sender import RemoteEmailSender
+from .remote_action import RemoteAction
 from ..entry_readers import LogEntry
 from ..template import expand, expand_object
 
@@ -80,7 +79,7 @@ class OAuth2Error(pydantic.BaseModel):
 class OAuth2Response(pydantic.BaseModel):
     response: OAuth2Token|OAuth2Error
 
-class HttpAction(RemoteEmailSender):
+class HttpAction(RemoteAction):
     __slots__ = (
         'http_method',
         'http_path',

@@ -1,5 +1,6 @@
 from typing import NotRequired, TypedDict, Optional, Annotated
 
+import re
 import pydantic
 
 from pydantic import Field
@@ -21,6 +22,8 @@ __all__ = (
     'LogmonConfig',
     'ConfigFile',
 )
+
+FILE_MODE_PATTERN = re.compile(r'^(?:(?P<ls>(?:[-r][-w][-x]){3})|(?P<eq>([ugo]=r?w?x?(,[ugo]=r?w?x?)*)?)|(?P<oct>(?:0o?)?[0-7]{3}))$')
 
 class ActionConfigBase(TypedDict):
     action: Annotated[NotRequired[ActionType], Field(
@@ -87,7 +90,7 @@ class ActionConfigBase(TypedDict):
     file_user: NotRequired[str|int]
     file_group: NotRequired[str|int]
     file_type: Annotated[NotRequired[FileType], Field(description="**Default:** `'regular'`")]
-    file_mode: NotRequired[str|int]
+    file_mode: Annotated[NotRequired[str|int], Field(description='File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)]
 
 class ActionConfig(ActionConfigBase):
     sender: Annotated[NotRequired[str], Field(description='**Default:** `logmon@<host>`')]
