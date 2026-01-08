@@ -9,10 +9,11 @@ __all__ = (
     'JsonPath',
     'SystemDPriority',
     'OAuth2GrantType',
+    'FileType',
 )
 
 type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
-type ActionType = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS', 'COMMAND']
+type ActionType = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS', 'COMMAND', 'FILE']
 type Logmails = Literal['always', 'never', 'onerror', 'instead']
 type ContentType = Literal['JSON', 'YAML', 'URL', 'multipart']
 type OutputFormat = Literal['JSON', 'YAML']
@@ -24,3 +25,5 @@ type SystemDPriority = Literal[
 ]
 
 type OAuth2GrantType = Literal['client_credentials', 'password']
+
+type FileType = Literal['regular', 'fifo']

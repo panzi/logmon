@@ -34,6 +34,7 @@ def _logmon(
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
+    encoding = config.get('encoding', 'UTF-8')
 
     reader_factory = EntryReaderFactory.from_config(config)
 
@@ -52,7 +53,7 @@ def _logmon(
 
             while is_running():
                 try:
-                    logfp = open(logfile, 'r')
+                    logfp = open(logfile, 'r', encoding=encoding)
                     if file_not_found:
                         file_not_found = False
                         logger.debug(f"{logfile}: File appeared!")

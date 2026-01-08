@@ -177,7 +177,7 @@ def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: st
     so.close()
     se.close()
 
-URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
+URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<file_prot>file|append)(?:(?P<file>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
 
 def parse_action(cfg: dict[str, Any]) -> None:
     action = cfg.get('action')
@@ -197,6 +197,19 @@ def parse_action(cfg: dict[str, Any]) -> None:
         command: Optional[str] = m.group('command')
         if command:
             cfg['command'] = shlex.split(command)
+
+        return
+
+    file_prot = m.group('file_prot')
+    if file_prot:
+        cfg['action'] = 'FILE'
+
+        if file_prot.lower() == 'append':
+            cfg['file_append'] = True
+
+        path = m.group('file')
+        if path:
+            cfg['file'] = path
 
         return
 
@@ -562,6 +575,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         help=f'This is the default if the `inotify` Python package is installed. [default: {HAS_INOTIFY}]')
     inotify_grp.add_argument('--no-use-inotify', default=None, action='store_false', dest='use_inotify',
         help='Opposite of --use-inotify')
+    ap.add_argument('--encoding', default=None)
     ap.add_argument('--entry-start-pattern', default=None, metavar='REGEXP',
         help=f'This pattern defines the start of a log entry. A multiline log entry is parsed up until the next start '
              f'pattern is matched or the end of the file is reached. [default: {esc_default_entry_start_pattern}]')
@@ -965,6 +979,9 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.ignore_pattern is not None:
         default_config['ignore_pattern'] = args.ignore_pattern
+
+    if args.encoding is not None:
+        default_config['encoding'] = args.encoding
 
     if args.entry_start_pattern is not None:
         default_config['entry_start_pattern'] = args.entry_start_pattern

@@ -81,6 +81,14 @@ class ActionConfigBase(TypedDict):
     command_interactive: Annotated[NotRequired[bool], Field(description="If `True` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.\n**Default:** `False`")]
     command_timeout: Annotated[NotRequired[Optional[float]], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n**Default:** `None`", ge=0.0)]
 
+    file: NotRequired[str]
+    file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
+    file_append: Annotated[NotRequired[bool], Field(description="**Default:** `False`")]
+    file_user: NotRequired[str|int]
+    file_group: NotRequired[str|int]
+    file_type: Annotated[NotRequired[FileType], Field(description="**Default:** `'regular'`")]
+    file_mode: NotRequired[str|int]
+
 class ActionConfig(ActionConfigBase):
     sender: Annotated[NotRequired[str], Field(description='**Default:** `logmon@<host>`')]
     receivers: Annotated[NotRequired[list[str]], Field(description='**Default:** `<sender>`')]
@@ -109,6 +117,7 @@ class LogfileConfig(TypedDict):
     json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
     output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
     output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
+    encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
 
 class SystemDConfig(TypedDict):
     systemd_priority: NotRequired[SystemDPriority|int]

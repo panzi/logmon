@@ -113,6 +113,10 @@ class Action(ABC):
                 from .command_action import CommandAction
                 return CommandAction(config)
 
+            case 'FILE':
+                from .file_action import FileAction
+                return FileAction(config)
+
             case _:
                 raise ValueError(f'Illegal action: {action!r}')
 
