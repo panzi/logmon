@@ -184,7 +184,7 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
         stderr_buf.decode(errors='replace'),
     )
 
-def test_simple(logmonrc_path: str, logfiles: list[str]):
+def test_simple(logmonrc_path: str, logfiles: list[str]) -> None:
     sender = "alice@example.com"
     receivers = ["bob@example.com", "charly@example.com"]
     logmonrc = f'''\
@@ -289,7 +289,7 @@ class TokenData(NamedTuple):
     scopes: set[str]
     expires_at: datetime
 
-def test_http(logmonrc_path: str, logfiles: list[str]):
+def test_http(logmonrc_path: str, logfiles: list[str]) -> None:
     sender = "alice@example.com"
     receivers = ["bob@example.com", "charly@example.com"]
     client_id = str(uuid4())
@@ -361,7 +361,7 @@ logfiles:
         do_OPTIONS = do_illegal_method
         do_TRACE   = do_illegal_method
 
-        def do_POST(self):
+        def do_POST(self) -> None:
             headers_sent = False
             post_body = b''
             data = None
@@ -461,63 +461,62 @@ logfiles:
 
                 assert content_type == 'application/json'
 
-                if True:
-                    auth_hdr = self.headers.get('Authorization')
-                    if not auth_hdr:
-                        self.send_response(401)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        headers_sent = True
-                        self.wfile.write(json.dumps({
-                            "error": "unauthorized_client"
-                        }).encode())
-                        return
+                auth_hdr = self.headers.get('Authorization')
+                if not auth_hdr:
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    headers_sent = True
+                    self.wfile.write(json.dumps({
+                        "error": "unauthorized_client"
+                    }).encode())
+                    return
 
-                    auth_items = auth_hdr.split()
-                    if len(auth_items) != 2 or auth_items[0].lower() != "bearer":
-                        self.send_response(401)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        headers_sent = True
-                        self.wfile.write(json.dumps({
-                            "error": "unauthorized_client"
-                        }).encode())
-                        return
+                auth_items = auth_hdr.split()
+                if len(auth_items) != 2 or auth_items[0].lower() != "bearer":
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    headers_sent = True
+                    self.wfile.write(json.dumps({
+                        "error": "unauthorized_client"
+                    }).encode())
+                    return
 
-                    access_token = auth_items[1]
-                    token = access_tokens.get(access_token)
-                    if token is None or token.client_id != client_id:
-                        self.send_response(401)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        headers_sent = True
-                        self.wfile.write(json.dumps({
-                            "error": "unauthorized_client",
-                            "error_description": "invalid access token"
-                        }).encode())
-                        return
+                access_token = auth_items[1]
+                token = access_tokens.get(access_token)
+                if token is None or token.client_id != client_id:
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    headers_sent = True
+                    self.wfile.write(json.dumps({
+                        "error": "unauthorized_client",
+                        "error_description": "invalid access token"
+                    }).encode())
+                    return
 
-                    if token.expires_at <= datetime.now():
-                        self.send_response(401)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        headers_sent = True
-                        self.wfile.write(json.dumps({
-                            "error": "invalid_grant",
-                            "error_description": "access token expired"
-                        }).encode())
-                        return
+                if token.expires_at <= datetime.now():
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    headers_sent = True
+                    self.wfile.write(json.dumps({
+                        "error": "invalid_grant",
+                        "error_description": "access token expired"
+                    }).encode())
+                    return
 
-                    if "write_log" not in token.scopes:
-                        self.send_response(401)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        headers_sent = True
-                        self.wfile.write(json.dumps({
-                            "error": "invalid_scope",
-                            "error_description": "access token misses write_log scope"
-                        }).encode())
-                        return
+                if "write_log" not in token.scopes:
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    headers_sent = True
+                    self.wfile.write(json.dumps({
+                        "error": "invalid_scope",
+                        "error_description": "access token misses write_log scope"
+                    }).encode())
+                    return
 
                 entries.append(json.loads(post_body))
 
@@ -584,7 +583,7 @@ logfiles:
 
     assert server_errors == []
 
-    def assert_entry(props: dict[str, Any]):
+    def assert_entry(props: dict[str, Any]) -> None:
         for entry in entries:
             if isinstance(entry, dict):
                 missing = False
@@ -637,7 +636,7 @@ Entry not found:
     proc.stderr.close()
     proc.stdout.close()
 
-def test_file(logmonrc_path: str, logfiles: list[str], temp_prefix: tuple[str, str]):
+def test_file(logmonrc_path: str, logfiles: list[str], temp_prefix: tuple[str, str]) -> None:
     tempdir, prefix = temp_prefix
     file_path = join_path(tempdir, f'{prefix}.output.log')
     logmonrc = f'''\
