@@ -3,3 +3,7 @@
 __pycache__
 uv.lock
 !.gitignore
+schema.yaml
+schema.html
+schema_doc.css
+schema_doc.min.js

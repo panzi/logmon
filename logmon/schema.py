@@ -6,6 +6,7 @@ from pydantic import Field
 from datetime import timedelta
 
 from .types import *
+from .constants import *
 from .json_match import JsonMatch
 
 __all__ = (
@@ -22,71 +23,71 @@ __all__ = (
 )
 
 class ActionConfigBase(TypedDict):
-    action: NotRequired[ActionType]
-    subject: NotRequired[str]
-    body: NotRequired[str]
-    host: NotRequired[str]
-    port: NotRequired[int]
-    user: NotRequired[str]
-    password: NotRequired[str]
-    secure: NotRequired[SecureOption]
-    logmails: Annotated[NotRequired[Logmails], Field(description="Write messages to logmon's log instead of/in addition to performing the action.")]
-    keep_connected: NotRequired[bool]
+    action: Annotated[NotRequired[ActionType], Field(description="Action to perform.", default=DEFAULT_ACTION)]
+    subject: Annotated[NotRequired[str], Field(description="Email subject template.", default=DEFAULT_SUBJECT)]
+    body: Annotated[NotRequired[str], Field(description="Email body template.", default=DEFAULT_BODY)]
+    host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).", default="localhost")]
+    port: Annotated[NotRequired[int], Field(description="Port to connect to for SMTP/IMAP/HTTP(S) if not the standard port.")]
+    user: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP or HTTP basic auth.")]
+    password: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP or HTTP basic auth.")]
+    secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.", default=None)]
+    logmails: Annotated[NotRequired[Logmails], Field(description="Write messages to logmon's log instead of/in addition to performing the action.", default=DEFAULT_LOGMAILS)]
+    keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).", default=False)]
 
-    http_method: NotRequired[str]
-    http_path: NotRequired[str]
-    http_params: NotRequired[dict[str, str]|list[tuple[str, str]]]
-    http_content_type: NotRequired[ContentType]
-    http_headers: NotRequired[dict[str, str]]
-    http_max_redirect: NotRequired[int]
-    http_timeout: NotRequired[float]
+    http_method: Annotated[NotRequired[str], Field(default=DEFAULT_HTTP_METHOD)]
+    http_path: Annotated[NotRequired[str], Field(default='/')]
+    http_params: Annotated[NotRequired[dict[str, str]|list[tuple[str, str]]], Field(default=DEFAULT_HTTP_PARAMS)]
+    http_content_type: Annotated[NotRequired[ContentType], Field(default=DEFAULT_HTTP_CONTENT_TYPE)]
+    http_headers: Annotated[NotRequired[dict[str, str]], Field(description="Additional HTTP headers. The `Authorization` header will be overwritten if OAuth 2.0 is used or if `username` and `password` are set.")]
+    http_max_redirect: Annotated[NotRequired[int], Field(default=DEFAULT_HTTP_MAX_REDIRECT)]
+    http_timeout: Annotated[NotRequired[Optional[float]], Field(description="`None` means no timeout.", default=None)]
 
-    oauth2_grant_type: NotRequired[OAuth2GrantType]
-    oauth2_token_url: NotRequired[Optional[str]] # explicit None for explicit no-oauth2
+    oauth2_grant_type: Annotated[NotRequired[OAuth2GrantType], Field(default=DEFAULT_OAUTH2_GRANT_TYPE)]
+    oauth2_token_url: Annotated[NotRequired[Optional[str]], Field(description="`None` means don't use OAuth 2.0.", default=None)]
     oauth2_client_id: NotRequired[str]
     oauth2_client_secret: NotRequired[str]
     oauth2_scope: NotRequired[list[str]]
-    oauth2_refresh_margin: NotRequired[timedelta]
+    oauth2_refresh_margin: Annotated[NotRequired[timedelta], Field(description="Seconds to substract from the expiration date-time when checking for access token expiration.", default=0.0)]
 
     command: NotRequired[list[str]]
-    command_cwd: NotRequired[str]
-    command_user: NotRequired[str|int]
-    command_group: NotRequired[str|int]
-    command_env: NotRequired[dict[str, str]]
-    command_stdin: NotRequired[str]
-    command_stdout: NotRequired[str]
-    command_stderr: NotRequired[str]
-    command_interactive: NotRequired[bool]
-    command_timeout: NotRequired[Optional[float]]
+    command_cwd: Annotated[NotRequired[str], Field(description="Working directory of spawned process.")]
+    command_user: Annotated[NotRequired[str|int], Field(description="Run the process as user/UID.")]
+    command_group: Annotated[NotRequired[str|int], Field(description="Run the process as group/GID.")]
+    command_env: Annotated[NotRequired[dict[str, str|None]], Field(description="Set the environment of the spawned process to this. Passing `None` as the value means to inherit that environment variable from the current environment.")]
+    command_stdin: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`", default='null:')]
+    command_stdout: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`", default='null:')]
+    command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`", default='null:')]
+    command_interactive: Annotated[NotRequired[bool], Field(description="If `True` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.", default=False)]
+    command_timeout: Annotated[NotRequired[Optional[float]], Field(description="Timeout in seconds. If the timeout expires the process is killed.", default=None)]
 
 class ActionConfig(ActionConfigBase):
-    sender: NotRequired[str]
-    receivers: NotRequired[list[str]]
+    sender: Annotated[NotRequired[str], Field(default='logmon@&lt;host&gt;')]
+    receivers: Annotated[NotRequired[list[str]], Field(default=['&lt;sender&gt;'])]
 
 class LimitsConfig(TypedDict):
-    max_emails_per_minute: NotRequired[int]
-    max_emails_per_hour: NotRequired[int]
+    max_emails_per_minute: Annotated[NotRequired[int], Field(default=DEFAULT_MAX_EMAILS_PER_MINUTE)]
+    max_emails_per_hour: Annotated[NotRequired[int], Field(default=DEFAULT_MAX_EMAILS_PER_HOUR)]
 
 class LogfileConfig(TypedDict):
-    entry_start_pattern: NotRequired[str | list[str]]
-    error_pattern: NotRequired[str | list[str]]
-    #warning_pattern: NotRequired[str|list[str]]
+    entry_start_pattern: Annotated[NotRequired[str | list[str]], Field(default=DEFAULT_ENTRY_START_PATTERN.pattern)]
+    error_pattern: Annotated[NotRequired[str | list[str]], Field(default=DEFAULT_ERROR_PATTERN.pattern)]
+    #warning_pattern: Annotated[NotRequired[str|list[str]], Field(default=DEFAULT_WARNING_PATTERN.pattern)]
     ignore_pattern: Annotated[NotRequired[str | list[str] | None], Field(description="Even if the `error_pattern` matches, if this pattern also matches the log entry is ignored.")]
-    wait_line_incomplete: NotRequired[int | float]
-    wait_file_not_found: NotRequired[int | float]
-    wait_no_entries: NotRequired[int | float]
-    wait_before_send: NotRequired[int | float]
-    wait_after_crash: NotRequired[int | float]
-    max_entries: NotRequired[int]
-    max_entry_lines: NotRequired[int]
+    wait_line_incomplete: Annotated[NotRequired[int | float], Field(default=DEFAULT_WAIT_LINE_INCOMPLETE)]
+    wait_file_not_found: Annotated[NotRequired[int | float], Field(default=DEFAULT_WAIT_FILE_NOT_FOUND)]
+    wait_no_entries: Annotated[NotRequired[int | float], Field(default=DEFAULT_WAIT_NO_ENTRIES)]
+    wait_before_send: Annotated[NotRequired[int | float], Field(default=DEFAULT_WAIT_BEFORE_SEND)]
+    wait_after_crash: Annotated[NotRequired[int | float], Field(default=DEFAULT_WAIT_AFTER_CRASH)]
+    max_entries: Annotated[NotRequired[int], Field(default=DEFAULT_MAX_ENTRIES)]
+    max_entry_lines: Annotated[NotRequired[int], Field(default=DEFAULT_MAX_ENTRY_LINES)]
     use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `True`.")]
-    seek_end: Annotated[NotRequired[bool], Field(default=True)]
-    json: Annotated[NotRequired[bool], Field(default=False, description="If `True` parses each line of the log file as a JSON document.")]
+    seek_end: Annotated[NotRequired[bool], Field(description="Seek to end of log file on open.", default=True)]
+    json: Annotated[NotRequired[bool], Field(default=False, description="If `True` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.")]
     json_match: Annotated[NotRequired[Optional[JsonMatch]], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
     json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
-    json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description="Use property at this path as the `{brief}` template variable. Per default the whole JSON document is used.")]
-    output_indent: Annotated[NotRequired[int], Field(description="Indent JSON log entries in output.")]
-    output_format: Annotated[NotRequired[OutputFormat], Field(description="Use this format when writing JSON log entries to the output.")]
+    json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description="Use property at this path as the `{brief}` template variable.", default=DEFAULT_JSON_BRIEF)]
+    output_indent: Annotated[NotRequired[int], Field(description="Indent JSON log entries in output.", default=DEFAULT_OUTPUT_INDENT)]
+    output_format: Annotated[NotRequired[OutputFormat], Field(description="Use this format when writing JSON log entries to the output.", default=DEFAULT_OUTPUT_FORMAT)]
 
 class SystemDConfig(TypedDict):
     systemd_priority: NotRequired[SystemDPriority|int]
@@ -96,10 +97,13 @@ class Config(ActionConfig, LogfileConfig, SystemDConfig, LimitsConfig):
     pass
 
 class DefaultConfig(LogfileConfig, SystemDConfig):
+    """
+    Default log file configuration.
+    """
     pass
 
 class MTConfig(TypedDict):
-    do: ActionConfig
+    do: NotRequired[ActionConfig]
     default: NotRequired[DefaultConfig]
     logfiles: dict[str, Config]|list[str]
     limits: NotRequired[LimitsConfig]
@@ -110,8 +114,8 @@ class AppLogConfig(TypedDict):
     """
     file: NotRequired[str]
     level: NotRequired[str]
-    format: NotRequired[str]
-    datefmt: NotRequired[str]
+    format: Annotated[NotRequired[str], Field(default=DEFAULT_LOG_FORMAT)]
+    datefmt: Annotated[NotRequired[str], Field(default=DEFAULT_LOG_DATEFMT)]
 
 class LogmonConfig(MTConfig):
     log: NotRequired[AppLogConfig]

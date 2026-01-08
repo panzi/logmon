@@ -120,7 +120,7 @@ class HttpAction(RemoteEmailSender):
     def __init__(self, config: Config) -> None:
         super().__init__(config)
 
-        self.http_method = config.get('http_method', 'POST')
+        self.http_method = config.get('http_method', DEFAULT_HTTP_METHOD)
         http_path = config.get('http_path', '/')
         if not http_path.startswith('/'):
             http_path = f'/{http_path}'

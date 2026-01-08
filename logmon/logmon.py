@@ -252,7 +252,7 @@ def _logmon(
 
 def logmon_mt(config: MTConfig):
     action_config = config.get('do')
-    base_config = dict(action_config)
+    base_config = dict(action_config) if action_config is not None else {}
 
     default = config.get('default')
     if default:

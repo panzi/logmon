@@ -29,6 +29,7 @@ __all__ = (
     'DEFAULT_ENTRY_START_PATTERN',
     'DEFAULT_WARNING_PATTERN',
     'DEFAULT_ERROR_PATTERN',
+    'DEFAULT_HTTP_METHOD',
     'DEFAULT_HTTP_MAX_REDIRECT',
     'DEFAULT_HTTP_PARAMS',
     'DEFAULT_HTTP_CONTENT_TYPE',
@@ -66,10 +67,12 @@ DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
 DEFAULT_ERROR_PATTERN = re.compile(r'ERROR|CRITICAL|Exception', re.I)
 
-DEFAULT_HTTP_MAX_REDIRECT = 10
-DEFAULT_HTTP_PARAMS = [
+DEFAULT_HTTP_METHOD = 'POST'
+DEFAULT_HTTP_MAX_REDIRECT = 0
+DEFAULT_HTTP_PARAMS: list[tuple[str, str]] = [
     ('subject', '{subject}'),
     ('receivers', '{receivers}'),
+    ('entries', '{entries_raw}'),
 ]
 DEFAULT_HTTP_CONTENT_TYPE: ContentType = 'URL'
 DEFAULT_OAUTH2_GRANT_TYPE: OAuth2GrantType = 'client_credentials'
