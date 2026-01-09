@@ -14,7 +14,6 @@ class EMail(NamedTuple):
     receivers: list[str]
     data: str
 
-@pytest.mark.skip("TODO")
 def test_smtp(logmonrc_path: str, logfiles: list[str]) -> None:
     host = 'localhost'
     port = (os.getpid() % (65535 - 1024)) + 1024
@@ -56,8 +55,6 @@ logfiles:
                 line = line.decode('ASCII').strip()
                 if not line:
                     continue
-                with open('/tmp/server.log', 'a') as fp:
-                    print('C: ' + line, file=fp)
                 cmd = line.split(maxsplit=1)
                 arg = cmd[1] if len(cmd) > 1 else None
                 return cmd[0], arg
@@ -90,8 +87,6 @@ logfiles:
                 buf.append('\r\n')
 
             message = ''.join(buf)
-            with open('/tmp/server.log', 'a') as fp:
-                print('S: ' + message.rstrip().replace('\r\n', '\nS: '), file=fp)
             self.wfile.write(message.encode('ASCII'))
             self.wfile.flush()
 
@@ -118,7 +113,7 @@ logfiles:
                             ])
 
                         case 'QUIT':
-                            self.send_message(211, 'Bye')
+                            self.send_message(221, 'Bye')
                             break
 
                         case 'MAIL':
@@ -157,27 +152,26 @@ logfiles:
                                         self.send_message(354, 'End data with <CR><LF>.<CR><LF>')
                                         buf = bytearray()
                                         crlf = False
-                                        with open('/tmp/server.log', 'a') as fp:
-                                            while True:
-                                                line = self.rfile.readline()
-                                                print('C: ' + line.decode('ASCII').rstrip('\r\n'), file=fp)
-                                                if crlf and line == b'.\r\n':
-                                                    break
-                                                crlf = line.endswith(b'\r\n')
-                                                buf.extend(line)
+                                        while True:
+                                            line = self.rfile.readline()
+                                            if crlf and line == b'.\r\n':
+                                                break
+                                            crlf = line.endswith(b'\r\n')
+                                            buf.extend(line)
 
                                         emails.append(EMail(
                                             sender = sender,
                                             receivers = receivers,
                                             data = buf.decode('ASCII'),
                                         ))
+                                        self.send_message(250, f'Ok: queued as {len(emails)}')
                                         break
 
                         case _:
                             raise ValueError(f'unexpected command: {cmd} {arg or ''}')
 
             except Exception as exc:
-                print(f">>> Error handling SMTP connection: {exc}", file=sys.stderr)
+                print(f"Error handling SMTP request: {exc}", file=sys.stderr)
                 server_errors.append(exc)
 
     server = TCPServer((host, port), Handler)
@@ -190,20 +184,57 @@ logfiles:
     thread.join()
     server.server_close()
 
-    from pprint import pprint
-    pprint(emails)
-
-    import traceback
-    for err in server_errors:
-        print(file=sys.stderr)
-        traceback.print_exception(err, file=sys.stderr)
-
     if server_errors:
+        import traceback
+        for err in server_errors:
+            print(file=sys.stderr)
+            traceback.print_exception(err, file=sys.stderr)
         print(file=sys.stderr)
 
     assert server_errors == []
 
-    # TODO: check messages
+    expected1 = f"""\
+Subject: {logs[0][0]['header']}
+From: {sender}
+To: {', '.join(receivers)}
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+{logfiles[0]}
+
+{logs[0][0]['message']}
+
+
+{logs[0][1]['message']}
+""".replace('\n', '\r\n')
+
+    expected2 = f"""\
+Subject: {logs[1][0]['header']}
+From: {sender}
+To: {', '.join(receivers)}
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+{logfiles[1]}
+
+{logs[1][0]['message']}
+""".replace('\n', '\r\n')
+
+    for index, expected in enumerate([expected1, expected2]):
+        nr = index + 1
+        assert any(expected == email.data for email in emails), (
+            f'Message {nr} not found in output!\n'
+             '\n'
+             '  Message:\n'
+             '\n'
+            f'{indent(expected.replace('\r', ''))}\n'
+            '\n'
+            '  Output:\n'
+            '\n'
+           f'{'\n'.join(indent(email.data.replace('\r', '')) for email in emails)}'
+        )
 
     for filepath in *logfiles, logmonrc_path:
         try:
