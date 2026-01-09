@@ -82,9 +82,7 @@ log:
 logfiles:
   "{logfiles[0]}": {{}}
   "{logfiles[1]}": {{}}
-  "{logfiles[2]}":
-    entry_start_pattern: >-
-      "^{{"
+  "{logfiles[2]}": {{}}
 '''
     write_file(logmonrc_path, logmonrc)
 
@@ -110,6 +108,8 @@ logfiles:
                  '\n'
                 f'{indent(json.dumps(output, indent=2))}'
             )
+
+    assert len(output) == sum(len(logentries) for logentries in logs)
 
     for filepath in *logfiles, logmonrc_path:
         try:

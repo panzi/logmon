@@ -37,7 +37,7 @@ def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
         print("[2025-12-14T20:15:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         errmsg1hdr = "ERROR: Something failed!"
-        errmsg2hdr = "ERROR: Something else failed!"
+        errmsg2hdr = "CRITICAL: Something else failed!"
         errmsg1 = f"[2025-12-14T20:17:00+0100] {errmsg1hdr}"
         errmsg2 = f"[2025-12-14T20:18:00+0100] {errmsg2hdr}"
         print(errmsg1, file=fp1); fp1.flush()

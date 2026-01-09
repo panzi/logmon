@@ -23,6 +23,7 @@ type SystemDPriority = Literal[
     'PANIC', 'WARNING', 'ALERT', 'NONE', 'CRITICAL',
     'DEBUG', 'INFO', 'ERROR', 'NOTICE',
 ]
+type SystemDSelector = Literal['UNIT', 'SYSLOG']
 
 type OAuth2GrantType = Literal['client_credentials', 'password']
 

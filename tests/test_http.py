@@ -350,6 +350,8 @@ Entry not found:
         ]
     })
 
+    assert len(entries) == 2
+
     for filepath in *logfiles, logmonrc_path:
         try:
             os.remove(filepath)

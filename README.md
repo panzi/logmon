@@ -82,6 +82,11 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         logfile is also configured in the settings it still
                         uses the logfile specific settings for the given
                         logfile.
+                        
+                        You can read from a SystemD journal instead of a file by
+                        specifying a path in the form of:
+                        
+                            systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]
 ```
 
 ### Options

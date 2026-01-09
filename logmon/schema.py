@@ -138,7 +138,12 @@ class DefaultConfig(LogfileConfig, SystemDConfig):
 class MTConfig(TypedDict):
     do: NotRequired[ActionConfig]
     default: NotRequired[DefaultConfig]
-    logfiles: dict[str, Config]|list[str]
+    logfiles: Annotated[dict[str, Config]|list[str], Field(
+        description='The mapping keys or entries in the array of strings is the path of the log file.\n'
+                    'You can read from a SystemD journal instead of a file by specifying a path in the form of:\n'
+                    '\n'
+                    '    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
+    )]
     limits: NotRequired[LimitsConfig]
 
 class AppLogConfig(TypedDict):

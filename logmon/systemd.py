@@ -14,6 +14,7 @@ from .limits_service import LimitsService
 from .actions import Action
 from .global_state import handle_keyboard_interrupt
 from .entry_readers import LogEntry
+from .types import SystemDSelector
 
 __all__ = (
     'logmon_systemd',
@@ -60,7 +61,7 @@ try:
             else:
                 priority = None
 
-            mode, unit = parse_systemd_path(logfile)
+            mode, selector = parse_systemd_path(logfile)
 
             reader = JournalReader()
             try:
@@ -71,8 +72,12 @@ try:
 
                 rule: Optional[Rule] = None
 
-                if unit is not None:
-                    rule = Rule('_SYSTEMD_UNIT', unit)
+                match selector:
+                    case ('UNIT', ident):
+                        rule = Rule('_SYSTEMD_UNIT', ident)
+
+                    case ('SYSLOG', ident):
+                        rule = Rule('SYSLOG_IDENTIFIER', ident)
 
                 if match_dict:
                     for rule_key, rule_value in match_dict.items():
@@ -83,7 +88,6 @@ try:
                             rule &= new_rule
 
                 if priority is not None:
-                    # TODO: is this really the way?
                     int_priority: int = priority.value
                     prule = Rule('PRIORITY', str(int_priority))
                     int_priority -= 1
@@ -91,10 +95,7 @@ try:
                         prule |= Rule('PRIORITY', str(int_priority))
                         int_priority -= 1
 
-                    if rule is None:
-                        rule = prule
-                    else:
-                        rule &= prule
+                    reader.add_filter(prule)
 
                 if rule is not None:
                     reader.add_filter(rule)
@@ -197,15 +198,22 @@ except ImportError:
 def is_systemd_path(logfile: str) -> bool:
     return logfile.startswith('systemd:')
 
-def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[str]]:
+def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[tuple[SystemDSelector, str]]]:
     path = logfile.split(':')
-    if len(path) < 2 or len(path) > 3 or path[0] != 'systemd':
+    if path[0] != 'systemd' or len(path) not in (2, 4):
         raise ValueError(f'Illegal SystemD path: {logfile!r}')
 
     mode = OPEN_MODES.get(path[1])
     if mode is None:
         raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
 
-    unit = path[2] or None if len(path) > 2 else None
+    if len(path) == 4:
+        what = path[2].upper()
+        if what not in ('UNIT', 'SYSLOG'):
+            raise ValueError(f'Illegal selector in SystemD path: {logfile!r}')
 
-    return mode, unit
+        ident = path[3]
+
+        return mode, (what, ident)
+
+    return mode, None

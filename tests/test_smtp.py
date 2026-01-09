@@ -234,6 +234,8 @@ MIME-Version: 1.0
            f'{'\n'.join(indent(email.data.replace('\r', '')) for email in emails)}'
         )
 
+    assert len(emails) == 2
+
     for filepath in *logfiles, logmonrc_path:
         try:
             os.remove(filepath)

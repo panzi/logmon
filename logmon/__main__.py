@@ -753,7 +753,12 @@ def main(argv: Optional[list[str]] = None) -> None:
         help="Dump config file schema and exit. Uses --output-format and --output-indent.")
     ap.add_argument('logfiles', nargs='*', default=[],
         help='Overwrite the logfiles form the settings. If the given logfile is also configured in the '
-             'settings it still uses the logfile specific settings for the given logfile.')
+             'settings it still uses the logfile specific settings for the given logfile.\n'
+             '\n'
+             'You can read from a SystemD journal instead of a file by specifying a path in the form of:\n'
+             '\n'
+             '    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
+    )
     args = ap.parse_args(argv)
 
     if args.version:
@@ -812,7 +817,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         if args.config:
             print(f"{args.config}: File not found", file=sys.stderr)
             sys.exit(1)
-        config = {}
+        config = { 'logfiles': [] }
 
     except Exception as exc:
         print(f"{config_path}: Config file format error: {exc}", file=sys.stderr)
