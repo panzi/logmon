@@ -344,8 +344,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
 Settings
 --------
 
-The settings file uses YAML, although if `PyYAML` is not installed it falls 
-back to just JSON.
+The settings file uses YAML, although if neitehr `ruamel.yaml` nor `PyYAML` is
+installed it falls back to just JSON.
 
 Example:
 
