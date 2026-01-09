@@ -34,19 +34,19 @@ but not the per-logfile settings. See below for the settings file format.
 
 ```
 Usage: logmon.py [-h] [-v] [--license] [--config PATH]
-                 [-A {{http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}]
+                 [-A {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],file:<path>}]
                  [--sender EMAIL] [--receivers EMAIL,...] [--subject TEMPLATE]
                  [--body TEMPLATE] [--wait-file-not-found SECONDS]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
                  [--wait-before-send SECONDS] [--wait-after-crash SECONDS]
                  [--max-entries COUNT] [--max-entry-lines COUNT]
                  [--max-emails-per-minute COUNT] [--max-emails-per-hour COUNT]
-                 [--use-inotify | --no-use-inotify]
+                 [--use-inotify | --no-use-inotify] [--encoding ENCODING]
                  [--entry-start-pattern REGEXP] [--error-pattern REGEXP]
                  [--ignore-pattern REGEXP] [--seek-end | --no-seek-end]
                  [--json] [--no-json] [--json-match PATH=VALUE]
                  [--json-ignore PATH=VALUE] [--json-brief PATH]
-                 [--output-indent OUTPUT_INDENT] [--output-format {JSON,YAML}]
+                 [--output-indent WIDTH|NONE] [--output-format {JSON,YAML}]
                  [--systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}]
                  [--systemd-match KEY=VALUE] [--host HOST] [--port PORT]
                  [--user USER] [--password PASSWORD]
@@ -68,11 +68,15 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--command-stdout {file:/file/path,append:/file/path,null:,inherit:,/absolute/file/path}]
                  [--command-stderr {file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}]
                  [--command-interactive] [--command-no-interactive]
-                 [--command-timeout SECONDS|NONE] [--keep-connected]
-                 [--no-keep-connected] [-d] [--pidfile PATH] [--log-file PATH]
+                 [--command-timeout SECONDS|NONE] [--file FILE]
+                 [--file-encoding ENCODING] [--file-append] [--no-file-append]
+                 [--file-user USER] [--file-group GROUP]
+                 [--file-type {regular,fifo}] [--file-mode MODE]
+                 [--keep-connected] [--no-keep-connected] [-d]
+                 [--pidfile PATH] [--log-file PATH]
                  [--log-level {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
                  [--log-format FORMAT] [--log-datefmt DATEFMT]
-                 [--logmails {always,never,onerror,instead}]
+                 [--logmails {always,never,onerror,instead}] [--config-schema]
                  [logfiles ...]
 ```
 
@@ -83,10 +87,11 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         uses the logfile specific settings for the given
                         logfile.
                         
-                        You can read from a SystemD journal instead of a file by
-                        specifying a path in the form of:
+                        You can read from a SystemD journal instead of a file
+                        by specifying a path in the form of:
                         
-                            systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]
+                        
+                            systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]
 ```
 
 ### Options
@@ -95,7 +100,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   -v, --version         Print version and exit.
   --license             Show license information and exit.
   --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
-  -A, --action {{http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[/<path>[?<query>]]],command[:<command> [<option>...]]}
+  -A, --action {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],file:<path>}
                         Parameters defined here overwrite values passed via
                         other options.
                         
@@ -176,6 +181,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --use-inotify         This is the default if the `inotify` Python package is
                         installed. [default: True]
   --no-use-inotify      Opposite of --use-inotify
+  --encoding ENCODING
   --entry-start-pattern REGEXP
                         This pattern defines the start of a log entry. A
                         multiline log entry is parsed up until the next start
@@ -224,7 +230,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         Same match syntax as --json-match, but if this matches
                         the log entry is ignored.
   --json-brief PATH     Path to the JSON field
-  --output-indent OUTPUT_INDENT
+  --output-indent WIDTH|NONE
                         When JSON or YAML data is included in the email indent
                         by this number of spaces. [default: 4]
   --output-format {JSON,YAML}
@@ -247,7 +253,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --http-timeout SECONDS|NONE
                         [default: no timeout]
   -P, --http-param KEY=VALUE
-                        [default: subject={subject} receivers={receivers}]
+                        [default: subject={subject} receivers={receivers}
+                        entries={entries_raw}]
   -H, --http-header Header:Value
   --oauth2-grant-type {client_credentials,password}
                         [default: client_credentials]
@@ -313,6 +320,16 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         still running on shutdown and the timeout is exceeded
                         the process will be killed.
                         [default: NONE]
+  --file FILE
+  --file-encoding ENCODING
+                        [default: "UTF-8"]
+  --file-append
+  --no-file-append
+  --file-user USER
+  --file-group GROUP
+  --file-type {regular,fifo}
+  --file-mode MODE      File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or
+                        `0750`.
   --keep-connected
   --no-keep-connected
   -d, --daemonize       Fork process to the background. Send SIGTERM to the
@@ -339,6 +356,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                                     for debugging.
                         
                         [default: onerror]
+  --config-schema       Dump config file schema and exit. Uses --output-format
+                        and --output-indent.
 ```
 
 Settings

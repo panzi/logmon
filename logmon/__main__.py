@@ -510,7 +510,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     non_command_actions = set(action.lower() for action in ACTIONS)
     non_command_actions.remove('command')
     ap.add_argument('-A', '--action', default=None,
-        metavar=f"{{{{{','.join(sorted(non_command_actions))}}}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]]}}",
+        metavar=f"{{{{{','.join(sorted(non_command_actions))}}}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],file:<path>}}",
         help='Parameters defined here overwrite values passed via other options.\n'
              '\n'
              'For SMTP and IMAP these query parameters are supported:\n'
@@ -757,7 +757,7 @@ def main(argv: Optional[list[str]] = None) -> None:
              '\n'
              'You can read from a SystemD journal instead of a file by specifying a path in the form of:\n'
              '\n'
-             '    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
+             '    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]'
     )
     args = ap.parse_args(argv)
 

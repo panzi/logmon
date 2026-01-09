@@ -1,5 +1,6 @@
 from typing import Optional
 
+import re
 import json
 import logging
 
@@ -195,15 +196,18 @@ except ImportError:
     ) -> None:
         raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
 
+SYSTEMD_PATH_PREFIX = re.compile(r'^systemd:', re.I)
+SYSTEMD_PATH_PREFIX_match = SYSTEMD_PATH_PREFIX.match
+
 def is_systemd_path(logfile: str) -> bool:
-    return logfile.startswith('systemd:')
+    return SYSTEMD_PATH_PREFIX_match(logfile) is not None
 
 def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[tuple[SystemDSelector, str]]]:
     path = logfile.split(':')
-    if path[0] != 'systemd' or len(path) not in (2, 4):
+    if path[0].lower() != 'systemd' or len(path) not in (2, 4):
         raise ValueError(f'Illegal SystemD path: {logfile!r}')
 
-    mode = OPEN_MODES.get(path[1])
+    mode = OPEN_MODES.get(path[1].upper())
     if mode is None:
         raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
 
