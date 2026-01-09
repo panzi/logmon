@@ -1,7 +1,4 @@
-from typing import Optional
-
 import os
-import sys
 
 from os.path import join as join_path
 

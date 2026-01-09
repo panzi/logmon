@@ -1,4 +1,4 @@
-from typing import TypedDict, Generator, IO, Optional
+from typing import TypedDict, Generator, IO, Optional, Callable, TypeVar
 
 import sys
 
@@ -125,7 +125,9 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
         stderr_buf.decode(errors='replace'),
     )
 
-def run_logmon(logfiles: list[str], *args: str) -> tuple[Popen[bytes], list[list[ExampleLog]], str, str]:
+LogEntry = TypeVar('LogEntry')
+
+def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str]], Generator[list[LogEntry], None, None]]=write_logs) -> tuple[Popen[bytes], list[list[LogEntry]], str, str]:
     proc = Popen(
         [sys.executable, '-m', 'logmon', *args],
         cwd=SRC_PATH,
@@ -139,7 +141,7 @@ def run_logmon(logfiles: list[str], *args: str) -> tuple[Popen[bytes], list[list
 
     status: Optional[int] = proc.returncode
 
-    logs: list[list[ExampleLog]] = []
+    logs: list[list[LogEntry]] = []
 
     try:
         for l in write_logs(logfiles):
