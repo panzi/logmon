@@ -298,38 +298,7 @@ logfiles:
     thread = Thread(target=lambda: server.serve_forever())
     thread.start()
 
-    proc = Popen(
-        [sys.executable, '-m', 'logmon', '--config', logmonrc_path],
-        cwd=SRC_PATH,
-        stdout=PIPE,
-        stderr=PIPE,
-    )
-    assert proc.stdout is not None
-    assert proc.stderr is not None
-
-    sleep(0.5)
-
-    status: Optional[int] = proc.returncode
-
-    logs: list[list[ExampleLog]] = []
-
-    try:
-        for l in write_logs(logfiles):
-            logs.append(l)
-
-            status: Optional[int] = proc.returncode
-            if status is not None and status != 0:
-                assert status == 0
-
-        sleep(0.5)
-
-        proc.terminate()
-
-        status = proc.wait()
-    finally:
-        pipe_io(proc.stdout, proc.stderr)
-
-    assert proc.returncode == 0
+    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
 
     server.shutdown()
     thread.join()
@@ -387,5 +356,5 @@ Entry not found:
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
 
-    proc.stderr.close()
-    proc.stdout.close()
+    proc.stderr.close() # type: ignore
+    proc.stdout.close() # type: ignore

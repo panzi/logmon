@@ -1,9 +1,11 @@
-from typing import TypedDict, Generator, IO
+from typing import TypedDict, Generator, IO, Optional
 
 import sys
 
+from time import sleep
 from pathlib import Path
 from select import poll, POLLIN, POLLRDHUP, POLLHUP
+from subprocess import Popen, PIPE
 
 __all__ = (
     'SRC_PATH',
@@ -12,6 +14,7 @@ __all__ = (
     'ExampleLog',
     'write_logs',
     'pipe_io',
+    'run_logmon',
 )
 
 SRC_PATH = str(Path(__file__).resolve().parent.parent)
@@ -122,3 +125,38 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
         stderr_buf.decode(errors='replace'),
     )
 
+def run_logmon(logfiles: list[str], *args: str) -> tuple[Popen[bytes], list[list[ExampleLog]], str, str]:
+    proc = Popen(
+        [sys.executable, '-m', 'logmon', *args],
+        cwd=SRC_PATH,
+        stdout=PIPE,
+        stderr=PIPE,
+    )
+    assert proc.stdout is not None
+    assert proc.stderr is not None
+
+    sleep(0.5)
+
+    status: Optional[int] = proc.returncode
+
+    logs: list[list[ExampleLog]] = []
+
+    try:
+        for l in write_logs(logfiles):
+            logs.append(l)
+
+            status: Optional[int] = proc.returncode
+            if status is not None and status != 0:
+                assert status == 0
+
+        sleep(0.5)
+
+        proc.terminate()
+
+        status = proc.wait(5)
+    finally:
+        stdout, stderr = pipe_io(proc.stdout, proc.stderr)
+
+    assert proc.returncode == 0
+
+    return proc, logs, stdout, stderr

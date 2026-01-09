@@ -35,38 +35,7 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    proc = Popen(
-        [sys.executable, '-m', 'logmon', '--config', logmonrc_path, '--logmails=instead'],
-        cwd=SRC_PATH,
-        stdout=PIPE,
-        stderr=PIPE,
-    )
-    assert proc.stdout is not None
-    assert proc.stderr is not None
-
-    sleep(0.5)
-
-    status: Optional[int] = proc.returncode
-
-    logs: list[list[ExampleLog]] = []
-
-    try:
-        for l in write_logs(logfiles):
-            logs.append(l)
-
-            status: Optional[int] = proc.returncode
-            if status is not None and status != 0:
-                assert status == 0
-
-        sleep(0.25)
-
-        proc.terminate()
-
-        status = proc.wait(5)
-    finally:
-        stdout, stderr = pipe_io(proc.stdout, proc.stderr)
-
-    assert proc.returncode == 0
+    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, '--logmails=instead')
 
     expected1 = f'''\
 {logfiles[0]}: Simulate sending email
@@ -104,5 +73,5 @@ logfiles:
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
 
-    proc.stderr.close()
-    proc.stdout.close()
+    proc.stderr.close() # type: ignore
+    proc.stdout.close() # type: ignore
