@@ -4,8 +4,6 @@ import os
 import sys
 
 from os.path import join as join_path
-from time import sleep
-from subprocess import Popen, PIPE
 
 from tests.testutils import *
 
@@ -15,7 +13,7 @@ def test_file(logmonrc_path: str, logfiles: list[str], temp_prefix: tuple[str, s
     logmonrc = f'''\
 ---
 do:
-  action: "append:{file_path}"
+  action: "file:{file_path}"
 default:
   use_inotify: true
   seek_end: true

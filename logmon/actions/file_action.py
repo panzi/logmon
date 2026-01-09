@@ -132,7 +132,7 @@ class FileAction(Action):
 
         self.file_path = file
         self.file_encoding = config.get('file_encoding', 'UTF-8')
-        self.file_append = config.get('file_append', False)
+        self.file_append = config.get('file_append', True)
         self.file_user = config.get('file_user')
         self.file_group = config.get('file_group')
         self.file_type = config.get('file_type', 'regular')

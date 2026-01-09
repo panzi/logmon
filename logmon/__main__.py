@@ -177,7 +177,7 @@ def daemonize(stdout: str = '/dev/null', stderr: Optional[str] = None, stdin: st
     so.close()
     se.close()
 
-URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<file_prot>file|append|fifo)(?::(?P<file>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
+URL_PATTERN = re.compile(r'^(:?(?P<iscommand>command|cmd)(?::(?P<command>.*))?|(?P<file_prot>file|fifo)(?::(?P<file>.*))?|(?P<prot>[-_a-z0-9]+)(?::(?://)?(?:(?P<user>[^:/\\@?#\[\]&\s]*)(?::(?P<password>[^:/\\@?#\[\]&\s]*))?@)?(?P<host>[-_.a-z0-9]+|\[(?P<ipv6>[:0-9a-f]+)\])(?::(?P<port>[0-9]+))?(?P<path>/[^\s#?&]*)?(?:\?(?P<query>[^\s#]*))?)?)$', re.I)
 
 def parse_action(cfg: dict[str, Any]) -> None:
     action = cfg.get('action')
@@ -204,12 +204,8 @@ def parse_action(cfg: dict[str, Any]) -> None:
     if file_prot:
         cfg['action'] = 'FILE'
 
-        match file_prot.lower():
-            case 'append':
-                cfg['file_append'] = True
-
-            case 'fifo':
-                cfg['file_type'] = 'fifo'
+        if file_prot.lower() == 'fifo':
+            cfg['file_type'] = 'fifo'
 
         file_path = m.group('file')
         if file_path:

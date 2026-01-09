@@ -86,7 +86,7 @@ class ActionConfigBase(TypedDict):
 
     file: NotRequired[str]
     file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
-    file_append: Annotated[NotRequired[bool], Field(description="**Default:** `False`")]
+    file_append: Annotated[NotRequired[bool], Field(description="**Default:** `True`")]
     file_user: NotRequired[str|int]
     file_group: NotRequired[str|int]
     file_type: Annotated[NotRequired[FileType], Field(description="**Default:** `'regular'`")]

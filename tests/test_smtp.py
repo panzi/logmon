@@ -3,7 +3,6 @@ from typing import Optional, Sequence, NamedTuple
 import re
 import os
 import sys
-import pytest
 
 from threading import Thread
 from socketserver import TCPServer, StreamRequestHandler
@@ -32,7 +31,6 @@ default:
   seek_end: true
 log:
   format: "%(message)s"
-  #file: /tmp/smtp.log
 logfiles:
   "{logfiles[0]}": {{}}
   "{logfiles[1]}": {{}}
