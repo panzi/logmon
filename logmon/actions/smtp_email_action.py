@@ -5,14 +5,14 @@ import smtplib
 
 from ..schema import Config, ActionConfig
 from .action import make_message
-from .ssl_email_sender import SslEmailSender
+from .base_email_action import BaseEmailAction
 from ..entry_readers import LogEntry
 
 __all__ = (
-    'SmtpEmailSender',
+    'SmtpEmailAction',
 )
 
-class SmtpEmailSender(SslEmailSender):
+class SmtpEmailAction(BaseEmailAction):
     __slots__ = (
         'smtp',
     )

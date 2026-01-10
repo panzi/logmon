@@ -105,12 +105,12 @@ class Action(ABC):
                 return HttpAction(action_config, config)
 
             case 'IMAP':
-                from .imap_email_sender import ImapEmailSender
-                return ImapEmailSender(action_config, config)
+                from .imap_email_action import ImapEmailAction
+                return ImapEmailAction(action_config, config)
 
             case 'SMTP':
-                from .smtp_email_sender import SmtpEmailSender
-                return SmtpEmailSender(action_config, config)
+                from .smtp_email_action import SmtpEmailAction
+                return SmtpEmailAction(action_config, config)
 
             case 'COMMAND':
                 from .command_action import CommandAction

@@ -7,16 +7,16 @@ import logging
 
 from ..schema import Config, ActionConfig
 from .action import make_message
-from .ssl_email_sender import SslEmailSender
+from .base_email_action import BaseEmailAction
 from ..entry_readers import LogEntry
 
 __all__ = (
-    'ImapEmailSender',
+    'ImapEmailAction',
 )
 
 logger = logging.getLogger(__name__)
 
-class ImapEmailSender(SslEmailSender):
+class ImapEmailAction(BaseEmailAction):
     __slots__ = (
         'imap',
     )

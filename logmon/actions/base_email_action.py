@@ -7,10 +7,10 @@ from ..schema import Config, ActionConfig
 from .remote_action import RemoteAction
 
 __all__ = (
-    'SslEmailSender',
+    'BaseEmailAction',
 )
 
-class SslEmailSender(RemoteAction):
+class BaseEmailAction(RemoteAction):
     __slots__ = (
         'secure',
         'ssl_context',
