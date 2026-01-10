@@ -66,6 +66,8 @@ class JsonEntryReaderFactory(EntryReaderFactory):
 
             ignore = self.ignore
             if ignore is not None and check_json_match(entry, ignore):
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f'{logfile.name}: IGNORED: {line}')
                 continue
 
             brief_path = self.brief_path
