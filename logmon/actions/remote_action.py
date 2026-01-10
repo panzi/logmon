@@ -9,8 +9,8 @@ __all__ = (
     'RemoteAction',
 )
 
-def get_default_port(config: ActionConfig) -> int:
-    action = config.get('action', DEFAULT_ACTION)
+def get_default_port(action_config: ActionConfig) -> int:
+    action = action_config.get('action', DEFAULT_ACTION)
 
     match action:
         case 'HTTP':
@@ -20,7 +20,7 @@ def get_default_port(config: ActionConfig) -> int:
             return 443
 
         case 'SMTP':
-            match config.get('secure'):
+            match action_config.get('secure'):
                 case 'STARTTLS':
                     return 587
 
@@ -31,7 +31,7 @@ def get_default_port(config: ActionConfig) -> int:
                     return 25
 
         case 'IMAP':
-            match config.get('secure'):
+            match action_config.get('secure'):
                 case 'STARTTLS' | None:
                     return 993
 
@@ -56,12 +56,12 @@ class RemoteAction(Action):
     password: Optional[str]
     keep_connected: bool
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
+    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+        super().__init__(action_config, config)
 
-        port = config.get('port')
-        self.host = config.get('host', DEFAULT_EMAIL_HOST)
-        self.port = port if port is not None else get_default_port(config)
-        self.username = config.get('user')
-        self.password = config.get('password')
-        self.keep_connected = config.get('keep_connected', False)
+        port = action_config.get('port')
+        self.host = action_config.get('host', DEFAULT_EMAIL_HOST)
+        self.port = port if port is not None else get_default_port(action_config)
+        self.username = action_config.get('user')
+        self.password = action_config.get('password')
+        self.keep_connected = action_config.get('keep_connected', False)

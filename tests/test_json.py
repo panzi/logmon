@@ -68,6 +68,8 @@ def test_json(logmonrc_path: str, logfiles: list[str], temp_prefix: tuple[str, s
 ---
 do:
   action: "file:{file_path}"
+  output_format: JSON
+  output_indent: null
 default:
   json: true
   json_match:
@@ -75,8 +77,6 @@ default:
   json_breif: message
   use_inotify: true
   seek_end: true
-  output_format: JSON
-  output_indent: null
 log:
   format: "%(message)s"
 logfiles:

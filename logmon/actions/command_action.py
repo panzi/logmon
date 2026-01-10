@@ -8,7 +8,7 @@ from subprocess import Popen, TimeoutExpired, PIPE, DEVNULL, STDOUT
 from math import inf
 
 from .action import Action, TemplParams
-from ..schema import Config
+from ..schema import Config, ActionConfig
 from ..entry_readers import LogEntry
 from ..template import expand_args_inline, expand
 
@@ -147,11 +147,11 @@ class CommandAction(Action):
     pipe_fmt: Optional[str]
     timeout: Optional[float]
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
+    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+        super().__init__(action_config, config)
 
-        interactive = config.get('command_interactive')
-        command = config.get('command')
+        interactive = action_config.get('command_interactive')
+        command = action_config.get('command')
 
         if not command:
             if interactive or interactive is None:
@@ -160,7 +160,7 @@ class CommandAction(Action):
             else:
                 command = ['echo', '{...entries}']
 
-        env_raw = config.get('command_env')
+        env_raw = action_config.get('command_env')
         env: Optional[dict[str, str]]
         if env_raw is None:
             env = None
@@ -174,20 +174,20 @@ class CommandAction(Action):
                     env[key] = value
 
         self.command = command
-        self.cwd     = config.get('command_cwd')
-        self.user    = config.get('command_user')
-        self.group   = config.get('command_group')
+        self.cwd     = action_config.get('command_cwd')
+        self.user    = action_config.get('command_user')
+        self.group   = action_config.get('command_group')
         self.env     = env
-        self.stdin   = config.get('command_stdin')
-        self.stdout  = config.get('command_stdout')
-        self.stderr  = config.get('command_stderr')
+        self.stdin   = action_config.get('command_stdin')
+        self.stdout  = action_config.get('command_stdout')
+        self.stderr  = action_config.get('command_stderr')
         self.stdin_path  = parse_path(self.stdin, 'r')
         self.stdout_path = parse_path(self.stdout, 'w')
         self.stderr_path = parse_path(self.stderr, 'w')
         self.interactive = interactive or False
         self.proc     = None
         self.pipe_fmt = None
-        self.timeout  = config.get('command_timeout')
+        self.timeout  = action_config.get('command_timeout')
         if self.timeout == inf:
             self.timeout = None
 

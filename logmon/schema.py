@@ -16,7 +16,7 @@ __all__ = (
     'LogfileConfig',
     'SystemDConfig',
     'Config',
-    'DefaultConfig',
+    'InputConfig',
     'MTConfig',
     'AppLogConfig',
     'LogmonConfig',
@@ -92,6 +92,9 @@ class ActionConfigBase(TypedDict):
     file_type: Annotated[NotRequired[FileType], Field(description="**Default:** `'regular'`")]
     file_mode: Annotated[NotRequired[str|int], Field(description='File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)]
 
+    output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
+    output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
+
 class ActionConfig(ActionConfigBase):
     sender: Annotated[NotRequired[str], Field(description='**Default:** `logmon@<host>`')]
     receivers: Annotated[NotRequired[list[str]], Field(description='**Default:** `<sender>`')]
@@ -118,26 +121,21 @@ class LogfileConfig(TypedDict):
     json_match: Annotated[NotRequired[Optional[JsonMatch]], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
     json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
     json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
-    output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
-    output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
 
 class SystemDConfig(TypedDict):
     systemd_priority: NotRequired[SystemDPriority|int]
     systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
 
-class Config(ActionConfig, LogfileConfig, SystemDConfig, LimitsConfig):
-    pass
+class Config(LogfileConfig, SystemDConfig, LimitsConfig):
+    do: list[ActionConfig]
 
-class DefaultConfig(LogfileConfig, SystemDConfig):
-    """
-    Default log file configuration.
-    """
+class InputConfig(LogfileConfig, SystemDConfig):
     pass
 
 class MTConfig(TypedDict):
     do: NotRequired[ActionConfig]
-    default: NotRequired[DefaultConfig]
+    default: NotRequired[InputConfig]
     logfiles: Annotated[dict[str, Config]|list[str], Field(
         description='The mapping keys or entries in the array of strings is the path of the log file.\n'
                     'You can read from a SystemD journal instead of a file by specifying a path in the form of:\n'
@@ -161,3 +159,20 @@ class LogmonConfig(MTConfig):
 
 class ConfigFile(pydantic.BaseModel):
     config: Annotated[LogmonConfig, Field(description="Contents of the config file.")]
+
+def resolve_config(input_config: InputConfig, action_config: ActionConfig, logfile_config: Config) -> Config:
+    cfg_do_raw = logfile_config.get('do')
+    cfg_do: list[ActionConfig] = []
+    if cfg_do_raw is not None:
+        for do_item in cfg_do_raw:
+            cfg_do.append({ **action_config, **do_item })
+    else:
+        cfg_do = [action_config]
+
+    resolved_cfg: Config = {
+        **input_config,
+        **logfile_config,
+        'do': cfg_do,
+    }
+
+    return resolved_cfg

@@ -1,12 +1,13 @@
-from typing import TypedDict, Self, Any, NotRequired, Optional
+from typing import TypedDict, Self, Any, NotRequired, Optional, Generator
 
 import logging
 
 from abc import ABC, abstractmethod
 from email.message import EmailMessage
+from contextlib import contextmanager
 
-from ..types import ActionType, Logmails
-from ..schema import Config
+from ..types import ActionType, Logmails, OutputFormat
+from ..schema import Config, ActionConfig
 from ..entry_readers import LogEntry
 from ..constants import *
 
@@ -77,6 +78,7 @@ class Action(ABC):
         'receivers',
         'logmails',
         'action',
+        'output_format',
         'output_indent',
         'line_prefix',
     )
@@ -90,51 +92,88 @@ class Action(ABC):
 
     logmails: Logmails
     output_indent: Optional[int]
+    output_format: OutputFormat
     line_prefix: str
 
     @staticmethod
-    def from_config(config: Config) -> "Action":
-        action = config.get('action', DEFAULT_ACTION)
+    def from_config(action_config: ActionConfig, config: Config) -> "Action":
+        action = action_config.get('action', DEFAULT_ACTION)
 
         match action:
             case 'HTTP' | 'HTTPS':
                 from .http_action import HttpAction
-                return HttpAction(config)
+                return HttpAction(action_config, config)
 
             case 'IMAP':
                 from .imap_email_sender import ImapEmailSender
-                return ImapEmailSender(config)
+                return ImapEmailSender(action_config, config)
 
             case 'SMTP':
                 from .smtp_email_sender import SmtpEmailSender
-                return SmtpEmailSender(config)
+                return SmtpEmailSender(action_config, config)
 
             case 'COMMAND':
                 from .command_action import CommandAction
-                return CommandAction(config)
+                return CommandAction(action_config, config)
 
             case 'FILE':
                 from .file_action import FileAction
-                return FileAction(config)
+                return FileAction(action_config, config)
 
             case _:
                 raise ValueError(f'Illegal action: {action!r}')
 
-    def __init__(self, config: Config) -> None:
-        self.subject_templ = config.get('subject', DEFAULT_SUBJECT)
-        self.body_templ = config.get('body', DEFAULT_BODY)
+    @contextmanager
+    @staticmethod
+    def open_actions(config: Config) -> Generator[list["Action"], None, None]:
+        actions: list["Action"] = []
 
-        sender = config.get('sender')
+        for action_config in config['do']:
+            try:
+                action = Action.from_config(action_config, config)
+                action = action.__enter__()
+                actions.append(action)
+            except Exception as exc:
+                for action in reversed(actions):
+                    try:
+                        action.__exit__(type(exc), exc, exc.__traceback__)
+                    except Exception as nested_exc:
+                        logger.error(f'Error calling action.__exit__() during error handling: {nested_exc}', exc_info=nested_exc)
+                raise
+
+        try:
+            yield actions
+        finally:
+            excs: list[Exception] = []
+
+            for action in reversed(actions):
+                try:
+                    action.__exit__(None, None, None)
+                except Exception as exc:
+                    logger.error(f'Error calling action.__exit__(): {exc}', exc_info=exc)
+                    excs.append(exc)
+
+            if len(excs) == 1:
+                raise excs[0]
+            elif excs:
+                raise ExceptionGroup('Multiple errors during action cleanup', excs)
+
+    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+        self.subject_templ = action_config.get('subject', DEFAULT_SUBJECT)
+        self.body_templ = action_config.get('body', DEFAULT_BODY)
+
+        sender = action_config.get('sender')
         if not sender:
-            host = config.get('host', DEFAULT_EMAIL_HOST)
+            host = action_config.get('host', DEFAULT_EMAIL_HOST)
             sender = f'{DEFAULT_EMAIL_SENDER}@{host}'
 
         self.sender = sender
-        self.receivers = config.get('receivers') or [sender]
-        self.action = config.get('action', DEFAULT_ACTION)
+        self.receivers = action_config.get('receivers') or [sender]
+        self.action = action_config.get('action', DEFAULT_ACTION)
 
-        self.logmails = config.get('logmails', DEFAULT_LOGMAILS)
-        self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
+        self.logmails = action_config.get('logmails', DEFAULT_LOGMAILS)
+        self.output_format = action_config.get('output_format', DEFAULT_OUTPUT_FORMAT)
+        self.output_indent = action_config.get('output_indent', DEFAULT_OUTPUT_INDENT)
         self.line_prefix = '> '
 
     @abstractmethod
@@ -153,12 +192,15 @@ class Action(ABC):
             logger.error(f'Error while sending email: {exc}\n{msg_str}')
 
     def get_templ_params(self, logfile: str, entries: list[LogEntry], brief: str) -> TemplParams:
-        entries_str = '\n\n'.join(entry.formatted for entry in entries)
-        first_entry = entries[0].formatted
+        output_format = self.output_format
+        output_indent = self.output_indent
+        formatted = [entry.format(output_format, output_indent) for entry in entries]
+        entries_str = '\n\n'.join(formatted)
+        first_entry = formatted[0]
         first_line = first_entry.split('\n', 1)[0]
 
         templ_params: TemplParams = {
-            'entries': [entry.formatted for entry in entries],
+            'entries': formatted,
             'entries_str': entries_str,
             'entries_raw': [entry.data for entry in entries],
             'logfile': logfile,

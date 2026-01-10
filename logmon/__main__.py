@@ -34,7 +34,7 @@ from os.path import abspath, join as joinpath, dirname
 from urllib.parse import unquote_plus
 from datetime import timedelta
 
-from .schema import Config, ConfigFile, LogmonConfig, FILE_MODE_PATTERN
+from .schema import Config, ConfigFile, LogmonConfig, resolve_config, FILE_MODE_PATTERN
 from .yaml import HAS_YAML, yaml_load, yaml_dump
 from .inotify import HAS_INOTIFY
 from .json_match import parse_json_path
@@ -413,6 +413,8 @@ def main(argv: Optional[list[str]] = None) -> None:
                '      user: alice@example.com\n'
                '      password: password1234\n'
                '      logmails: onerror\n'
+               "      output_indent: 4\n"
+               "      output_format: YAML # or JSON\n"
                '    \n'
                '    default:\n'
                '      # Default configuration for every log\n'
@@ -447,8 +449,6 @@ def main(argv: Optional[list[str]] = None) -> None:
                "      json_ignore:\n"
                "        message: ['~', '(?i)test']\n"
                "      json_brief: ['message']\n"
-               "      output_indent: 4\n"
-               "      output_format: YAML # or JSON\n"
                "      systemd_priority: ERROR\n"
                "      systemd_match:\n"
                "        _SYSTEMD_USER_UNIT: plasma-kwin_x11.service\n"
@@ -831,12 +831,17 @@ def main(argv: Optional[list[str]] = None) -> None:
     if limits_config is None:
         limits_config = config['limits'] = {}
 
-    action_config = config.get('do')
-    if action_config is None:
+    config_do = config.get('do')
+    action_config: dict[str, Any]
+    if config_do is None:
         action_config = config['do'] = {}
-    elif not isinstance(action_config, dict):
-        print(f"{config_path}: Key 'do' must be a dict", file=sys.stderr)
+    elif isinstance(config_do, str):
+        action_config = config['do'] = { 'action': config_do }
+    elif not isinstance(config_do, dict):
+        print(f"{config_path}: Property 'do' must be a dict", file=sys.stderr)
         sys.exit(1)
+    else:
+        action_config = config_do
 
     if args.sender is not None:
         action_config['sender'] = args.sender
@@ -994,6 +999,12 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.logmails is not None:
         action_config['logmails'] = args.logmails
 
+    if args.output_indent != 'unset':
+        action_config['output_indent'] = args.output_indent
+
+    if args.output_format is not None:
+        action_config['output_format'] = args.output_format
+
     parse_action(action_config)
 
     if args.wait_file_not_found is not None:
@@ -1056,12 +1067,6 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.json_brief is not None:
         default_config['json_brief'] = parse_json_path(args.json_brief)
 
-    if args.output_indent != 'unset':
-        default_config['output_indent'] = args.output_indent
-
-    if args.output_format is not None:
-        default_config['output_format'] = args.output_format
-
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
 
@@ -1076,15 +1081,41 @@ def main(argv: Optional[list[str]] = None) -> None:
                 sys.exit(1)
         default_config['systemd_match'] = systemd_match
 
+    config_logfiles = config.get('logfiles')
+    if isinstance(config_logfiles, dict):
+        for logfile, raw_cfg in list(config_logfiles.items()):
+            if isinstance(raw_cfg, str):
+                raw_cfg_do = [ { 'action': raw_cfg } ]
+                raw_cfg = config_logfiles[logfile] = { 'do': raw_cfg_do }
+            elif isinstance(raw_cfg, dict):
+                raw_cfg_do = raw_cfg.get('do')
+                if isinstance(raw_cfg_do, str):
+                    raw_cfg_do = raw_cfg['do'] = [ { 'action': raw_cfg_do } ]
+                elif isinstance(raw_cfg_do, list):
+                    raw_cfg_do = raw_cfg['do'] = [
+                        raw_do if isinstance(raw_do, dict) else { 'action': raw_do }
+                        for raw_do in raw_cfg_do
+                    ]
+                elif isinstance(raw_cfg_do, dict):
+                    raw_cfg_do = raw_cfg['do'] = [ raw_cfg_do ]
+                else:
+                    raw_cfg_do = None
+                    raw_cfg['do'] = [ {} ]
+            else:
+                raw_cfg_do = None
+                raw_cfg['do'] = [ {} ]
+
+            if raw_cfg_do is not None:
+                for raw_do in raw_cfg_do:
+                    parse_action(raw_do)
+
     if args.logfiles:
         config_logfiles = config.get('logfiles')
         if isinstance(config_logfiles, dict):
-            for raw_cfg in config_logfiles.values():
-                parse_action(raw_cfg)
-
             config['logfiles'] = { logfile: config_logfiles.get(logfile) or {} for logfile in args.logfiles }
         else:
             config['logfiles'] = args.logfiles
+
         context_dir = abspath('.')
     else:
         context_dir = dirname(config_path)
@@ -1117,12 +1148,16 @@ def main(argv: Optional[list[str]] = None) -> None:
             abslogfiles[make_abs_logfile(logfile, context_dir)] = cfg
     else:
         for logfile in logfiles:
-            abslogfiles[make_abs_logfile(logfile, context_dir)] = {}
+            abslogfiles[make_abs_logfile(logfile, context_dir)] = { 'do': [] }
     app_config['logfiles'] = abslogfiles
 
     if not HAS_YAML:
-        if ((app_default := app_config.get('default')) and app_default.get('output_format') == 'YAML') or \
-            any(cfg.get('output_format') == 'YAML' for cfg in abslogfiles.values()):
+        if ((app_do := app_config.get('do')) and app_do.get('output_format') == 'YAML') or \
+            any(
+                action_cfg.get('output_format') == 'YAML'
+                for logfile_cfg in abslogfiles.values()
+                for action_cfg in (logfile_cfg.get('do') or ())
+            ):
             raise NotImplementedError('Writing YAML files requires the `PyYAML` package.')
 
     has_systemd = False
@@ -1175,11 +1210,11 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if len(abslogfiles) == 1:
         logfile, cfg = next(iter(abslogfiles.items()))
-        cfg = {
-            **action_config,
-            **default_config,
-            **cfg
-        }
+        cfg = resolve_config(
+            app_config.get('default') or {},
+            app_config.get('do') or {},
+            cfg,
+        )
         limits = LimitsService.from_config(app_config.get('limits') or {})
 
         _logmon_thread(

@@ -49,7 +49,7 @@ try:
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-        with Action.from_config(config) as action:
+        with Action.open_actions(config) as actions:
             seek_end = config.get('seek_end', True)
             raw_priority = config.get('systemd_priority')
             match_dict = config.get('systemd_match')
@@ -133,28 +133,12 @@ try:
                     entries: list[LogEntry] = []
 
                     for systemd_entry in systemd_entries:
-                        match output_format:
-                            case 'JSON':
-                                formatted = json.dumps(systemd_entry.data, indent=output_indent)
-
-                            case 'YAML':
-                                formatted = yaml_dump(systemd_entry.data, indent=output_indent)
-
-                            case _:
-                                logger.error(f'{logfile}: Illegal output format: {output_format}')
-                                formatted = json.dumps(systemd_entry.data, indent=output_indent)
-
-                        brief = systemd_entry.data.get('MESSAGE')
-
-                        if not brief:
-                            brief = formatted.split('\n', 1)[0].lstrip().rstrip(' \r\n\t:{')
-
+                        brief = systemd_entry.data.get('MESSAGE') or systemd_entry.data.get('SYSLOG_RAW') or ''
                         brief = cleanup_brief(brief)
 
                         entries.append(LogEntry(
                             data = systemd_entry.data,
                             brief = brief,
-                            formatted = formatted,
                         ))
 
                     if entries:
@@ -163,14 +147,15 @@ try:
                                 chunk = entries[offset:offset + max_entries]
                                 brief = chunk[0].brief
 
-                                if limits.check():
-                                    action.perform_action(
-                                        logfile = logfile,
-                                        entries = chunk,
-                                        brief = brief,
-                                    )
-                                elif logger.isEnabledFor(logging.DEBUG):
-                                    logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {brief}')
+                                for action in actions:
+                                    if limits.check():
+                                        action.perform_action(
+                                            logfile = logfile,
+                                            entries = chunk,
+                                            brief = brief,
+                                        )
+                                    elif logger.isEnabledFor(logging.DEBUG):
+                                        logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {brief}')
 
                             except Exception as exc:
                                 logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)

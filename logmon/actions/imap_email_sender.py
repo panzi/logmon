@@ -5,7 +5,7 @@ import errno
 import imaplib
 import logging
 
-from ..schema import Config
+from ..schema import Config, ActionConfig
 from .action import make_message
 from .ssl_email_sender import SslEmailSender
 from ..entry_readers import LogEntry
@@ -23,8 +23,8 @@ class ImapEmailSender(SslEmailSender):
 
     imap: Optional[imaplib.IMAP4]
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
+    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+        super().__init__(action_config, config)
 
         self.imap = None
 

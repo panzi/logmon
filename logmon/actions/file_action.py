@@ -8,7 +8,7 @@ import logging
 
 from .action import Action
 from ..types import FileType
-from ..schema import Config, FILE_MODE_PATTERN
+from ..schema import Config, ActionConfig, FILE_MODE_PATTERN
 from ..entry_readers import LogEntry
 from ..constants import DEFAULT_FILE_MODE
 
@@ -123,21 +123,21 @@ class FileAction(Action):
     file_mode: int
     stream: Optional[IO[str]]
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
+    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+        super().__init__(action_config, config)
 
-        file = config.get('file')
+        file = action_config.get('file')
         if not file:
             raise ValueError('Required field `file` is not defined.')
 
         self.file_path = file
-        self.file_encoding = config.get('file_encoding', 'UTF-8')
-        self.file_append = config.get('file_append', True)
-        self.file_user = config.get('file_user')
-        self.file_group = config.get('file_group')
-        self.file_type = config.get('file_type', 'regular')
+        self.file_encoding = action_config.get('file_encoding', 'UTF-8')
+        self.file_append = action_config.get('file_append', True)
+        self.file_user = action_config.get('file_user')
+        self.file_group = action_config.get('file_group')
+        self.file_type = action_config.get('file_type', 'regular')
 
-        mode = parse_file_mode(config.get('file_mode'))
+        mode = parse_file_mode(action_config.get('file_mode'))
         self.file_mode = mode if mode is not None else DEFAULT_FILE_MODE
         self.stream = None
 
@@ -222,19 +222,27 @@ class FileAction(Action):
             return
 
         try:
+            output_format = self.output_format
+            output_indent = self.output_indent
+
             stream = self.get_stream()
-            buf = ''.join(
-                entry.formatted if entry.formatted.endswith('\n') else entry.formatted + '\n'
-                for entry in entries
-            )
+
+            buf: list[str] = []
+            for entry in entries:
+                chunk = entry.format(output_format, output_indent)
+                buf.append(chunk)
+                if not chunk.endswith('\n'):
+                    buf.append('\n')
+
+            data = ''.join(buf)
 
             try:
-                stream.write(buf)
+                stream.write(data)
                 stream.flush()
             except BrokenPipeError:
                 logger.warning(f"{self.file_path}: Broken pipe, reopening...")
                 self.reopen()
-                stream.write(buf)
+                stream.write(data)
                 stream.flush()
 
         except Exception as exc:

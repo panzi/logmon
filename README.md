@@ -382,6 +382,8 @@ do:
   user: alice@example.com
   password: password1234
   logmails: onerror
+  output_indent: 4
+  output_format: YAML # or JSON
 
 default:
   # Default configuration for every log
@@ -416,8 +418,6 @@ default:
   json_ignore:
     message: ['~', '(?i)test']
   json_brief: ['message']
-  output_indent: 4
-  output_format: YAML # or JSON
   systemd_priority: ERROR
   systemd_match:
     _SYSTEMD_USER_UNIT: plasma-kwin_x11.service

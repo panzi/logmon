@@ -1,3 +1,5 @@
+from typing import Iterable
+
 import os
 import logging
 import threading
@@ -6,7 +8,7 @@ from os.path import abspath, normpath, dirname, join as joinpath
 from time import monotonic, sleep
 from select import poll, POLLIN
 
-from .schema import Config, MTConfig
+from .schema import Config, MTConfig, resolve_config
 from .limits_service import LimitsService
 from .systemd import is_systemd_path, logmon_systemd
 from .constants import *
@@ -38,7 +40,7 @@ def _logmon(
 
     reader_factory = EntryReaderFactory.from_config(config)
 
-    with Action.from_config(config) as action:
+    with Action.open_actions(config) as actions:
         seek_end = config.get('seek_end', True)
         use_inotify = config.get('use_inotify', HAS_INOTIFY)
 
@@ -93,17 +95,18 @@ def _logmon(
                                         chunk = entries[offset:offset + max_entries]
                                         brief = chunk[0].brief
 
-                                        if limits.check():
-                                            action.perform_action(
-                                                logfile = logfile,
-                                                entries = chunk,
-                                                brief = brief,
-                                            )
-                                        elif logger.isEnabledFor(logging.DEBUG):
-                                            templ_params = action.get_templ_params(logfile, chunk, brief)
-                                            subject = action.subject_templ.format_map(templ_params)
+                                        for action in actions:
+                                            if limits.check():
+                                                action.perform_action(
+                                                    logfile = logfile,
+                                                    entries = chunk,
+                                                    brief = brief,
+                                                )
+                                            elif logger.isEnabledFor(logging.DEBUG):
+                                                templ_params = action.get_templ_params(logfile, chunk, brief)
+                                                subject = action.subject_templ.format_map(templ_params)
 
-                                            logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {subject}')
+                                                logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {subject}')
 
                                     except Exception as exc:
                                         logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
@@ -252,12 +255,8 @@ def _logmon(
                 except: pass
 
 def logmon_mt(config: MTConfig):
-    action_config = config.get('do')
-    base_config = dict(action_config) if action_config is not None else {}
-
-    default = config.get('default')
-    if default:
-        base_config.update(default)
+    action_config = config.get('do') or {}
+    default_config = config.get('default') or {}
 
     logfiles = config.get('logfiles')
 
@@ -269,14 +268,17 @@ def logmon_mt(config: MTConfig):
     threads: list[threading.Thread] = []
 
     try:
-        items = logfiles.items() if isinstance(logfiles, dict) else [(logfile, {}) for logfile in logfiles]
+        items: Iterable[tuple[str, Config]]
+
+        if isinstance(logfiles, dict):
+            items = logfiles.items()
+        else:
+            items = [(logfile, { 'do': [action_config] }) for logfile in logfiles]
+
         open_stopfds()
 
         for logfile, cfg in items:
-            cfg = {
-                **base_config,
-                **cfg
-            }
+            cfg = resolve_config(default_config, action_config, cfg)
 
             thread = threading.Thread(
                 target = _logmon_thread,

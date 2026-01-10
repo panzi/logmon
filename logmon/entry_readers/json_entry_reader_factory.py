@@ -25,15 +25,11 @@ class JsonEntryReaderFactory(EntryReaderFactory):
         'ignore',
         'brief_path',
         'wait_line_incomplete',
-        'output_indent',
-        'output_format',
     )
     match: CompiledJsonMatch
     ignore: Optional[CompiledJsonMatch]
     brief_path: Optional[JsonPath]
     wait_line_incomplete: int|float
-    output_indent: Optional[int]
-    output_format: OutputFormat
 
     def __init__(self, config: Config) -> None:
         super().__init__()
@@ -45,8 +41,6 @@ class JsonEntryReaderFactory(EntryReaderFactory):
         self.ignore = compile_json_match(json_ignore) if json_ignore is not None else None
         self.brief_path = config.get('json_brief', DEFAULT_JSON_BRIEF)
         self.wait_line_incomplete = config.get('wait_line_incomplete', DEFAULT_WAIT_LINE_INCOMPLETE)
-        self.output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT)
-        self.output_format = config.get('output_format', DEFAULT_OUTPUT_FORMAT)
 
     @override
     def create_reader(self, logfile: TextIO) -> Generator[LogEntry | None, None, None]:
@@ -91,20 +85,7 @@ class JsonEntryReaderFactory(EntryReaderFactory):
             else:
                 brief = line.strip()
 
-            output_indent = self.output_indent or None
-            match self.output_format:
-                case 'JSON':
-                    formatted = json.dumps(entry, indent=output_indent)
-
-                case 'YAML':
-                    formatted = yaml_dump(entry, indent=output_indent)
-
-                case _:
-                    logger.error(f'{logfile.name}: Illegal output format: {self.output_format}')
-                    formatted = json.dumps(entry, indent=output_indent)
-
             yield LogEntry(
                 data = entry,
                 brief = brief,
-                formatted = formatted,
             )

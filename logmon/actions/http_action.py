@@ -13,7 +13,7 @@ from datetime import timedelta, datetime
 from urllib.request import urlopen, Request
 
 from ..types import ContentType, OAuth2GrantType
-from ..schema import Config
+from ..schema import Config, ActionConfig
 from ..yaml import yaml_dump
 from ..constants import *
 from .remote_action import RemoteAction
@@ -116,29 +116,29 @@ class HttpAction(RemoteAction):
     oauth2_token: Optional[OAuth2Token]
     oauth2_token_expires_at: Optional[datetime]
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
+    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+        super().__init__(action_config, config)
 
-        self.http_method = config.get('http_method', DEFAULT_HTTP_METHOD)
-        http_path = config.get('http_path', '/')
+        self.http_method = action_config.get('http_method', DEFAULT_HTTP_METHOD)
+        http_path = action_config.get('http_path', '/')
         if not http_path.startswith('/'):
             http_path = f'/{http_path}'
         self.http_path = http_path
-        http_params = config.get('http_params')
+        http_params = action_config.get('http_params')
         self.http_params = list(http_params.items()) if isinstance(http_params, dict) else http_params
-        self.http_content_type = config.get('http_content_type')
-        self.http_headers = config.get('http_headers')
-        self.http_max_redirect = config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
-        http_timeout = config.get('http_timeout')
+        self.http_content_type = action_config.get('http_content_type')
+        self.http_headers = action_config.get('http_headers')
+        self.http_max_redirect = action_config.get('http_max_redirect', DEFAULT_HTTP_MAX_REDIRECT)
+        http_timeout = action_config.get('http_timeout')
         self.http_timeout = http_timeout
         self.http_connection = HTTPConnection(self.host, self.port, timeout=http_timeout) if self.action == 'HTTP' else \
                                HTTPSConnection(self.host, self.port, timeout=http_timeout)
-        self.oauth2_grant_type = config.get('oauth2_grant_type') or DEFAULT_OAUTH2_GRANT_TYPE
-        self.oauth2_token_url = config.get('oauth2_token_url') or None
-        self.oauth2_client_id = config.get('oauth2_client_id')
-        self.oauth2_client_secret = config.get('oauth2_client_secret')
-        self.oauth2_scope = config.get('oauth2_scope')
-        oauth2_refresh_margin = config.get('oauth2_refresh_margin')
+        self.oauth2_grant_type = action_config.get('oauth2_grant_type') or DEFAULT_OAUTH2_GRANT_TYPE
+        self.oauth2_token_url = action_config.get('oauth2_token_url') or None
+        self.oauth2_client_id = action_config.get('oauth2_client_id')
+        self.oauth2_client_secret = action_config.get('oauth2_client_secret')
+        self.oauth2_scope = action_config.get('oauth2_scope')
+        oauth2_refresh_margin = action_config.get('oauth2_refresh_margin')
         self.oauth2_refresh_margin = oauth2_refresh_margin if oauth2_refresh_margin is not None else timedelta(0)
         self.oauth2_token = None
         self.oauth2_token_expires_at = None

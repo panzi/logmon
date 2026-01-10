@@ -65,11 +65,11 @@ def test_systemd(logmonrc_path: str, temp_prefix: tuple[str, str]) -> None:
 ---
 do:
   action: "file:{file_path}"
+  output_format: JSON
+  output_indent: null
 default:
   systemd_priority: ERROR
   seek_end: true
-  output_format: JSON
-  output_indent: null
 log:
   format: "%(message)s"
 logfiles:

@@ -7,7 +7,7 @@ from time import sleep
 from ..constants import *
 from ..schema import Config
 from ..global_state import is_running
-from .entry_reader_factory import EntryReaderFactory, LogEntry
+from .entry_reader_factory import EntryReaderFactory, LogEntry, TextLogEntry
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +127,7 @@ class TextEntryReaderFactory(EntryReaderFactory):
                     if not brief:
                         brief = entry
 
-                    yield LogEntry(
+                    yield TextLogEntry(
                         data = entry,
                         brief = brief,
-                        formatted = entry,
                     )
