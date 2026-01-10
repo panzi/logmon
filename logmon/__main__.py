@@ -1088,7 +1088,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     if isinstance(config_logfiles, dict):
         for logfile, raw_cfg in list(config_logfiles.items()):
             if isinstance(raw_cfg, str):
-                raw_cfg_do = [ { 'action': raw_cfg } ]
+                raw_cfg_do: Any = [ { 'action': raw_cfg } ]
                 config_logfiles[logfile] = { 'do': raw_cfg_do }
             elif isinstance(raw_cfg, dict):
                 raw_cfg_do = raw_cfg.get('do')

@@ -197,10 +197,11 @@ def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[tuple[
         raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
 
     if len(path) == 4:
-        what = path[2].upper()
-        if what not in ('UNIT', 'SYSLOG'):
+        what_raw = path[2].upper()
+        if what_raw not in ('UNIT', 'SYSLOG'):
             raise ValueError(f'Illegal selector in SystemD path: {logfile!r}')
 
+        what: SystemDSelector = what_raw # type: ignore
         ident = path[3]
 
         return mode, (what, ident)
