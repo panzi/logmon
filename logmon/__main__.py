@@ -34,7 +34,7 @@ from os.path import abspath, join as joinpath, dirname
 from urllib.parse import unquote_plus
 from datetime import timedelta
 
-from .schema import Config, ConfigFile, LogmonConfig, resolve_config, FILE_MODE_PATTERN
+from .schema import Config, ConfigFile, Logmonrc, resolve_config, FILE_MODE_PATTERN
 from .yaml import HAS_YAML, yaml_load, yaml_dump
 from .inotify import HAS_INOTIFY
 from .json_match import parse_json_path
@@ -779,7 +779,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         if output_indent == 'unset':
             output_indent = DEFAULT_OUTPUT_INDENT
 
-        schema = pydantic.TypeAdapter(LogmonConfig).json_schema()
+        schema = pydantic.TypeAdapter(Logmonrc).json_schema()
 
         match output_fromat:
             case 'JSON':

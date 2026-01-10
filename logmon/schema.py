@@ -25,29 +25,37 @@ __all__ = (
 
 FILE_MODE_PATTERN = re.compile(r'^(?:(?P<ls>(?:[-r][-w][-x]){3})|(?P<eq>([ugo]=r?w?x?(,[ugo]=r?w?x?)*)?)|(?P<oct>(?:0o?)?[0-7]{3}))$')
 
+_action_string_tilte = 'Action String'
+_see_action = 'See root &rarr; do &rarr; anyOf &rarr; LogActionConfig &rarr; action for more details.'
+_systemd_url_pattern = 'systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
+_action_description = '''\
+Action to perform.
+This can also be a string in the form of:
+```
+    {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]
+```
+
+or:
+```
+    command[:<command> [<option>...]]}
+```
+
+or:
+```
+''' f'    {_systemd_url_pattern}' '''
+```
+
+Parameters defined here overwrite values passed via other options.
+
+For SMTP and IMAP these query parameters are supported:
+
+* `sender`
+* `receivers`
+* `secure`
+
+''' f'**Default:** `{DEFAULT_ACTION!r}`'
+
 class ActionConfigBase(TypedDict):
-    action: Annotated[NotRequired[ActionType], Field(
-        description="Action to perform.\n"
-                    "This can also be a string in the form of:\n"
-                    "```\n"
-                    "    {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]\n"
-                    "```\n"
-                    "\n"
-                    "or:\n"
-                    "```\n"
-                    "    command[:<command> [<option>...]]}\n"
-                    "```\n"
-                    "\n"
-                    'Parameters defined here overwrite values passed via other options.\n'
-                    '\n'
-                    'For SMTP and IMAP these query parameters are supported:\n'
-                    '\n'
-                    '* `sender`\n'
-                    '* `receivers`\n'
-                    '* `secure`\n'
-                    '\n'
-                   f'**Default:** `{DEFAULT_ACTION!r}`',
-    )]
     subject: Annotated[NotRequired[str], Field(description=f"Email subject template.\n**Default:** `{DEFAULT_SUBJECT!r}`")]
     body: Annotated[NotRequired[str], Field(description=f"Email body template.\n**Default:** `{DEFAULT_BODY!r}`")]
     host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).\n**Default:** `'localhost'`")]
@@ -60,7 +68,11 @@ class ActionConfigBase(TypedDict):
 
     http_method: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_HTTP_METHOD!r}`")]
     http_path: Annotated[NotRequired[str], Field(description="**Default:** `'/'`")]
-    http_params: Annotated[NotRequired[dict[str, str]|list[tuple[str, str]]], Field(description=f"**Default:** `{DEFAULT_HTTP_PARAMS!r}`")]
+    http_params: Annotated[
+        NotRequired[
+            Annotated[dict[str, str], Field(title='Header Mapping')]|
+            Annotated[list[tuple[str, str]], Field(title='List of Tuples')]
+        ], Field(description=f"**Default:** `{DEFAULT_HTTP_PARAMS!r}`")]
     http_content_type: Annotated[NotRequired[ContentType], Field(description=f"**Default:** `{DEFAULT_HTTP_CONTENT_TYPE!r}`")]
     http_headers: Annotated[NotRequired[dict[str, str]], Field(description="Additional HTTP headers. The `Authorization` header will be overwritten if OAuth 2.0 is used or if `username` and `password` are set.")]
     http_max_redirect: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_HTTP_MAX_REDIRECT!r}`", ge=0)]
@@ -75,9 +87,19 @@ class ActionConfigBase(TypedDict):
 
     command: NotRequired[list[str]]
     command_cwd: Annotated[NotRequired[str], Field(description="Working directory of spawned process.")]
-    command_user: Annotated[NotRequired[str|int], Field(description="Run the process as user/UID.")]
-    command_group: Annotated[NotRequired[str|int], Field(description="Run the process as group/GID.")]
-    command_env: Annotated[NotRequired[dict[str, str|None]], Field(description="Set the environment of the spawned process to this. Passing `None` as the value means to inherit that environment variable from the current environment.")]
+    command_user: Annotated[
+        NotRequired[
+            Annotated[str, Field(title="User Name")]|
+            Annotated[int, Field(title="User Id")]],
+        Field(description="Run the process as user/UID.")
+    ]
+    command_group: Annotated[
+        NotRequired[
+            Annotated[str, Field(title='Group Name')]|
+            Annotated[int, Field(title='Group Id')]],
+        Field(description="Run the process as group/GID.")
+    ]
+    command_env: Annotated[NotRequired[dict[str, Optional[str]]], Field(description="Set the environment of the spawned process to this. Passing `None` as the value means to inherit that environment variable from the current environment.")]
     command_stdin: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`\n**Default:** `'null:'`")]
     command_stdout: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`\n**Default:** `'null:'`")]
     command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`\n**Default:** `'null:'`")]
@@ -87,17 +109,34 @@ class ActionConfigBase(TypedDict):
     file: NotRequired[str]
     file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
     file_append: Annotated[NotRequired[bool], Field(description="**Default:** `True`")]
-    file_user: NotRequired[str|int]
-    file_group: NotRequired[str|int]
+    file_user: Annotated[
+        NotRequired[
+            Annotated[str, Field(title="User Name")]|
+            Annotated[int, Field(title="User Id")]],
+        Field(description="Set owner of the file as user/UID.")
+    ]
+    file_group: Annotated[
+        NotRequired[
+            Annotated[str, Field(title='Group Name')]|
+            Annotated[int, Field(title='Group Id')]],
+        Field(description="Set owner of the file as group/GID.")
+    ]
     file_type: Annotated[NotRequired[FileType], Field(description="**Default:** `'regular'`")]
-    file_mode: Annotated[NotRequired[str|int], Field(description='File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)]
+    file_mode: Annotated[
+        NotRequired[
+            Annotated[str, Field(title='String')]|
+            Annotated[int, Field(title='Integer')]],
+        Field(description='File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)
+    ]
 
     output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
     output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
 
-class ActionConfig(ActionConfigBase):
     sender: Annotated[NotRequired[str], Field(description='**Default:** `logmon@<host>`')]
     receivers: Annotated[NotRequired[list[str]], Field(description='**Default:** `<sender>`')]
+
+class ActionConfig(ActionConfigBase):
+    action: Annotated[NotRequired[ActionType], Field(description=_action_description)]
 
 class LimitsConfig(TypedDict):
     max_emails_per_minute: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_EMAILS_PER_MINUTE!r}`", gt=0)]
@@ -133,15 +172,22 @@ class Config(LogfileConfig, SystemDConfig, LimitsConfig):
 class InputConfig(LogfileConfig, SystemDConfig):
     pass
 
+_do_description = '''\
+Default action configuration.
+All actions inherit these settings if they don't overwrite them.'''
+_default_description = '''\
+Default logfile configuration.
+All logfiles inherit these settings if they don't overwrite them.'''
+_logfiles_description = f'''\
+The mapping keys or entries in the array of strings is the path of the log file.
+You can read from a SystemD journal instead of a file by specifying a path in the form of:
+
+    {_systemd_url_pattern}'''
+
 class MTConfig(TypedDict):
-    do: NotRequired[ActionConfig]
-    default: NotRequired[InputConfig]
-    logfiles: Annotated[dict[str, Config]|list[str], Field(
-        description='The mapping keys or entries in the array of strings is the path of the log file.\n'
-                    'You can read from a SystemD journal instead of a file by specifying a path in the form of:\n'
-                    '\n'
-                    '    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
-    )]
+    do: Annotated[NotRequired[ActionConfig], Field(description=_do_description)]
+    default: Annotated[NotRequired[InputConfig], Field(description=_default_description)]
+    logfiles: Annotated[dict[str, Config]|list[str], Field(description=_logfiles_description)]
     limits: NotRequired[LimitsConfig]
 
 class AppLogConfig(TypedDict):
@@ -153,9 +199,14 @@ class AppLogConfig(TypedDict):
     format: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_LOG_FORMAT!r}`")]
     datefmt: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_LOG_DATEFMT!r}`")]
 
+_pidfile_title = "PID File"
+_pidfile_description = "Write the process Id of the logmon process to this file."
+
+_log_description = "Log configuration of logmon itself."
+
 class LogmonConfig(MTConfig):
-    log: NotRequired[AppLogConfig]
-    pidfile: Annotated[NotRequired[str], Field(title="PID File", description="Write the process Id of the logmon process to this file.")]
+    log: Annotated[NotRequired[AppLogConfig], Field(description=_log_description)]
+    pidfile: Annotated[NotRequired[str], Field(title=_pidfile_title, description=_pidfile_description)]
 
 class ConfigFile(pydantic.BaseModel):
     config: Annotated[LogmonConfig, Field(description="Contents of the config file.")]
@@ -176,3 +227,38 @@ def resolve_config(input_config: InputConfig, action_config: ActionConfig, logfi
     }
 
     return resolved_cfg
+
+# The config is transformed before validation to match the schema above,
+# but for documentation reasons this is how it can be written in the config file:
+class LogActionConfig(ActionConfigBase):
+    action: Annotated[
+        NotRequired[ActionType|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]],
+        Field(description=_action_description)
+    ]
+
+class LogConfig(LogfileConfig, SystemDConfig, LimitsConfig):
+    do: NotRequired[
+        list[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]]|
+        LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]
+    ]
+
+class Logmonrc(TypedDict):
+    do: Annotated[
+        NotRequired[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]],
+        Field(description=_do_description)
+    ]
+    default: Annotated[NotRequired[InputConfig], Field(description=_default_description)]
+    logfiles: Annotated[
+        Annotated[dict[
+            str,
+            LogConfig|
+            Annotated[str, Field(title=_action_string_tilte, description=_see_action)]|
+            list[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]]
+        ], Field(title='Mapping of logfile settings', description='Mapping from logfiles to their configurations.')]|
+        Annotated[list[str], Field(title='List of logfiles', description='All the configuration is taken from the global settings.')],
+        Field(description=_logfiles_description)
+    ]
+    limits: NotRequired[LimitsConfig]
+
+    log: Annotated[NotRequired[AppLogConfig], Field(description=_log_description)]
+    pidfile: Annotated[NotRequired[str], Field(title=_pidfile_title, description=_pidfile_description)]
