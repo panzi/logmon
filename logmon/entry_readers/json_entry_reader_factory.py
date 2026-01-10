@@ -6,9 +6,7 @@ import logging
 from time import sleep
 from ..constants import *
 from ..global_state import is_running
-from ..types import OutputFormat
 from ..schema import Config
-from ..yaml import yaml_dump
 from ..json_match import CompiledJsonMatch, JsonPath, compile_json_match, check_json_match, get_json_path
 from ..cleanup_brief import cleanup_brief
 from .entry_reader_factory import LogEntry, EntryReaderFactory

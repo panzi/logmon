@@ -1,13 +1,11 @@
 from typing import Optional
 
 import re
-import json
 import logging
 
 from select import poll, POLLIN
 from time import monotonic
 from .constants import *
-from .yaml import yaml_dump
 from .global_state import is_running, get_read_stopfd
 from .cleanup_brief import cleanup_brief
 from .schema import Config
