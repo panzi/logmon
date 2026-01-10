@@ -1,4 +1,4 @@
-from typing import NotRequired, TypedDict, Optional, Annotated
+from typing import NotRequired, TypedDict, Optional, Annotated, Literal
 
 import re
 import pydantic
@@ -195,7 +195,16 @@ class AppLogConfig(TypedDict):
     Configuration of this apps own logging.
     """
     file: NotRequired[str]
-    level: NotRequired[str]
+    level: NotRequired[Literal[
+        'CRITICAL',
+        'FATAL',
+        'ERROR',
+        'WARN',
+        'WARNING',
+        'INFO',
+        'DEBUG',
+        'NOTSET',
+    ]]
     format: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_LOG_FORMAT!r}`")]
     datefmt: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_LOG_DATEFMT!r}`")]
 
