@@ -444,6 +444,9 @@ logfiles:
       ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d:
   /var/log/service2.log: {}
   /var/log/service3.log:
+    do: # run multiple actions
+    - "smtp:user:password@example.com"
+    - "command:logger -p user.error -t logmon {entries_str}"
     subject: "[SERVICE 3] {brief}"
     receivers:
     - daniel@example.com

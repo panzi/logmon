@@ -1,4 +1,4 @@
-from typing import TypedDict, Generator, IO, Optional, Callable, TypeVar
+from typing import TypedDict, Generator, IO, Optional, Callable, TypeVar, overload
 
 import sys
 
@@ -11,6 +11,8 @@ __all__ = (
     'SRC_PATH',
     'indent',
     'write_file',
+    'read_file',
+    'read_file_if_exists',
     'ExampleLog',
     'write_logs',
     'pipe_io',
@@ -23,10 +25,26 @@ def indent(text: str, width: int=4) -> str:
     prefix = ' ' * width
     return prefix + text.replace('\n', '\n' + prefix)
 
-def write_file(filepath: str, contents: str) -> None:
+def write_file(filepath: str|Path, contents: str) -> None:
   path = Path('.').joinpath(filepath)
   path.parent.mkdir(parents=True, exist_ok=True)
   path.write_text(contents)
+
+def read_file(filepath: str|Path) -> str:
+    with open(filepath, "r") as fp:
+        return fp.read()
+
+@overload
+def read_file_if_exists(filepath: str|Path, default: str) -> str: ...
+
+@overload
+def read_file_if_exists(filepath: str|Path, default: Optional[str] = None) -> Optional[str]: ...
+
+def read_file_if_exists(filepath: str|Path, default: Optional[str] = None) -> Optional[str]:
+    try:
+        return read_file(filepath)
+    except FileNotFoundError:
+        return default
 
 class ExampleLog(TypedDict):
     header: str

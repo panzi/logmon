@@ -474,6 +474,9 @@ def main(argv: Optional[list[str]] = None) -> None:
               r'          ^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d:''\n'
                '      /var/log/service2.log: {}\n'
                '      /var/log/service3.log:\n'
+               '        do: # run multiple actions\n'
+               '        - "smtp:user:password@example.com"\n'
+               '        - "command:logger -p user.error -t logmon {entries_str}"\n'
                '        subject: "[SERVICE 3] {brief}"\n'
                '        receivers:\n'
                '        - daniel@example.com\n'
@@ -1086,7 +1089,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         for logfile, raw_cfg in list(config_logfiles.items()):
             if isinstance(raw_cfg, str):
                 raw_cfg_do = [ { 'action': raw_cfg } ]
-                raw_cfg = config_logfiles[logfile] = { 'do': raw_cfg_do }
+                config_logfiles[logfile] = { 'do': raw_cfg_do }
             elif isinstance(raw_cfg, dict):
                 raw_cfg_do = raw_cfg.get('do')
                 if isinstance(raw_cfg_do, str):
@@ -1101,6 +1104,12 @@ def main(argv: Optional[list[str]] = None) -> None:
                 else:
                     raw_cfg_do = None
                     raw_cfg['do'] = [ {} ]
+            elif isinstance(raw_cfg, list):
+                raw_cfg_do = [
+                    raw_do if isinstance(raw_do, dict) else { 'action': raw_do }
+                    for raw_do in raw_cfg
+                ]
+                config_logfiles[logfile] = { 'do': raw_cfg_do }
             else:
                 raw_cfg_do = None
                 raw_cfg['do'] = [ {} ]

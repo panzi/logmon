@@ -42,7 +42,7 @@ logfiles:
     assert expected1 in output, f'Message 1 not found in output!\n\n  Message:\n\n{indent(expected1)}\n\n  Output:\n\n{indent(output)}'
     assert expected2 in output, f'Message 2 not found in output!\n\n  Message:\n\n{indent(expected2)}\n\n  Output:\n\n{indent(output)}'
 
-    for filepath in *logfiles, logmonrc_path:
+    for filepath in *logfiles, logmonrc_path, file_path:
         try:
             os.remove(filepath)
         except Exception as exc:
