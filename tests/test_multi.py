@@ -22,7 +22,9 @@ log:
 logfiles:
   "{logfiles[0]}":
   - "file:{file_path1}"
-  - "file:{file_path2}"
+  - action: FILE
+    file: "{file_path2}"
+    file_append: true
   "{logfiles[1]}":
     do:
     - "file:{file_path2}"
