@@ -30,7 +30,8 @@ logfiles:
     - "file:{file_path2}"
     - action: "file:{file_path3}"
   "{logfiles[2]}":
-    do: "file:{file_path4}"
+    do:
+      action: "file:{file_path4}"
     entry_start_pattern: >-
       "^{{"
 '''
