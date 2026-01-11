@@ -1,8 +1,8 @@
 logmon
 ======
 
-A very simple log file monitoring script that sends emails when it finds
-configured error patterns.
+A very simple log file monitoring script that runs actions like seinding emails
+when it finds configured error patterns.
 
 Dependencies
 ------------
