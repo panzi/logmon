@@ -27,7 +27,6 @@ FILE_MODE_PATTERN = re.compile(r'^(?:(?P<ls>(?:[-r][-w][-x]){3})|(?P<eq>([ugo]=r
 
 _action_string_tilte = 'Action String'
 _see_action = 'See root &rarr; do &rarr; anyOf &rarr; LogActionConfig &rarr; action for more details.'
-_systemd_url_pattern = 'systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]'
 _action_description = '''\
 Action to perform.
 This can also be a string in the form of one of these:
@@ -184,11 +183,11 @@ All actions inherit these settings if they don't overwrite them.'''
 _default_description = '''\
 Default logfile configuration.
 All logfiles inherit these settings if they don't overwrite them.'''
-_logfiles_description = f'''\
+_logfiles_description = '''\
 The mapping keys or entries in the array of strings is the path of the log file.
 You can read from a SystemD journal instead of a file by specifying a path in the form of:
 
-    {_systemd_url_pattern}'''
+    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]'''
 
 class MTConfig(TypedDict):
     do: Annotated[NotRequired[ActionConfig], Field(description=_do_description)]
