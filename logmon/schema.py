@@ -30,19 +30,11 @@ _see_action = 'See root &rarr; do &rarr; anyOf &rarr; LogActionConfig &rarr; act
 _systemd_url_pattern = 'systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
 _action_description = '''\
 Action to perform.
-This can also be a string in the form of:
+This can also be a string in the form of one of these:
 ```
     {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]
-```
-
-or:
-```
     command[:<command> [<option>...]]}
-```
-
-or:
-```
-''' f'    {_systemd_url_pattern}' '''
+    {file,fifo}:<path>
 ```
 
 Parameters defined here overwrite values passed via other options.
