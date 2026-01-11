@@ -32,6 +32,8 @@ The settings are read from `$HOME/.logmonrc`, or if run as root from
 read the log files. The command line options overwrite the default settings,
 but not the per-logfile settings. See below for the settings file format.
 
+Configuration schema: [HTML](https://panzi.github.io/logmon) [YAML](https://panzi.github.io/logmon/schema.yaml)
+
 ```
 Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [-A {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],{file,fifo}[:<path>]}]

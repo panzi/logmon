@@ -54,9 +54,9 @@ class ActionConfigBase(TypedDict):
     port: Annotated[NotRequired[int], Field(description="Port to connect to for SMTP/IMAP/HTTP(S) if not the standard port.", ge=0)]
     user: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
     password: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
-    secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.\n**Default:** `None`")]
+    secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.\n**Default:** `null`")]
     logmails: Annotated[NotRequired[Logmails], Field(description=f"Write messages to logmon's log instead of/in addition to performing the action.\n**Default:** `{DEFAULT_LOGMAILS!r}`")]
-    keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).\n**Default:** `False`")]
+    keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).\n**Default:** `false`")]
 
     http_method: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_HTTP_METHOD!r}`")]
     http_path: Annotated[NotRequired[str], Field(description="**Default:** `'/'`")]
@@ -68,16 +68,24 @@ class ActionConfigBase(TypedDict):
     http_content_type: Annotated[NotRequired[ContentType], Field(description=f"**Default:** `{DEFAULT_HTTP_CONTENT_TYPE!r}`")]
     http_headers: Annotated[NotRequired[dict[str, str]], Field(description="Additional HTTP headers. The `Authorization` header will be overwritten if OAuth 2.0 is used or if `username` and `password` are set.")]
     http_max_redirect: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_HTTP_MAX_REDIRECT!r}`", ge=0)]
-    http_timeout: Annotated[NotRequired[Optional[float]], Field(description="`None` means no timeout.\n**Default:** `None`", ge=0.0)]
+    http_timeout: Annotated[NotRequired[Optional[float]], Field(description="`null` means no timeout.\n**Default:** `null`", ge=0.0)]
 
     oauth2_grant_type: Annotated[NotRequired[OAuth2GrantType], Field(description=f"**Default:** `{DEFAULT_OAUTH2_GRANT_TYPE!r}`")]
-    oauth2_token_url: Annotated[NotRequired[Optional[str]], Field(description="`None` means don't use OAuth 2.0.\n**Default:** `None`")]
+    oauth2_token_url: Annotated[NotRequired[Optional[str]], Field(description="`null` means don't use OAuth 2.0.\n**Default:** `null`")]
     oauth2_client_id: NotRequired[str]
     oauth2_client_secret: NotRequired[str]
     oauth2_scope: NotRequired[list[str]]
-    oauth2_refresh_margin: Annotated[NotRequired[timedelta], Field(description="Seconds to substract from the expiration date-time when checking for access token expiration.\n**Default:** `0.0`")]
+    oauth2_refresh_margin: Annotated[NotRequired[timedelta], Field(description="Seconds to substract from the expiration date-time when checking for access token expiration.\n\n**Default:** `0.0`")]
 
-    command: NotRequired[list[str]]
+    command: Annotated[
+        NotRequired[list[str]],
+        Field(description=
+              "Command to run if `action` is `'COMMAND'`.\n\n"
+              "The template parameters are the same as with `body` plus the special syntax `{...entries}`, which makes "
+              "the argument repeat as a separate argument for each entry. E.g. if there are the entries `'foo'` and `'bar'` "
+              "the argument list `['command', '--entry={...entries}']` will expand to `['command', '--entry=foo', '--entry=bar']`",
+              examples=[['/path/to/command', '--sender', '{sender}', '--receivers', '{receivers}', '--', '{...entries}']])
+    ]
     command_cwd: Annotated[NotRequired[str], Field(description="Working directory of spawned process.")]
     command_user: Annotated[
         NotRequired[
@@ -91,16 +99,16 @@ class ActionConfigBase(TypedDict):
             Annotated[int, Field(title='Group Id')]],
         Field(description="Run the process as group/GID.")
     ]
-    command_env: Annotated[NotRequired[dict[str, Optional[str]]], Field(description="Set the environment of the spawned process to this. Passing `None` as the value means to inherit that environment variable from the current environment.")]
-    command_stdin: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`\n**Default:** `'null:'`")]
-    command_stdout: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`\n**Default:** `'null:'`")]
-    command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`\n**Default:** `'null:'`")]
-    command_interactive: Annotated[NotRequired[bool], Field(description="If `True` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.\n**Default:** `False`")]
-    command_timeout: Annotated[NotRequired[Optional[float]], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n**Default:** `None`", ge=0.0)]
+    command_env: Annotated[NotRequired[dict[str, Optional[str]]], Field(description="Set the environment of the spawned process to this. Passing `null` as the value means to inherit that environment variable from the current environment. If this is unset the environment of the logmon process is inherited.")]
+    command_stdin: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`\n\nThe parameters to the `TEMPLATE` are the same as for `body` plus the special syntax `{...entries}` which causes the whole template to repeat for each entry.\n\n**Default:** `'null:'`")]
+    command_stdout: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`\n\n**Default:** `'null:'`")]
+    command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`\n\n**Default:** `'null:'`")]
+    command_interactive: Annotated[NotRequired[bool], Field(description="If `true` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.\n\n**Default:** `false`")]
+    command_timeout: Annotated[NotRequired[Optional[float]], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n\n**Default:** `null`", ge=0.0)]
 
-    file: NotRequired[str]
+    file: Annotated[NotRequired[str], Field(description="Path of logmon logfile.")]
     file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
-    file_append: Annotated[NotRequired[bool], Field(description="**Default:** `True`")]
+    file_append: Annotated[NotRequired[bool], Field(description="Open file in append mode.\n\n**Default:** `true`")]
     file_user: Annotated[
         NotRequired[
             Annotated[str, Field(title="User Name")]|
@@ -118,14 +126,14 @@ class ActionConfigBase(TypedDict):
         NotRequired[
             Annotated[str, Field(title='String')]|
             Annotated[int, Field(title='Integer')]],
-        Field(description='File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)
+        Field(description='Create the file with these permissions. E.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)
     ]
 
-    output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
-    output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
+    output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
+    output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
 
-    sender: Annotated[NotRequired[str], Field(description='**Default:** `logmon@<host>`')]
-    receivers: Annotated[NotRequired[list[str]], Field(description='**Default:** `<sender>`')]
+    sender: Annotated[NotRequired[str], Field(description='Email sender address.\n\n**Default:** `logmon@<host>`')]
+    receivers: Annotated[NotRequired[list[str]], Field(description='List of email receiver addresses.\n\n**Default:** `<sender>`')]
 
 class ActionConfig(ActionConfigBase):
     action: Annotated[NotRequired[ActionType], Field(description=_action_description)]
@@ -146,16 +154,22 @@ class LogfileConfig(TypedDict):
     wait_after_crash: Annotated[NotRequired[int | float], Field(description=f"**Default:** `{DEFAULT_WAIT_AFTER_CRASH!r}`", ge=0)]
     max_entries: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRIES!r}`", ge=0)]
     max_entry_lines: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRY_LINES!r}`", ge=0)]
-    use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `True`.")]
-    seek_end: Annotated[NotRequired[bool], Field(description="Seek to end of log file on open.\n**Default:** `True`")]
-    json: Annotated[NotRequired[bool], Field(description="If `True` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.\n**Default:** `False`")]
+    use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `true`.")]
+    seek_end: Annotated[NotRequired[bool], Field(description="Seek to end of log file on open.\n**Default:** `true`")]
+    json: Annotated[NotRequired[bool], Field(description="If `true` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.\n**Default:** `false`")]
     json_match: Annotated[NotRequired[Optional[JsonMatch]], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
     json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
     json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
 
 class SystemDConfig(TypedDict):
-    systemd_priority: NotRequired[SystemDPriority|int]
+    systemd_priority: Annotated[
+        NotRequired[
+            Annotated[SystemDPriority, Field(title="String")]|
+            Annotated[int, Field(title="Integer")]
+        ],
+        Field(description="Match log entries of this or higher priority.")
+    ]
     systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
 
 class Config(LogfileConfig, SystemDConfig, LimitsConfig):
