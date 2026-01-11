@@ -141,19 +141,19 @@ $defs:
                 type: integer
             use_inotify:
                 description: If the `inotify` package is available this defaults
-                    to `True`.
+                    to `true`.
                 title: Use Inotify
                 type: boolean
             seek_end:
                 description: |-
                     Seek to end of log file on open.
-                    **Default:** `True`
+                    **Default:** `true`
                 title: Seek End
                 type: boolean
             json:
                 description: |-
-                    If `True` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.
-                    **Default:** `False`
+                    If `true` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.
+                    **Default:** `false`
                 title: Json
                 type: boolean
             json_match:
@@ -183,7 +183,10 @@ $defs:
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
-                -   type: integer
+                    title: String
+                -   title: Integer
+                    type: integer
+                description: Match log entries of this or higher priority.
                 title: Systemd Priority
             systemd_match:
                 additionalProperties:
@@ -266,7 +269,7 @@ $defs:
                 $ref: '#/$defs/SecureOption'
                 description: |-
                     `secure` option for SMTP/IMAP.
-                    **Default:** `None`
+                    **Default:** `null`
             logmails:
                 $ref: '#/$defs/Logmails'
                 description: |-
@@ -275,7 +278,7 @@ $defs:
             keep_connected:
                 description: |-
                     Keep connection to server alive (SMTP, IMAP, HTTP(S)).
-                    **Default:** `False`
+                    **Default:** `false`
                 title: Keep Connected
                 type: boolean
             http_method:
@@ -326,8 +329,8 @@ $defs:
                     type: number
                 -   type: 'null'
                 description: |-
-                    `None` means no timeout.
-                    **Default:** `None`
+                    `null` means no timeout.
+                    **Default:** `null`
                 title: Http Timeout
             oauth2_grant_type:
                 $ref: '#/$defs/OAuth2GrantType'
@@ -337,8 +340,8 @@ $defs:
                 -   type: string
                 -   type: 'null'
                 description: |-
-                    `None` means don't use OAuth 2.0.
-                    **Default:** `None`
+                    `null` means don't use OAuth 2.0.
+                    **Default:** `null`
                 title: Oauth2 Token Url
             oauth2_client_id:
                 title: Oauth2 Client Id
@@ -354,11 +357,24 @@ $defs:
             oauth2_refresh_margin:
                 description: |-
                     Seconds to substract from the expiration date-time when checking for access token expiration.
+
                     **Default:** `0.0`
                 format: duration
                 title: Oauth2 Refresh Margin
                 type: string
             command:
+                description: |-
+                    Command to run if `action` is `'COMMAND'`.
+
+                    The template parameters are the same as with `body` plus the special syntax `{...entries}`, which makes the argument repeat as a separate argument for each entry. E.g. if there are the entries `'foo'` and `'bar'` the argument list `['command', '--entry={...entries}']` will expand to `['command', '--entry=foo', '--entry=bar']`
+                examples:
+                -   -   /path/to/command
+                    -   --sender
+                    -   '{sender}'
+                    -   --receivers
+                    -   '{receivers}'
+                    -   --
+                    -   '{...entries}'
                 items:
                     type: string
                 title: Command
@@ -389,32 +405,39 @@ $defs:
                     -   type: string
                     -   type: 'null'
                 description: Set the environment of the spawned process to this.
-                    Passing `None` as the value means to inherit that 
-                    environment variable from the current environment.
+                    Passing `null` as the value means to inherit that 
+                    environment variable from the current environment. If this 
+                    is unset the environment of the logmon process is inherited.
                 title: Command Env
                 type: object
             command_stdin:
                 description: |-
                     `'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`
+
+                    The parameters to the `TEMPLATE` are the same as for `body` plus the special syntax `{...entries}` which causes the whole template to repeat for each entry.
+
                     **Default:** `'null:'`
                 title: Command Stdin
                 type: string
             command_stdout:
                 description: |-
                     `'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`
+
                     **Default:** `'null:'`
                 title: Command Stdout
                 type: string
             command_stderr:
                 description: |-
                     `'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`
+
                     **Default:** `'null:'`
                 title: Command Stderr
                 type: string
             command_interactive:
                 description: |-
-                    If `True` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.
-                    **Default:** `False`
+                    If `true` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.
+
+                    **Default:** `false`
                 title: Command Interactive
                 type: boolean
             command_timeout:
@@ -424,9 +447,11 @@ $defs:
                 -   type: 'null'
                 description: |-
                     Timeout in seconds. If the timeout expires the process is killed.
-                    **Default:** `None`
+
+                    **Default:** `null`
                 title: Command Timeout
             file:
+                description: Path of logmon logfile.
                 title: File
                 type: string
             file_encoding:
@@ -434,7 +459,10 @@ $defs:
                 title: File Encoding
                 type: string
             file_append:
-                description: '**Default:** `True`'
+                description: |-
+                    Open file in append mode.
+
+                    **Default:** `true`
                 title: File Append
                 type: boolean
             file_user:
@@ -462,7 +490,8 @@ $defs:
                     type: string
                 -   title: Integer
                     type: integer
-                description: 'File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.'
+                description: 'Create the file with these permissions. E.g.: `rwxr-x---`,
+                    `u=rwx,g=rx,o=`, or `0750`.'
                 title: File Mode
             output_indent:
                 anyOf:
@@ -470,20 +499,28 @@ $defs:
                     type: integer
                 -   type: 'null'
                 description: |-
-                    Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.
+                    Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.
+
                     **Default:** `4`
                 title: Output Indent
             output_format:
                 $ref: '#/$defs/OutputFormat'
                 description: |-
                     Use this format when writing JSON log entries to the output.
+
                     **Default:** `'YAML'`
             sender:
-                description: '**Default:** `logmon@<host>`'
+                description: |-
+                    Email sender address.
+
+                    **Default:** `logmon@<host>`
                 title: Sender
                 type: string
             receivers:
-                description: '**Default:** `<sender>`'
+                description: |-
+                    List of email receiver addresses.
+
+                    **Default:** `<sender>`
                 items:
                     type: string
                 title: Receivers
@@ -593,19 +630,19 @@ $defs:
                 type: integer
             use_inotify:
                 description: If the `inotify` package is available this defaults
-                    to `True`.
+                    to `true`.
                 title: Use Inotify
                 type: boolean
             seek_end:
                 description: |-
                     Seek to end of log file on open.
-                    **Default:** `True`
+                    **Default:** `true`
                 title: Seek End
                 type: boolean
             json:
                 description: |-
-                    If `True` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.
-                    **Default:** `False`
+                    If `true` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.
+                    **Default:** `false`
                 title: Json
                 type: boolean
             json_match:
@@ -635,7 +672,10 @@ $defs:
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
-                -   type: integer
+                    title: String
+                -   title: Integer
+                    type: integer
+                description: Match log entries of this or higher priority.
                 title: Systemd Priority
             systemd_match:
                 additionalProperties:
