@@ -27,7 +27,7 @@ FILE_MODE_PATTERN = re.compile(r'^(?:(?P<ls>(?:[-r][-w][-x]){3})|(?P<eq>([ugo]=r
 
 _action_string_tilte = 'Action String'
 _see_action = 'See root &rarr; do &rarr; anyOf &rarr; LogActionConfig &rarr; action for more details.'
-_systemd_url_pattern = 'systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]'
+_systemd_url_pattern = 'systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]'
 _action_description = '''\
 Action to perform.
 This can also be a string in the form of one of these:
