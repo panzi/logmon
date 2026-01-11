@@ -33,7 +33,7 @@ Action to perform.
 This can also be a string in the form of one of these:
 ```
     {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]
-    command[:<command> [<option>...]]}
+    command[:<command> [<option>...]]
     {file,fifo}:<path>
 ```
 
