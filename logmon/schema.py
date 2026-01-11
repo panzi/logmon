@@ -34,7 +34,7 @@ This can also be a string in the form of one of these:
 ```
     {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]
     command[:<command> [<option>...]]
-    {file,fifo}:<path>
+    {file,fifo}[:<path>]
 ```
 
 Parameters defined here overwrite values passed via other options.

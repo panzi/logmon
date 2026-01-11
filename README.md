@@ -34,7 +34,7 @@ but not the per-logfile settings. See below for the settings file format.
 
 ```
 Usage: logmon.py [-h] [-v] [--license] [--config PATH]
-                 [-A {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],file:<path>}]
+                 [-A {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],{file,fifo}[:<path>]}]
                  [--sender EMAIL] [--receivers EMAIL,...] [--subject TEMPLATE]
                  [--body TEMPLATE] [--wait-file-not-found SECONDS]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
