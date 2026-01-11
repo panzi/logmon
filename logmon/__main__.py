@@ -509,7 +509,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--license', default=False, action='store_true',
         help='Show license information and exit.')
     ap.add_argument('--config', default=None, metavar='PATH',
-        help=f'Read settings from PATH. [default: {esc_default_config_path}]')
+        help=f"Read settings from PATH. Explicitly passing an empty string to not read any config file. [default: {esc_default_config_path}]")
     non_command_actions = set(action.lower() for action in ACTIONS)
     non_command_actions.remove('command')
     ap.add_argument('-A', '--action', default=None,
@@ -792,9 +792,11 @@ def main(argv: Optional[list[str]] = None) -> None:
                 raise ValueError(f'illegal output format: {output_fromat}')
         return
 
-    config_path: str
-    if args.config:
+    config_path: Optional[str]
+    if args.config is not None:
         config_path = abspath(args.config)
+    elif args.config == "":
+        config_path = None
     elif is_root:
         config_path = ROOT_CONFIG_PATH
     else:
@@ -802,19 +804,22 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     config: dict
     try:
-        config_path_lower = config_path.lower()
-        if config_path_lower.endswith(('.yml', '.yaml')) or HAS_YAML:
-            with open(config_path, 'r') as configfp:
-                config = yaml_load(configfp)
-        else:
-            with open(config_path, 'r') as configfp:
-                config = json.load(configfp)
-
-        if config is None:
+        if config_path is None:
             config = {}
-        elif not isinstance(config, dict):
-            print(f"{config_path}: Config file format error", file=sys.stderr)
-            sys.exit(1)
+        else:
+            config_path_lower = config_path.lower()
+            if config_path_lower.endswith(('.yml', '.yaml')) or HAS_YAML:
+                with open(config_path, 'r') as configfp:
+                    config = yaml_load(configfp)
+            else:
+                with open(config_path, 'r') as configfp:
+                    config = json.load(configfp)
+
+            if config is None:
+                config = {}
+            elif not isinstance(config, dict):
+                print(f"{config_path}: Config file format error: Root element must be a mapping but was {type(config).__name__}", file=sys.stderr)
+                sys.exit(1)
 
     except FileNotFoundError:
         if args.config:
@@ -1125,6 +1130,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         else:
             config['logfiles'] = args.logfiles
 
+    if config_path is None:
         context_dir = abspath('.')
     else:
         context_dir = dirname(config_path)

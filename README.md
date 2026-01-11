@@ -101,8 +101,10 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   -h, --help            show this help message and exit
   -v, --version         Print version and exit.
   --license             Show license information and exit.
-  --config PATH         Read settings from PATH. [default: $HOME/.logmonrc]
-  -A, --action {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],file:<path>}
+  --config PATH         Read settings from PATH. Explicitly passing an empty
+                        string to not read any config file. [default:
+                        $HOME/.logmonrc]
+  -A, --action {{file,http,https,imap,smtp}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]],command[:<command> [<option>...]],{file,fifo}[:<path>]}
                         Parameters defined here overwrite values passed via
                         other options.
                         

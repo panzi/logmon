@@ -258,6 +258,76 @@ class LogConfig(LogfileConfig, SystemDConfig, LimitsConfig):
     ]
 
 class Logmonrc(TypedDict):
+    """\
+    logmon configuration file schema.
+
+    ### Examples
+
+    ```YAML
+    ---
+    do:
+      # Default action configuration inherited by all logfiles.
+      action: smtp:alice:password123@example.com
+      sender: alice@example.com
+      receivers:
+      - bob@example.com
+
+    logfiles:
+    # a simple list if no other configuration is needed
+    - "/var/log/service1.log"
+    - "/var/log/service2.log"
+    ```
+
+    ```YAML
+    default:
+      # Default logfile configuration inherited by all logfiles.
+      default_error_pattern: '(?i)ERR(OR)?|CIRT(ICAL)?|EXCEPT(ION)?'
+
+    logfiles:
+      "/var/log/service3.log":
+        # It's one JSON document per line, not a plain text log.
+        json: true
+
+        # Handle JSON documents where the property `level` has
+        # the value `'ERROR'` or `'CRITICAL'`.
+        json_match:
+          level: [in, [ERROR, CRITICAL]]
+
+        # Path for the value of the {brief} template variable:
+        json_brief: [message]
+
+        do:
+        # Run multiple action, HTTP request and write matched entries to a file.
+        - action: https://api.example.com/v1/logs
+          http_method: POST
+          http_params:
+            subject: "{brief}"
+            entries: "{entries}"
+          http_content_type: JSON
+          oauth2_token_url: https://api.example.com/v1/oauth/token
+          oauth2_client_id: "23ca1cd3-a234-4719-883f-a6e509fc57f4"
+          oauth2_client_secret: "uBti6UENQnU0M1ZxM2IF0meGfovarZ5RRdzfdQe9pga/Vu5KK2vRFtlfcxP0ooMQftfUJeMOkl4Juoo+dXnwiA=="
+          oauth2_scope: [write_log]
+
+        - action: file:/var/logs/service3_errors.log
+
+      "systemd:SYSTEM:UNIT:cron.service":
+        do: "file:/var/log/cron_errors.log"
+        output_indent: null
+        output_format: JSON
+
+      "/var/log/service4.log":
+        do:
+          # The command line string is parsed into a `list[str]` before the template
+          # parameters are interpolated and run via `Popen(args=arg_list)`, it is not
+          # a shell string.
+          action: "command:my_command --brief={breif} --entry={...entries}"
+          command_env:
+            PATH: null # inherit $PATH
+            HOME: "/"
+            LOGMON_LOGFILE: "{logfile}" # same template variables
+    ```
+    """
     do: Annotated[
         NotRequired[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]],
         Field(description=_do_description)

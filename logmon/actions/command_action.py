@@ -135,7 +135,7 @@ class CommandAction(Action):
     cwd: Optional[str]
     user: Optional[str|int]
     group: Optional[str|int]
-    env: Optional[dict[str, str]]
+    env: Optional[dict[str, Optional[str]]]
     stdin: Optional[str]
     stdout: Optional[str]
     stderr: Optional[str]
@@ -177,7 +177,7 @@ class CommandAction(Action):
         self.cwd     = action_config.get('command_cwd')
         self.user    = action_config.get('command_user')
         self.group   = action_config.get('command_group')
-        self.env     = env
+        self.env     = action_config.get('command_env')
         self.stdin   = action_config.get('command_stdin')
         self.stdout  = action_config.get('command_stdout')
         self.stderr  = action_config.get('command_stderr')
@@ -194,9 +194,20 @@ class CommandAction(Action):
     def create_process(self, templ_params: TemplParams) -> tuple[Popen, str|None]:
         command: list[str] = expand_args_inline(self.command, templ_params)
 
-        env = self.env
-        if env is not None:
-            env = {key: value.format_map(templ_params) for key, value in env.items()}
+        raw_env = self.env
+        env: Optional[dict[str, str]]
+        if raw_env is not None:
+            env = {}
+            for key, value in raw_env.items():
+                if value is None:
+                    value = os.getenv(key)
+
+                    if value is not None:
+                        env[key] = value
+                else:
+                    env[key] = value.format_map(templ_params)
+        else:
+            env = None
 
         stdin = open_io(self.stdin_path)
         try:
