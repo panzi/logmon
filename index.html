@@ -18,7 +18,84 @@
 <body onload="anchorOnLoad();" id="root">
 
     <div class="breadcrumbs"></div> <h1>Logmonrc</h1><span class="badge badge-dark value-type">Type: object</span><br/>
+<div class="description collapse" id="collapseDescription_root">
+            <p>logmon configuration file schema.</p>
 
+<h3>Examples</h3>
+
+<div class="highlight jumbotron">
+<pre><span></span><code><span class="nn">---</span>
+<span class="nt">do</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Default action configuration inherited by all logfiles.</span>
+<span class="w">  </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">smtp:alice:password123@example.com</span>
+<span class="w">  </span><span class="nt">sender</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alice@example.com</span>
+<span class="w">  </span><span class="nt">receivers</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bob@example.com</span>
+
+<span class="nt">logfiles</span><span class="p">:</span>
+<span class="c1"># a simple list if no other configuration is needed</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;/var/log/service1.log&quot;</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;/var/log/service2.log&quot;</span>
+</code></pre>
+</div>
+
+<div class="highlight jumbotron">
+<pre><span></span><code><span class="nt">default</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Default logfile configuration inherited by all logfiles.</span>
+<span class="w">  </span><span class="nt">default_error_pattern</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;(?i)ERR(OR)?|CIRT(ICAL)?|EXCEPT(ION)?&#39;</span>
+
+<span class="nt">logfiles</span><span class="p">:</span>
+<span class="w">  </span><span class="s">&quot;/var/log/service3.log&quot;</span><span class="p p-Indicator">:</span>
+<span class="w">    </span><span class="c1"># It&#39;s one JSON document per line, not a plain text log.</span>
+<span class="w">    </span><span class="nt">json</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="c1"># Handle JSON documents where the property `level` has</span>
+<span class="w">    </span><span class="c1"># the value `&#39;ERROR&#39;` or `&#39;CRITICAL&#39;`.</span>
+<span class="w">    </span><span class="nt">json_match</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">in</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ERROR</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">CRITICAL</span><span class="p p-Indicator">]]</span>
+
+<span class="w">    </span><span class="c1"># Path for the value of the {brief} template variable:</span>
+<span class="w">    </span><span class="nt">json_brief</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">message</span><span class="p p-Indicator">]</span>
+
+<span class="w">    </span><span class="nt">do</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Run multiple action, HTTP request and write matched entries to a file.</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://api.example.com/v1/logs</span>
+<span class="w">      </span><span class="nt">http_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">POST</span>
+<span class="w">      </span><span class="nt">http_params</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">subject</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{brief}&quot;</span>
+<span class="w">        </span><span class="nt">entries</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{entries}&quot;</span>
+<span class="w">      </span><span class="nt">http_content_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">JSON</span>
+<span class="w">      </span><span class="nt">oauth2_token_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://api.example.com/v1/oauth/token</span>
+<span class="w">      </span><span class="nt">oauth2_client_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;23ca1cd3-a234-4719-883f-a6e509fc57f4&quot;</span>
+<span class="w">      </span><span class="nt">oauth2_client_secret</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;uBti6UENQnU0M1ZxM2IF0meGfovarZ5RRdzfdQe9pga/Vu5KK2vRFtlfcxP0ooMQftfUJeMOkl4Juoo+dXnwiA==&quot;</span>
+<span class="w">      </span><span class="nt">oauth2_scope</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">write_log</span><span class="p p-Indicator">]</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:/var/logs/service3_errors.log</span>
+
+<span class="w">  </span><span class="s">&quot;systemd:SYSTEM:UNIT:cron.service&quot;</span><span class="p p-Indicator">:</span>
+<span class="w">    </span><span class="nt">do</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;file:/var/log/cron_errors.log&quot;</span>
+<span class="w">    </span><span class="nt">output_indent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">    </span><span class="nt">output_format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">JSON</span>
+
+<span class="w">  </span><span class="s">&quot;/var/log/service4.log&quot;</span><span class="p p-Indicator">:</span>
+<span class="w">    </span><span class="nt">do</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># The command line string is parsed into a `list[str]` before the template</span>
+<span class="w">      </span><span class="c1"># parameters are interpolated and run via `Popen(args=arg_list)`, it is not</span>
+<span class="w">      </span><span class="c1"># a shell string.</span>
+<span class="w">      </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;command:my_command</span><span class="nv"> </span><span class="s">--brief={breif}</span><span class="nv"> </span><span class="s">--entry={...entries}&quot;</span>
+<span class="w">      </span><span class="nt">command_env</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">PATH</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w"> </span><span class="c1"># inherit $PATH</span>
+<span class="w">        </span><span class="nt">HOME</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/&quot;</span>
+<span class="w">        </span><span class="nt">LOGMON_LOGFILE</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{logfile}&quot;</span><span class="w"> </span><span class="c1"># same template variables</span>
+</code></pre>
+</div>
+
+        </div>
+        <div>
+            <a class="collapse-description-link collapsed" data-toggle="collapse" href="#collapseDescription_root"
+               aria-expanded="false" aria-controls="collapseDescriptionroot"
+            ></a>
+        </div>
         
 
         
@@ -15949,6 +16026,6 @@ You can read from a SystemD journal instead of a file by specifying a path in th
 </div>
 
     <footer>
-        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-01-11 at 18:00:37 +0100</p>
+        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-01-11 at 18:53:26 +0100</p>
     </footer></body>
 </html>
