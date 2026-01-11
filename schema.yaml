@@ -1,0 +1,825 @@
+$defs:
+    ActionType:
+        enum:
+        -   SMTP
+        -   IMAP
+        -   HTTP
+        -   HTTPS
+        -   COMMAND
+        -   FILE
+        type: string
+    AppLogConfig:
+        description: Configuration of this apps own logging.
+        properties:
+            file:
+                title: File
+                type: string
+            level:
+                enum:
+                -   CRITICAL
+                -   FATAL
+                -   ERROR
+                -   WARN
+                -   WARNING
+                -   INFO
+                -   DEBUG
+                -   NOTSET
+                title: Level
+                type: string
+            format:
+                description: "**Default:** `'[%(asctime)s] [%(process)d] %(levelname)s:
+                    %(message)s'`"
+                title: Format
+                type: string
+            datefmt:
+                description: "**Default:** `'%Y-%m-%dT%H:%M:%S%z'`"
+                title: Datefmt
+                type: string
+        title: AppLogConfig
+        type: object
+    ContentType:
+        enum:
+        -   JSON
+        -   YAML
+        -   URL
+        -   multipart
+        type: string
+    EqExpr:
+        maxItems: 2
+        minItems: 2
+        prefixItems:
+        -   enum:
+            -   '='
+            -   '!='
+            type: string
+        -   anyOf:
+            -   type: boolean
+            -   type: number
+            -   type: integer
+            -   type: string
+            -   type: 'null'
+        type: array
+    FileType:
+        enum:
+        -   regular
+        -   fifo
+        type: string
+    InputConfig:
+        properties:
+            entry_start_pattern:
+                anyOf:
+                -   type: string
+                -   items:
+                        type: string
+                    type: array
+                description: "**Default:** `'^\\\\[\\\\d\\\\d\\\\d\\\\d-\\\\d\\\\\
+                    d-\\\\d\\\\d[T ]\\\\d\\\\d:\\\\d\\\\d:\\\\d\\\\d(?:\\\\.\\\\d+)?(?:
+                    ?(?:[-+]\\\\d\\\\d:?\\\\d\\\\d|Z))?\\\\]'`"
+                title: Entry Start Pattern
+            error_pattern:
+                anyOf:
+                -   type: string
+                -   items:
+                        type: string
+                    type: array
+                description: "**Default:** `'ERROR|CRITICAL|Exception'`"
+                title: Error Pattern
+            ignore_pattern:
+                anyOf:
+                -   type: string
+                -   items:
+                        type: string
+                    type: array
+                -   type: 'null'
+                description: Even if the `error_pattern` matches, if this 
+                    pattern also matches the log entry is ignored.
+                title: Ignore Pattern
+            wait_line_incomplete:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `0.1`'
+                ge: 0
+                title: Wait Line Incomplete
+            wait_file_not_found:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `30`'
+                ge: 0
+                title: Wait File Not Found
+            wait_no_entries:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `5`'
+                ge: 0
+                title: Wait No Entries
+            wait_before_send:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `1`'
+                ge: 0
+                title: Wait Before Send
+            wait_after_crash:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `10`'
+                ge: 0
+                title: Wait After Crash
+            max_entries:
+                description: '**Default:** `20`'
+                minimum: 0
+                title: Max Entries
+                type: integer
+            max_entry_lines:
+                description: '**Default:** `2048`'
+                minimum: 0
+                title: Max Entry Lines
+                type: integer
+            use_inotify:
+                description: If the `inotify` package is available this defaults
+                    to `True`.
+                title: Use Inotify
+                type: boolean
+            seek_end:
+                description: |-
+                    Seek to end of log file on open.
+                    **Default:** `True`
+                title: Seek End
+                type: boolean
+            json:
+                description: |-
+                    If `True` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.
+                    **Default:** `False`
+                title: Json
+                type: boolean
+            json_match:
+                anyOf:
+                -   $ref: '#/$defs/JsonMatch'
+                -   type: 'null'
+                description: JSON property paths and values to compare them to. 
+                    A log entry will only be processed if all properties match. 
+                    Per default all log entries are processed.
+            json_ignore:
+                anyOf:
+                -   $ref: '#/$defs/JsonMatch'
+                -   type: 'null'
+                description: Even if `json_match` matches, if this matches then 
+                    the log entry is ignored.
+            json_brief:
+                anyOf:
+                -   $ref: '#/$defs/JsonPath'
+                -   type: 'null'
+                description: |-
+                    Use property at this path as the `{brief}` template variable.
+                    **Default:** `['message']`
+            encoding:
+                description: "**Default:** `'UTF-8'`"
+                title: Encoding
+                type: string
+            systemd_priority:
+                anyOf:
+                -   $ref: '#/$defs/SystemDPriority'
+                -   type: integer
+                title: Systemd Priority
+            systemd_match:
+                additionalProperties:
+                    anyOf:
+                    -   type: string
+                    -   type: integer
+                title: Systemd Match
+                type: object
+        title: InputConfig
+        type: object
+    JsonExpr:
+        anyOf:
+        -   $ref: '#/$defs/EqExpr'
+        -   $ref: '#/$defs/OrdExpr'
+        -   $ref: '#/$defs/RangeExpr'
+        -   $ref: '#/$defs/RegExExpr'
+    JsonMatch:
+        additionalProperties:
+            anyOf:
+            -   $ref: '#/$defs/JsonExpr'
+            -   $ref: '#/$defs/JsonMatch'
+        type: object
+    JsonPath:
+        items:
+            anyOf:
+            -   type: string
+            -   type: integer
+        type: array
+    LimitsConfig:
+        properties:
+            max_emails_per_minute:
+                description: '**Default:** `6`'
+                exclusiveMinimum: 0
+                title: Max Emails Per Minute
+                type: integer
+            max_emails_per_hour:
+                description: '**Default:** `60`'
+                exclusiveMinimum: 0
+                title: Max Emails Per Hour
+                type: integer
+        title: LimitsConfig
+        type: object
+    LogActionConfig:
+        properties:
+            subject:
+                description: |-
+                    Email subject template.
+                    **Default:** `'{brief}'`
+                title: Subject
+                type: string
+            body:
+                description: |-
+                    Email body template.
+                    **Default:** `'{logfile}\n\n{entries_str}'`
+                title: Body
+                type: string
+            host:
+                description: |-
+                    Host to connect to for SMTP/IMAP/HTTP(S).
+                    **Default:** `'localhost'`
+                title: Host
+                type: string
+            port:
+                description: Port to connect to for SMTP/IMAP/HTTP(S) if not the
+                    standard port.
+                minimum: 0
+                title: Port
+                type: integer
+            user:
+                description: Credentials for SMTP/IMAP, HTTP basic auth, or 
+                    OAuth 2.0 password grant type.
+                title: User
+                type: string
+            password:
+                description: Credentials for SMTP/IMAP, HTTP basic auth, or 
+                    OAuth 2.0 password grant type.
+                title: Password
+                type: string
+            secure:
+                $ref: '#/$defs/SecureOption'
+                description: |-
+                    `secure` option for SMTP/IMAP.
+                    **Default:** `None`
+            logmails:
+                $ref: '#/$defs/Logmails'
+                description: |-
+                    Write messages to logmon's log instead of/in addition to performing the action.
+                    **Default:** `'onerror'`
+            keep_connected:
+                description: |-
+                    Keep connection to server alive (SMTP, IMAP, HTTP(S)).
+                    **Default:** `False`
+                title: Keep Connected
+                type: boolean
+            http_method:
+                description: "**Default:** `'POST'`"
+                title: Http Method
+                type: string
+            http_path:
+                description: "**Default:** `'/'`"
+                title: Http Path
+                type: string
+            http_params:
+                anyOf:
+                -   additionalProperties:
+                        type: string
+                    title: Header Mapping
+                    type: object
+                -   items:
+                        maxItems: 2
+                        minItems: 2
+                        prefixItems:
+                        -   type: string
+                        -   type: string
+                        type: array
+                    title: List of Tuples
+                    type: array
+                description: "**Default:** `[('subject', '{subject}'), ('receivers',
+                    '{receivers}'), ('entries', '{entries_raw}')]`"
+                title: Http Params
+            http_content_type:
+                $ref: '#/$defs/ContentType'
+                description: "**Default:** `'URL'`"
+            http_headers:
+                additionalProperties:
+                    type: string
+                description: Additional HTTP headers. The `Authorization` header
+                    will be overwritten if OAuth 2.0 is used or if `username` 
+                    and `password` are set.
+                title: Http Headers
+                type: object
+            http_max_redirect:
+                description: '**Default:** `0`'
+                minimum: 0
+                title: Http Max Redirect
+                type: integer
+            http_timeout:
+                anyOf:
+                -   minimum: 0.0
+                    type: number
+                -   type: 'null'
+                description: |-
+                    `None` means no timeout.
+                    **Default:** `None`
+                title: Http Timeout
+            oauth2_grant_type:
+                $ref: '#/$defs/OAuth2GrantType'
+                description: "**Default:** `'client_credentials'`"
+            oauth2_token_url:
+                anyOf:
+                -   type: string
+                -   type: 'null'
+                description: |-
+                    `None` means don't use OAuth 2.0.
+                    **Default:** `None`
+                title: Oauth2 Token Url
+            oauth2_client_id:
+                title: Oauth2 Client Id
+                type: string
+            oauth2_client_secret:
+                title: Oauth2 Client Secret
+                type: string
+            oauth2_scope:
+                items:
+                    type: string
+                title: Oauth2 Scope
+                type: array
+            oauth2_refresh_margin:
+                description: |-
+                    Seconds to substract from the expiration date-time when checking for access token expiration.
+                    **Default:** `0.0`
+                format: duration
+                title: Oauth2 Refresh Margin
+                type: string
+            command:
+                items:
+                    type: string
+                title: Command
+                type: array
+            command_cwd:
+                description: Working directory of spawned process.
+                title: Command Cwd
+                type: string
+            command_user:
+                anyOf:
+                -   title: User Name
+                    type: string
+                -   title: User Id
+                    type: integer
+                description: Run the process as user/UID.
+                title: Command User
+            command_group:
+                anyOf:
+                -   title: Group Name
+                    type: string
+                -   title: Group Id
+                    type: integer
+                description: Run the process as group/GID.
+                title: Command Group
+            command_env:
+                additionalProperties:
+                    anyOf:
+                    -   type: string
+                    -   type: 'null'
+                description: Set the environment of the spawned process to this.
+                    Passing `None` as the value means to inherit that 
+                    environment variable from the current environment.
+                title: Command Env
+                type: object
+            command_stdin:
+                description: |-
+                    `'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`
+                    **Default:** `'null:'`
+                title: Command Stdin
+                type: string
+            command_stdout:
+                description: |-
+                    `'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`
+                    **Default:** `'null:'`
+                title: Command Stdout
+                type: string
+            command_stderr:
+                description: |-
+                    `'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`
+                    **Default:** `'null:'`
+                title: Command Stderr
+                type: string
+            command_interactive:
+                description: |-
+                    If `True` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.
+                    **Default:** `False`
+                title: Command Interactive
+                type: boolean
+            command_timeout:
+                anyOf:
+                -   minimum: 0.0
+                    type: number
+                -   type: 'null'
+                description: |-
+                    Timeout in seconds. If the timeout expires the process is killed.
+                    **Default:** `None`
+                title: Command Timeout
+            file:
+                title: File
+                type: string
+            file_encoding:
+                description: "**Default:** `'UTF-8'`"
+                title: File Encoding
+                type: string
+            file_append:
+                description: '**Default:** `True`'
+                title: File Append
+                type: boolean
+            file_user:
+                anyOf:
+                -   title: User Name
+                    type: string
+                -   title: User Id
+                    type: integer
+                description: Set owner of the file as user/UID.
+                title: File User
+            file_group:
+                anyOf:
+                -   title: Group Name
+                    type: string
+                -   title: Group Id
+                    type: integer
+                description: Set owner of the file as group/GID.
+                title: File Group
+            file_type:
+                $ref: '#/$defs/FileType'
+                description: "**Default:** `'regular'`"
+            file_mode:
+                anyOf:
+                -   title: String
+                    type: string
+                -   title: Integer
+                    type: integer
+                description: 'File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.'
+                title: File Mode
+            output_indent:
+                anyOf:
+                -   minimum: 0
+                    type: integer
+                -   type: 'null'
+                description: |-
+                    Indent JSON/YAML log entries in output. If `None` the JSON documents will be in a single line.
+                    **Default:** `4`
+                title: Output Indent
+            output_format:
+                $ref: '#/$defs/OutputFormat'
+                description: |-
+                    Use this format when writing JSON log entries to the output.
+                    **Default:** `'YAML'`
+            sender:
+                description: '**Default:** `logmon@<host>`'
+                title: Sender
+                type: string
+            receivers:
+                description: '**Default:** `<sender>`'
+                items:
+                    type: string
+                title: Receivers
+                type: array
+            action:
+                anyOf:
+                -   $ref: '#/$defs/ActionType'
+                -   description: See root &rarr; do &rarr; anyOf &rarr; 
+                        LogActionConfig &rarr; action for more details.
+                    title: Action String
+                    type: string
+                description: |-
+                    Action to perform.
+                    This can also be a string in the form of one of these:
+                    ```
+                        {smtp,imap,http,https}[:[//][<user>[:<password>]@]<host>[:<port>][/<path>[?<query>]]]
+                        command[:<command> [<option>...]]
+                        {file,fifo}[:<path>]
+                    ```
+
+                    Parameters defined here overwrite values passed via other options.
+
+                    For SMTP and IMAP these query parameters are supported:
+
+                    * `sender`
+                    * `receivers`
+                    * `secure`
+
+                    **Default:** `'SMTP'`
+                title: Action
+        title: LogActionConfig
+        type: object
+    LogConfig:
+        properties:
+            entry_start_pattern:
+                anyOf:
+                -   type: string
+                -   items:
+                        type: string
+                    type: array
+                description: "**Default:** `'^\\\\[\\\\d\\\\d\\\\d\\\\d-\\\\d\\\\\
+                    d-\\\\d\\\\d[T ]\\\\d\\\\d:\\\\d\\\\d:\\\\d\\\\d(?:\\\\.\\\\d+)?(?:
+                    ?(?:[-+]\\\\d\\\\d:?\\\\d\\\\d|Z))?\\\\]'`"
+                title: Entry Start Pattern
+            error_pattern:
+                anyOf:
+                -   type: string
+                -   items:
+                        type: string
+                    type: array
+                description: "**Default:** `'ERROR|CRITICAL|Exception'`"
+                title: Error Pattern
+            ignore_pattern:
+                anyOf:
+                -   type: string
+                -   items:
+                        type: string
+                    type: array
+                -   type: 'null'
+                description: Even if the `error_pattern` matches, if this 
+                    pattern also matches the log entry is ignored.
+                title: Ignore Pattern
+            wait_line_incomplete:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `0.1`'
+                ge: 0
+                title: Wait Line Incomplete
+            wait_file_not_found:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `30`'
+                ge: 0
+                title: Wait File Not Found
+            wait_no_entries:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `5`'
+                ge: 0
+                title: Wait No Entries
+            wait_before_send:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `1`'
+                ge: 0
+                title: Wait Before Send
+            wait_after_crash:
+                anyOf:
+                -   type: integer
+                -   type: number
+                description: '**Default:** `10`'
+                ge: 0
+                title: Wait After Crash
+            max_entries:
+                description: '**Default:** `20`'
+                minimum: 0
+                title: Max Entries
+                type: integer
+            max_entry_lines:
+                description: '**Default:** `2048`'
+                minimum: 0
+                title: Max Entry Lines
+                type: integer
+            use_inotify:
+                description: If the `inotify` package is available this defaults
+                    to `True`.
+                title: Use Inotify
+                type: boolean
+            seek_end:
+                description: |-
+                    Seek to end of log file on open.
+                    **Default:** `True`
+                title: Seek End
+                type: boolean
+            json:
+                description: |-
+                    If `True` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.
+                    **Default:** `False`
+                title: Json
+                type: boolean
+            json_match:
+                anyOf:
+                -   $ref: '#/$defs/JsonMatch'
+                -   type: 'null'
+                description: JSON property paths and values to compare them to. 
+                    A log entry will only be processed if all properties match. 
+                    Per default all log entries are processed.
+            json_ignore:
+                anyOf:
+                -   $ref: '#/$defs/JsonMatch'
+                -   type: 'null'
+                description: Even if `json_match` matches, if this matches then 
+                    the log entry is ignored.
+            json_brief:
+                anyOf:
+                -   $ref: '#/$defs/JsonPath'
+                -   type: 'null'
+                description: |-
+                    Use property at this path as the `{brief}` template variable.
+                    **Default:** `['message']`
+            encoding:
+                description: "**Default:** `'UTF-8'`"
+                title: Encoding
+                type: string
+            systemd_priority:
+                anyOf:
+                -   $ref: '#/$defs/SystemDPriority'
+                -   type: integer
+                title: Systemd Priority
+            systemd_match:
+                additionalProperties:
+                    anyOf:
+                    -   type: string
+                    -   type: integer
+                title: Systemd Match
+                type: object
+            max_emails_per_minute:
+                description: '**Default:** `6`'
+                exclusiveMinimum: 0
+                title: Max Emails Per Minute
+                type: integer
+            max_emails_per_hour:
+                description: '**Default:** `60`'
+                exclusiveMinimum: 0
+                title: Max Emails Per Hour
+                type: integer
+            do:
+                anyOf:
+                -   items:
+                        anyOf:
+                        -   $ref: '#/$defs/LogActionConfig'
+                        -   description: See root &rarr; do &rarr; anyOf &rarr; 
+                                LogActionConfig &rarr; action for more details.
+                            title: Action String
+                            type: string
+                    type: array
+                -   $ref: '#/$defs/LogActionConfig'
+                -   description: See root &rarr; do &rarr; anyOf &rarr; 
+                        LogActionConfig &rarr; action for more details.
+                    title: Action String
+                    type: string
+                title: Do
+        title: LogConfig
+        type: object
+    Logmails:
+        enum:
+        -   always
+        -   never
+        -   onerror
+        -   instead
+        type: string
+    OAuth2GrantType:
+        enum:
+        -   client_credentials
+        -   password
+        type: string
+    OrdExpr:
+        maxItems: 2
+        minItems: 2
+        prefixItems:
+        -   enum:
+            -   <
+            -   '>'
+            -   <=
+            -   '>='
+            type: string
+        -   anyOf:
+            -   type: number
+            -   type: integer
+            -   type: string
+        type: array
+    OutputFormat:
+        enum:
+        -   JSON
+        -   YAML
+        type: string
+    Range:
+        properties:
+            start:
+                title: Start
+                type: integer
+            stop:
+                title: Stop
+                type: integer
+        required:
+        -   start
+        -   stop
+        title: Range
+        type: object
+    RangeExpr:
+        maxItems: 2
+        minItems: 2
+        prefixItems:
+        -   enum:
+            -   in
+            -   not in
+            type: string
+        -   anyOf:
+            -   items:
+                    anyOf:
+                    -   type: string
+                    -   type: number
+                    -   type: integer
+                    -   type: 'null'
+                type: array
+            -   $ref: '#/$defs/Range'
+        type: array
+    RegExExpr:
+        maxItems: 2
+        minItems: 2
+        prefixItems:
+        -   const: '~'
+            type: string
+        -   type: string
+        type: array
+    SecureOption:
+        enum:
+        -   
+        -   STARTTLS
+        -   SSL/TLS
+    SystemDPriority:
+        enum:
+        -   PANIC
+        -   WARNING
+        -   ALERT
+        -   NONE
+        -   CRITICAL
+        -   DEBUG
+        -   INFO
+        -   ERROR
+        -   NOTICE
+        type: string
+properties:
+    do:
+        anyOf:
+        -   $ref: '#/$defs/LogActionConfig'
+        -   description: See root &rarr; do &rarr; anyOf &rarr; LogActionConfig 
+                &rarr; action for more details.
+            title: Action String
+            type: string
+        description: |-
+            Default action configuration.
+            All actions inherit these settings if they don't overwrite them.
+        title: Do
+    default:
+        $ref: '#/$defs/InputConfig'
+        description: |-
+            Default logfile configuration.
+            All logfiles inherit these settings if they don't overwrite them.
+    logfiles:
+        anyOf:
+        -   additionalProperties:
+                anyOf:
+                -   $ref: '#/$defs/LogConfig'
+                -   description: See root &rarr; do &rarr; anyOf &rarr; 
+                        LogActionConfig &rarr; action for more details.
+                    title: Action String
+                    type: string
+                -   items:
+                        anyOf:
+                        -   $ref: '#/$defs/LogActionConfig'
+                        -   description: See root &rarr; do &rarr; anyOf &rarr; 
+                                LogActionConfig &rarr; action for more details.
+                            title: Action String
+                            type: string
+                    type: array
+            description: Mapping from logfiles to their configurations.
+            title: Mapping of logfile settings
+            type: object
+        -   description: All the configuration is taken from the global 
+                settings.
+            items:
+                type: string
+            title: List of logfiles
+            type: array
+        description: |-
+            The mapping keys or entries in the array of strings is the path of the log file.
+            You can read from a SystemD journal instead of a file by specifying a path in the form of:
+
+                systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:IDENTIFIER]
+        title: Logfiles
+    limits:
+        $ref: '#/$defs/LimitsConfig'
+    log:
+        $ref: '#/$defs/AppLogConfig'
+        description: Log configuration of logmon itself.
+    pidfile:
+        description: Write the process Id of the logmon process to this file.
+        title: PID File
+        type: string
+required:
+-   logfiles
+title: Logmonrc
+type: object
+
