@@ -4,6 +4,15 @@ logmon
 A very simple log file monitoring script that runs actions like seinding emails
 when it finds configured error patterns.
 
+Setup
+-----
+
+```bash
+git clone git@github.com:panzi/logmon.git
+cd logmon
+uv pip install -r pyproject.toml --extra ruamel_yaml --extra inotify --extra systemd
+```
+
 Dependencies
 ------------
 
@@ -33,6 +42,12 @@ read the log files. The command line options overwrite the default settings,
 but not the per-logfile settings. See below for the settings file format.
 
 Configuration schema: [HTML](https://panzi.github.io/logmon) [YAML](https://panzi.github.io/logmon/schema.yaml)
+
+When running via uv:
+
+```bash
+uv run logmon.py
+```
 
 ```
 Usage: logmon.py [-h] [-v] [--license] [--config PATH]
