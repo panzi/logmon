@@ -10343,7 +10343,23 @@ All logfiles inherit these settings if they don't overwrite them.</p>
             <p>The mapping keys or entries in the array of strings is the path of the log file.<br />
 You can read from a SystemD journal instead of a file by specifying a path in the form of:</p>
 
-<pre><code>systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:&lt;identifier&gt;]
+<pre><code>systemd:[&lt;open_flag&gt;(+&lt;open_flag&gt;)*][:{UNIT,SYSLOG}:&lt;identifier&gt;]
+</code></pre>
+
+<p>Where <code>open_flag</code> can be one of:</p>
+
+<ul>
+<li><code>LOCAL_ONLY</code></li>
+<li><code>RUNTIME_ONLY</code></li>
+<li><code>SYSTEM</code></li>
+<li><code>CURRENT_USER</code></li>
+</ul>
+
+<p>Examples:</p>
+
+<pre><code>systemd:
+systemd:SYSTEM+LOCAL_ONLY:SYSLOG:sshd
+systemd::UNIT:sshd.service
 </code></pre>
 
         </div>
@@ -16026,6 +16042,6 @@ You can read from a SystemD journal instead of a file by specifying a path in th
 </div>
 
     <footer>
-        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-01-11 at 21:43:30 +0100</p>
+        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-01-13 at 18:15:51 +0100</p>
     </footer></body>
 </html>
