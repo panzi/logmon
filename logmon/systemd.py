@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Mapping
 
 import re
 import logging
@@ -56,6 +56,11 @@ try:
             seek_end = config.get('seek_end', True)
             raw_priority = config.get('systemd_priority')
             match_dict = config.get('systemd_match')
+            ignore_raw = config.get('systemd_ignore')
+            ignore_dict = {
+                rule_key: str(rule_value)
+                for rule_key, rule_value in ignore_raw.items()
+            } if ignore_raw else None
 
             priority: Optional[Priority]
             if isinstance(raw_priority, str):
@@ -119,7 +124,11 @@ try:
                         break
 
                     start_ts = monotonic()
-                    systemd_entries = list(reader)
+                    systemd_entries = [
+                        systemd_entry
+                        for systemd_entry in reader
+                        if not systemd_match(ignore_dict, systemd_entry.data)
+                    ] if ignore_dict else list(reader)
                     duration = monotonic() - start_ts
 
                     try:
@@ -226,6 +235,12 @@ def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[tuple[
         return mode, (what, ident)
 
     return mode, None
+
+def systemd_match(match_dict: Mapping[str, str], data: Mapping[str, str]) -> bool:
+    for match_key, match_value in match_dict.items():
+        if data.get(match_key) != match_value:
+            return False
+    return True
 
 if __name__ == '__main__':
     import sys

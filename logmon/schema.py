@@ -170,6 +170,7 @@ class SystemDConfig(TypedDict):
         Field(description="Match log entries of this or higher priority.")
     ]
     systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
+    systemd_ignore: Annotated[NotRequired[Optional[dict[str, str|int]]], Field(description="Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.")]
 
 class Config(LogfileConfig, SystemDConfig, LimitsConfig):
     do: list[ActionConfig]

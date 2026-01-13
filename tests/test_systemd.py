@@ -56,15 +56,23 @@ def write_systemd_logs(prefix: str) -> Generator[list[str], None, None]:
     yield [err3]
     yield []
 
-#@pytest.mark.skip("TODO")
+    journal.send(
+        priority = Priority.ERROR,
+        message = (err4 := "\n\n"),
+        SYSLOG_IDENTIFIER = f'{prefix}4',
+    )
+
+    yield [err4]
+
 def test_systemd(logmonrc_path: str, temp_prefix: tuple[str, str]) -> None:
     tempdir, prefix = temp_prefix
-    file_path = join_path(tempdir, f'{prefix}.output.log')
+    file_path1 = join_path(tempdir, f'{prefix}.output1.log')
+    file_path2 = join_path(tempdir, f'{prefix}.output2.log')
     service_prefix = f'logmon_test_{os.getpid()}_'
     logmonrc = f'''\
 ---
 do:
-  action: "file:{file_path}"
+  action: "file:{file_path1}"
   output_format: JSON
   output_indent: null
 default:
@@ -76,6 +84,10 @@ logfiles:
   "systemd:CURRENT_USER:SYSLOG:{service_prefix}1": {{}}
   "systemd:CURRENT_USER:SYSLOG:{service_prefix}2": {{}}
   "systemd:CURRENT_USER:SYSLOG:{service_prefix}3": {{}}
+  "systemd:CURRENT_USER":
+    do: "file:{file_path2}"
+    systemd_ignore:
+      SYSLOG_IDENTIFIER: "{service_prefix}1"
 '''
     write_file(logmonrc_path, logmonrc)
 
@@ -112,18 +124,24 @@ logfiles:
 
     assert proc.returncode == 0
 
-    output: list[dict] = []
-    with open(file_path) as fp:
+    output1: list[dict] = []
+    with open(file_path1) as fp:
         for line in fp:
-            output.append(json.loads(line))
+            output1.append(json.loads(line))
 
-    output_messages = [o['MESSAGE'] for o in output]
+    output2: list[dict] = []
+    with open(file_path2) as fp:
+        for line in fp:
+            output2.append(json.loads(line))
+
+    output1_messages = [o['MESSAGE'] for o in output1]
+    output2_messages = [o['MESSAGE'] for o in output2]
 
     nr = 0
-    for logentries in logs:
+    for logentries in logs[:-1]:
         for entry in logentries:
             nr += 1
-            assert entry in output_messages, (
+            assert entry in output1_messages, (
                 f'Message {nr} not found in output!\n'
                  '\n'
                  '  Message:\n'
@@ -132,10 +150,26 @@ logfiles:
                  '\n'
                  '  Output:\n'
                  '\n'
-                f'{indent('\n'.join(output_messages))}'
+                f'{indent('\n'.join(output1_messages))}'
             )
 
-    assert len(output_messages) == sum(len(logentries) for logentries in logs)
+    for logentries in logs[1:4]:
+        for entry in logentries:
+            nr += 1
+            assert entry in output2_messages, (
+                f'Message {nr} not found in output!\n'
+                 '\n'
+                 '  Message:\n'
+                 '\n'
+                f'{indent(entry)}\n'
+                 '\n'
+                 '  Output:\n'
+                 '\n'
+                f'{indent('\n'.join(output2_messages))}'
+            )
+
+    assert len(output1_messages) == sum(len(logentries) for logentries in logs[:-1])
+    assert len(output2_messages) == sum(len(logentries) for logentries in logs[1:4])
 
     proc.stderr.close() # type: ignore
     proc.stdout.close() # type: ignore
