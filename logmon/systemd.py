@@ -28,10 +28,15 @@ try:
     from cysystemd.reader import JournalReader, JournalOpenMode, Rule # type: ignore
     from cysystemd.journal import Priority
 
-    OPEN_MODES: dict[str, JournalOpenMode] = {
-        mode.name: mode
-        for mode in JournalOpenMode
-    }
+    # HACK: The `JournalOpenMode._missing_()` method is wrong!
+    #       It wrongly disallows any ORed values in an attempt to add backward
+    #       compatibility for the SD_JOURNAL_SYSTEM_ONLY value, which is defined
+    #       to be the same as SD_JOURNAL_SYSTEM anyway. So it does nothing
+    #       except breaking valid usage.
+    try:
+        del JournalOpenMode._missing_
+    except AttributeError as exc:
+        pass
 
     def logmon_systemd(
         logfile: str,
@@ -168,9 +173,13 @@ try:
 except ImportError:
     HAS_SYSTEMD = False
 
-    OPEN_MODES = {
-        'LOCAL_ONLY': 1, 'RUNTIME_ONLY': 2, 'SYSTEM': 4, 'CURRENT_USER': 8,
-    }
+    from enum import IntFlag
+
+    class JournalOpenMode(IntFlag): # type: ignore
+        LOCAL_ONLY   = 1 << 0
+        RUNTIME_ONLY = 1 << 1
+        SYSTEM       = 1 << 2
+        CURRENT_USER = 1 << 3
 
     def logmon_systemd(
         logfile: str,
@@ -178,6 +187,11 @@ except ImportError:
         limits: LimitsService,
     ) -> None:
         raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
+
+OPEN_MODES: dict[str, JournalOpenMode] = { # type: ignore
+    mode.name: mode
+    for mode in JournalOpenMode
+}
 
 SYSTEMD_PATH_PREFIX = re.compile(r'^systemd:', re.I)
 SYSTEMD_PATH_PREFIX_match = SYSTEMD_PATH_PREFIX.match
@@ -190,9 +204,16 @@ def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[tuple[
     if path[0].lower() != 'systemd' or len(path) not in (2, 4):
         raise ValueError(f'Illegal SystemD path: {logfile!r}')
 
-    mode = OPEN_MODES.get(path[1].upper())
-    if mode is None:
-        raise ValueError(f'Illegal open mode in SystemD path: {logfile!r}')
+    flags_str = path[1]
+    flags = 0
+    if flags_str:
+        for flag_str in flags_str.split('+'):
+            mode = OPEN_MODES.get(flag_str.upper())
+            if mode is None:
+                raise ValueError(f'Illegal open mode {flag_str!r} in SystemD path: {logfile!r}')
+            flags |= mode.value
+
+    mode = JournalOpenMode(flags)
 
     if len(path) == 4:
         what_raw = path[2].upper()
@@ -205,3 +226,12 @@ def parse_systemd_path(logfile: str) -> tuple["JournalOpenMode", Optional[tuple[
         return mode, (what, ident)
 
     return mode, None
+
+if __name__ == '__main__':
+    import sys
+
+    for arg in sys.argv[1:]:
+        try:
+            print(arg, is_systemd_path(arg), parse_systemd_path(arg))
+        except Exception as exc:
+            print(arg, exc, file=sys.stderr)

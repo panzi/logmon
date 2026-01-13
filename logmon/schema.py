@@ -187,7 +187,20 @@ _logfiles_description = '''\
 The mapping keys or entries in the array of strings is the path of the log file.
 You can read from a SystemD journal instead of a file by specifying a path in the form of:
 
-    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]'''
+    systemd:[<open_flag>(+<open_flag>)*][:{UNIT,SYSLOG}:<identifier>]
+
+Where `open_flag` can be one of:
+
+- `LOCAL_ONLY`
+- `RUNTIME_ONLY`
+- `SYSTEM`
+- `CURRENT_USER`
+
+Examples:
+
+    systemd:
+    systemd:SYSTEM+LOCAL_ONLY:SYSLOG:sshd
+    systemd::UNIT:sshd.service'''
 
 class MTConfig(TypedDict):
     do: Annotated[NotRequired[ActionConfig], Field(description=_do_description)]
