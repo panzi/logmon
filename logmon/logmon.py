@@ -1,4 +1,4 @@
-from typing import Iterable, Generator, Callable, Match
+from typing import Iterable, Generator, Callable, Match, Optional
 
 import re
 import os
@@ -59,201 +59,16 @@ def _logmon(
         else:
             inotify = None
 
-        try:
-            file_not_found = False
+        file_not_found = False
+        terminated = False
+        logfile_id: Optional[int] = None
 
-            while is_running():
-                try:
-                    logfp = open(logfile, 'r', encoding=encoding)
-                    if file_not_found:
-                        file_not_found = False
-                        logger.debug(f"{logfile}: File appeared!")
-                    try:
-                        logfp_stat = os.fstat(logfp.fileno())
-                        logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
-                        if seek_end:
-                            logfp.seek(0, os.SEEK_END)
-
-                        reader = reader_factory.create_reader(logfp)
-
-                        while is_running():
-                            entries = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
-
-                            if len(entries) < max_entries and is_running():
-                                # If there are max_entries that means there are probably already more in the
-                                # log file, so try to read those before waiting via inotify.
-                                do_reopen = False
-                                if inotify is not None:
-                                    logger.debug(f'{logfile}: Waiting with inotify for modifications')
-                                    try:
-                                        inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
-                                    except InotifyError:
-                                        if not os.path.exists(logfile):
-                                            raise FileNotFoundError
-                                        raise
-
-                                    try:
-                                        inotify.add_watch(parentdir, IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO)
-                                    except InotifyError:
-                                        if not os.path.exists(parentdir):
-                                            raise FileNotFoundError
-                                        raise
-                                    except:
-                                        try: inotify.remove_watch(logfile)
-                                        except: pass
-
-                                    deleted = False
-                                    terminated = False
-                                    try:
-                                        new_stat = os.stat(logfile)
-                                        new_ref = (new_stat.st_dev, new_stat.st_ino)
-                                        if logfp_ref != new_ref:
-                                            # verify we're actually waiting on the file that is opened
-                                            do_reopen = True
-                                        else:
-                                            stopfd = get_read_stopfd()
-                                            if stopfd is not None:
-                                                poller = poll()
-                                                poller.register(stopfd, POLLIN)
-                                                # why is there no official way to get that file discriptor!?
-                                                poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
-                                                pevents = poller.poll()
-                                                if not pevents:
-                                                    break
-
-                                                if any(fd == stopfd for fd, _pevent in pevents):
-                                                    break
-
-                                            for event in inotify.event_gen():
-                                                if not is_running():
-                                                    break
-
-                                                if event is None:
-                                                    continue
-
-                                                header, type_names, event_path, event_filename = event
-                                                mask = header.mask
-                                                inotify_path = normpath(joinpath(event_path, event_filename))
-                                                if inotify_path == logfile:
-                                                    if IN_MODIFY & mask:
-                                                        break
-
-                                                    if IN_MOVE_SELF & mask:
-                                                        do_reopen = True
-                                                        # this never fires because we have logfp open
-                                                        break
-
-                                                    if IN_MOVED_FROM & mask:
-                                                        do_reopen = True
-                                                        deleted = True
-                                                        break
-
-                                                    if IN_MOVED_TO & mask:
-                                                        do_reopen = True
-                                                        deleted = True
-                                                        break
-
-                                                    if (IN_DELETE | IN_DELETE_SELF) & mask:
-                                                        do_reopen = True
-                                                        deleted = True
-                                                        break
-
-                                        if not is_running():
-                                            break
-
-                                    except TerminalEventException:
-                                        # filesystem unmounted
-                                        do_reopen = True
-                                        deleted = True
-                                        terminated = True
-
-                                    finally:
-                                        try:
-                                            if not deleted:
-                                                inotify.remove_watch(logfile)
-                                        except Exception as exc:
-                                            logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
-
-                                        try:
-                                            inotify.remove_watch(parentdir)
-                                        except Exception as exc:
-                                            logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
-
-                                        if terminated:
-                                            inotify = Inotify()
-                                else:
-                                    logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
-                                    sleep(wait_no_entries)
-
-                                    try:
-                                        new_stat = os.stat(logfile)
-                                    except FileNotFoundError:
-                                        pass
-                                    else:
-                                        new_ref = (new_stat.st_dev, new_stat.st_ino)
-                                        if logfp_ref != new_ref:
-                                            do_reopen = True
-
-                                if do_reopen:
-                                    logger.info(f"{logfile}: File changed, reopening...")
-                                    try: logfp.close()
-                                    except: pass
-                                    seek_end = False
-                                    config['seek_end'] = False
-                                    break
-
-                    finally:
-                        if not logfp.closed:
-                            try: logfp.close()
-                            except: pass
-
-                except FileNotFoundError:
-                    file_not_found = True
-                    seek_end = False
-                    config['seek_end'] = False
-                    if inotify is not None:
-                        logger.error(f"{logfile}: File not found, waiting with inotify")
-                        if not inotify_wait_for_exists(inotify, logfile):
-                            break
-                    else:
-                        logger.error(f"{logfile}: File not found, waiting for {wait_file_not_found} seconds")
-                        sleep(wait_file_not_found)
-
-                except KeyboardInterrupt:
-                    handle_keyboard_interrupt()
-        finally:
-            if inotify is not None:
-                try: inotify.remove_watch(logfile)
-                except: pass
-
-                try: inotify.remove_watch(parentdir)
-                except: pass
-
-def _logmon_file_if_exists(
-        logfile: str,
-        config: Config,
-        limits: LimitsService,
-        seek_end: bool,
-) -> None:
-    wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
-    wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
-    max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
-    encoding = config.get('encoding', 'UTF-8')
-    use_inotify = config.get('use_inotify', HAS_INOTIFY)
-
-    reader_factory = EntryReaderFactory.from_config(config)
-
-    with Action.open_actions(config) as actions:
-        parentdir = dirname(logfile)
-        if use_inotify and HAS_INOTIFY:
-            inotify = Inotify()
-        else:
-            inotify = None
-
-        try:
+        while is_running():
             try:
                 logfp = open(logfile, 'r', encoding=encoding)
-
+                if file_not_found:
+                    file_not_found = False
+                    logger.debug(f"{logfile}: File appeared!")
                 try:
                     logfp_stat = os.fstat(logfp.fileno())
                     logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
@@ -262,38 +77,32 @@ def _logmon_file_if_exists(
 
                     reader = reader_factory.create_reader(logfp)
 
-                    while is_running():
-                        entries = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
+                    if inotify is not None:
+                        terminated = False
+                        try:
+                            logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
+                        except InotifyError as exc:
+                            if exc.errno == ENOENT:
+                                raise FileNotFoundError(ENOENT, 'No such file or directory', logfile) from exc
+                            raise
 
-                        if len(entries) < max_entries and is_running():
+                    while is_running():
+                        entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
+
+                        if entry_count < max_entries and is_running():
                             # If there are max_entries that means there are probably already more in the
                             # log file, so try to read those before waiting via inotify.
+                            do_reopen = False
                             if inotify is not None:
+                                terminated = False
                                 logger.debug(f'{logfile}: Waiting with inotify for modifications')
-                                try:
-                                    inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
-                                except InotifyError:
-                                    if not os.path.exists(logfile):
-                                        return
-                                    raise
-
-                                try:
-                                    inotify.add_watch(parentdir, IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
-                                except InotifyError:
-                                    if not os.path.exists(parentdir):
-                                        return
-                                    raise
-                                except:
-                                    try: inotify.remove_watch(logfile)
-                                    except: pass
-
                                 deleted = False
                                 try:
                                     new_stat = os.stat(logfile)
                                     new_ref = (new_stat.st_dev, new_stat.st_ino)
                                     if logfp_ref != new_ref:
                                         # verify we're actually waiting on the file that is opened
-                                        return
+                                        do_reopen = True
                                     else:
                                         stopfd = get_read_stopfd()
                                         if stopfd is not None:
@@ -317,24 +126,39 @@ def _logmon_file_if_exists(
 
                                             header, type_names, event_path, event_filename = event
                                             mask = header.mask
-                                            event_path = normpath(joinpath(event_path, event_filename))
-                                            if event_path == logfile:
+                                            inotify_path = normpath(joinpath(event_path, event_filename))
+                                            if inotify_path == logfile:
                                                 if IN_MODIFY & mask:
                                                     break
 
-                                                if (IN_MOVE_SELF | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE | IN_DELETE_SELF) & mask:
-                                                    return
+                                                if IN_MOVE_SELF & mask:
+                                                    do_reopen = True
+                                                    # this never fires because we have logfp open
+                                                    break
 
-                                            elif event_path == parentdir:
-                                                if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
-                                                    return
+                                                if IN_MOVED_FROM & mask:
+                                                    do_reopen = True
+                                                    deleted = True
+                                                    break
+
+                                                if IN_MOVED_TO & mask:
+                                                    do_reopen = True
+                                                    deleted = True
+                                                    break
+
+                                                if (IN_DELETE | IN_DELETE_SELF) & mask:
+                                                    do_reopen = True
+                                                    deleted = True
+                                                    break
 
                                     if not is_running():
                                         break
 
                                 except TerminalEventException:
                                     # filesystem unmounted
-                                    return
+                                    do_reopen = True
+                                    deleted = True
+                                    terminated = True
 
                                 finally:
                                     try:
@@ -347,6 +171,9 @@ def _logmon_file_if_exists(
                                         inotify.remove_watch(parentdir)
                                     except Exception as exc:
                                         logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
+
+                                    if terminated:
+                                        inotify = Inotify()
                             else:
                                 logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
                                 sleep(wait_no_entries)
@@ -354,27 +181,180 @@ def _logmon_file_if_exists(
                                 try:
                                     new_stat = os.stat(logfile)
                                 except FileNotFoundError:
-                                    return
+                                    pass
                                 else:
                                     new_ref = (new_stat.st_dev, new_stat.st_ino)
                                     if logfp_ref != new_ref:
-                                        # inode changed!
-                                        return
+                                        do_reopen = True
+
+                            if do_reopen:
+                                logger.info(f"{logfile}: File changed, reopening...")
+                                try: logfp.close()
+                                except: pass
+                                seek_end = False
+                                config['seek_end'] = False
+                                break
+
+                finally:
+                    try:
+                        if inotify is not None:
+                            if logfile_id is not None:
+                                try:
+                                    inotify.remove_watch_with_id(logfile_id)
+                                except Exception as exc:
+                                    logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
+                                logfile_id = None
+
+                            if terminated:
+                                inotify = Inotify()
+                    finally:
+                        if not logfp.closed:
+                            try: logfp.close()
+                            except: pass
+
+            except FileNotFoundError:
+                file_not_found = True
+                seek_end = False
+                config['seek_end'] = False
+                if inotify is not None:
+                    logger.error(f"{logfile}: File not found, waiting with inotify")
+                    if not inotify_wait_for_exists(inotify, logfile):
+                        break
+                else:
+                    logger.error(f"{logfile}: File not found, waiting for {wait_file_not_found} seconds")
+                    sleep(wait_file_not_found)
+
+            except KeyboardInterrupt:
+                handle_keyboard_interrupt()
+
+def _logmon_file_if_exists(
+        logfile: str,
+        config: Config,
+        limits: LimitsService,
+        seek_end: bool,
+) -> None:
+    wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
+    wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
+    max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
+    encoding = config.get('encoding', 'UTF-8')
+    use_inotify = config.get('use_inotify', HAS_INOTIFY)
+
+    reader_factory = EntryReaderFactory.from_config(config)
+
+    with Action.open_actions(config) as actions:
+        parentdir = dirname(logfile)
+        if use_inotify and HAS_INOTIFY:
+            inotify = Inotify()
+        else:
+            inotify = None
+
+        logfile_id: Optional[int] = None
+
+        try:
+            logfp = open(logfile, 'r', encoding=encoding)
+
+            try:
+                logfp_stat = os.fstat(logfp.fileno())
+                logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
+                if seek_end:
+                    logfp.seek(0, os.SEEK_END)
+
+                reader = reader_factory.create_reader(logfp)
+
+                if inotify is not None:
+                    try:
+                        logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
+                    except InotifyError as exc:
+                        if exc.errno == ENOENT:
+                            raise FileNotFoundError(ENOENT, 'No such file or directory', logfile) from exc
+                        raise
+
+                while is_running():
+                    entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
+
+                    if entry_count < max_entries and is_running():
+                        # If there are max_entries that means there are probably already more in the
+                        # log file, so try to read those before waiting via inotify.
+                        if inotify is not None:
+                            logger.debug(f'{logfile}: Waiting with inotify for modifications')
+
+                            try:
+                                new_stat = os.stat(logfile)
+                                new_ref = (new_stat.st_dev, new_stat.st_ino)
+                                if logfp_ref != new_ref:
+                                    # verify we're actually waiting on the file that is opened
+                                    return
+                                else:
+                                    stopfd = get_read_stopfd()
+                                    if stopfd is not None:
+                                        poller = poll()
+                                        poller.register(stopfd, POLLIN)
+                                        # why is there no official way to get that file discriptor!?
+                                        poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
+                                        pevents = poller.poll()
+                                        if not pevents:
+                                            break
+
+                                        if any(fd == stopfd for fd, _pevent in pevents):
+                                            break
+
+                                    for event in inotify.event_gen():
+                                        if not is_running():
+                                            break
+
+                                        if event is None:
+                                            continue
+
+                                        header, type_names, event_path, event_filename = event
+                                        mask = header.mask
+                                        event_path = normpath(joinpath(event_path, event_filename))
+                                        if event_path == logfile:
+                                            if IN_MODIFY & mask:
+                                                break
+
+                                            if (IN_MOVE_SELF | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE | IN_DELETE_SELF) & mask:
+                                                return
+
+                                        elif event_path == parentdir:
+                                            if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
+                                                return
+
+                            except TerminalEventException:
+                                # filesystem unmounted
+                                return
+
+                        else:
+                            logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
+                            sleep(wait_no_entries)
+
+                            try:
+                                new_stat = os.stat(logfile)
+                            except FileNotFoundError:
+                                return
+                            else:
+                                new_ref = (new_stat.st_dev, new_stat.st_ino)
+                                if logfp_ref != new_ref:
+                                    # inode changed!
+                                    return
+            finally:
+                try:
+                    if inotify is not None:
+                        if logfile_id is not None:
+                            try:
+                                inotify.remove_watch_with_id(logfile_id)
+                            except Exception as exc:
+                                logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
+                            logfile_id = None
                 finally:
                     if not logfp.closed:
                         try: logfp.close()
                         except: pass
 
-            except FileNotFoundError:
-                return
+        except FileNotFoundError:
+            return
 
-        finally:
-            if inotify is not None:
-                try: inotify.remove_watch(logfile)
-                except: pass
-
-                try: inotify.remove_watch(parentdir)
-                except: pass
+        except KeyboardInterrupt:
+            handle_keyboard_interrupt()
 
 def _logmon_glob(
         logfile: str,
@@ -491,7 +471,7 @@ def _logmon_glob(
             removed_logfiles = logfiles - new_logfiles
 
             for removed_inode, removed_logfile in removed_logfiles:
-                logger.info(f"{removed_logfile}: Logfile went away, stopping monitoring")
+                logger.debug(f"{removed_logfile}: Logfile went away, stopping monitoring")
 
                 thread = threads.pop(removed_logfile, None)
 
@@ -504,7 +484,7 @@ def _logmon_glob(
                         logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
 
             for added_inode, added_logfile in added_logfiles:
-                logger.info(f"{added_logfile}: New matched logfile")
+                logger.debug(f"{added_logfile}: New matched logfile")
 
                 thread = threading.Thread(
                     target = _logmon_file_if_exists,
@@ -601,7 +581,14 @@ def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
         else:
             break
 
-def _read_entries(logfile: str, reader: Generator[LogEntry|None, None, None], wait_before_send: float|int, max_entries: int, actions: list[Action], limits: LimitsService) -> list[LogEntry]:
+def _read_entries(
+        logfile: str,
+        reader: Generator[LogEntry|None, None, None],
+        wait_before_send: float|int,
+        max_entries: int,
+        actions: list[Action],
+        limits: LimitsService,
+) -> int:
     start_ts = monotonic()
     entries: list[LogEntry] = []
     try:
@@ -623,26 +610,25 @@ def _read_entries(logfile: str, reader: Generator[LogEntry|None, None, None], wa
     except KeyboardInterrupt:
         handle_keyboard_interrupt()
 
-    if entries:
-        for offset in range(0, len(entries), max_entries):
-            try:
-                chunk = entries[offset:offset + max_entries]
-                brief = chunk[0].brief
+    for offset in range(0, len(entries), max_entries):
+        try:
+            chunk = entries[offset:offset + max_entries]
+            brief = chunk[0].brief
 
-                for action in actions:
-                    if limits.check():
-                        action.perform_action(
-                            logfile = logfile,
-                            entries = chunk,
-                            brief = brief,
-                        )
-                    elif logger.isEnabledFor(logging.DEBUG):
-                        templ_params = action.get_templ_params(logfile, chunk, brief)
-                        subject = action.subject_templ.format_map(templ_params)
+            for action in actions:
+                if limits.check():
+                    action.perform_action(
+                        logfile = logfile,
+                        entries = chunk,
+                        brief = brief,
+                    )
+                elif logger.isEnabledFor(logging.DEBUG):
+                    templ_params = action.get_templ_params(logfile, chunk, brief)
+                    subject = action.subject_templ.format_map(templ_params)
 
-                        logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {subject}')
+                    logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {subject}')
 
-            except Exception as exc:
-                logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
+        except Exception as exc:
+            logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
 
-    return entries
+    return len(entries)

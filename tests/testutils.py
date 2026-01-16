@@ -53,6 +53,8 @@ class ExampleLog(TypedDict):
     message: str
 
 def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
+    sleep(0.25)
+
     with open(logfiles[0], 'w') as fp1:
         print("[2025-12-14T20:15:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
@@ -69,6 +71,8 @@ def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
         { "header": errmsg2hdr, "message": errmsg2 },
     ]
 
+    sleep(0.25)
+
     with open(logfiles[1], 'w') as fp2:
         errmsg3hdr = "ERROR: Starts with an error!"
         errmsg3_1 = f"[2025-12-14T20:16:00+0100] {errmsg3hdr}"
@@ -80,6 +84,8 @@ def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
     yield [
         { "header": errmsg3hdr, "message": f"{errmsg3_1}\n{errmsg3_2}" },
     ]
+
+    sleep(0.25)
 
     with open(logfiles[2], 'w') as fp3:
         pass
