@@ -14,7 +14,7 @@ from .systemd import is_systemd_path, logmon_systemd
 from .constants import *
 from .entry_readers import EntryReaderFactory, LogEntry
 from .actions import Action
-from .inotify import HAS_INOTIFY, Inotify, InotifyError, TerminalEventException, IN_MODIFY, IN_DELETE, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO, inotify_wait_for_exists
+from .inotify import HAS_INOTIFY, Inotify, InotifyError, TerminalEventException, IN_MODIFY, IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO, inotify_wait_for_exists
 from .global_state import is_running, handle_keyboard_interrupt, open_stopfds, close_stopfds, get_read_stopfd
 
 logger = logging.getLogger(__name__)
@@ -162,27 +162,28 @@ def _logmon(
                                                 if event is None:
                                                     continue
 
-                                                _, type_names, event_path, event_filename = event
+                                                header, type_names, event_path, event_filename = event
+                                                mask = header.mask
                                                 if normpath(joinpath(event_path, event_filename)) == logfile:
-                                                    if 'IN_MODIFY' in type_names:
+                                                    if IN_MODIFY & mask:
                                                         break
 
-                                                    if 'IN_MOVE_SELF' in type_names:
+                                                    if IN_MOVE_SELF & mask:
                                                         do_reopen = True
                                                         # this never fires because we have logfp open
                                                         break
 
-                                                    if 'IN_MOVED_FROM' in type_names:
+                                                    if IN_MOVED_FROM & mask:
                                                         do_reopen = True
                                                         deleted = True
                                                         break
 
-                                                    if 'IN_MOVED_TO' in type_names:
+                                                    if IN_MOVED_TO & mask:
                                                         do_reopen = True
                                                         deleted = True
                                                         break
 
-                                                    if 'IN_DELETE' in type_names or 'IN_DELETE_SELF' in type_names:
+                                                    if (IN_DELETE | IN_DELETE_SELF) & mask:
                                                         do_reopen = True
                                                         deleted = True
                                                         break

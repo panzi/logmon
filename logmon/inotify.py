@@ -65,13 +65,14 @@ try:
                         if event is None:
                             continue
 
-                        _, type_names, event_path, event_filename = event
+                        header, type_names, event_path, event_filename = event
+                        mask = header.mask
                         if normpath(joinpath(event_path, event_filename)) == path:
-                            if 'IN_CREATE' in type_names or 'IN_MOVED_TO' in type_names:
+                            if (IN_CREATE | IN_MOVED_TO) & mask:
                                 return True
 
                         elif normpath(event_path) == dirpath:
-                            if 'IN_DELETE_SELF' in type_names or 'IN_MOVE_SELF' in type_names:
+                            if (IN_DELETE_SELF | IN_MOVE_SELF) & mask:
                                 # continue outer loop
                                 deleted = True
                                 break
