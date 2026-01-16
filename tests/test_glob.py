@@ -19,7 +19,7 @@ do:
   action: "file:{file_path}"
 default:
   use_inotify: true
-  seek_end: false
+  seek_end: true
 log:
   format: "%(message)s"
 logfiles:

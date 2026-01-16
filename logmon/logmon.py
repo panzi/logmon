@@ -233,12 +233,12 @@ def _logmon_file_if_exists(
         logfile: str,
         config: Config,
         limits: LimitsService,
+        seek_end: bool,
 ) -> None:
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     encoding = config.get('encoding', 'UTF-8')
-    seek_end = config.get('seek_end', True)
     use_inotify = config.get('use_inotify', HAS_INOTIFY)
 
     reader_factory = EntryReaderFactory.from_config(config)
@@ -383,6 +383,7 @@ def _logmon_glob(
 ) -> None:
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
     use_inotify = config.get('use_inotify', HAS_INOTIFY)
+    seek_end = config.get('seek_end', True)
 
     parentdir, pattern = splitpath(logfile)
     if not pattern:
@@ -426,6 +427,7 @@ def _logmon_glob(
                         if first:
                             first = False
                         else:
+                            seek_end = False
                             stopfd = get_read_stopfd()
                             if stopfd is not None:
                                 poller = poll()
@@ -469,6 +471,7 @@ def _logmon_glob(
                 if first:
                     first = False
                 else:
+                    seek_end = False
                     sleep(wait_file_not_found)
 
             try:
@@ -505,7 +508,7 @@ def _logmon_glob(
 
                 thread = threading.Thread(
                     target = _logmon_file_if_exists,
-                    args = (added_logfile, config, limits),
+                    args = (added_logfile, config, limits, seek_end),
                     name = added_logfile,
                 )
 

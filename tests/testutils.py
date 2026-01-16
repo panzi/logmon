@@ -157,7 +157,7 @@ def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str]]
     assert proc.stdout is not None
     assert proc.stderr is not None
 
-    sleep(0.5)
+    sleep(0.25)
 
     status: Optional[int] = proc.returncode
 
@@ -171,7 +171,7 @@ def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str]]
             if status is not None and status != 0:
                 assert status == 0
 
-        sleep(0.5)
+        sleep(0.75)
 
         proc.terminate()
 
