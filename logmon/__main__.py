@@ -673,7 +673,20 @@ def main(argv: Optional[list[str]] = None) -> None:
              '\n'
              'You can read from a SystemD journal instead of a file by specifying a path in the form of:\n'
              '\n'
-             '    systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]'
+             '    systemd:[<open_flag>(+<open_flag>)*][:{UNIT,SYSLOG}:<identifier>]\n'
+             '\n'
+             'Where open_flag can be one of:\n'
+             '\n'
+             '- LOCAL_ONLY\n'
+             '- RUNTIME_ONLY\n'
+             '- SYSTEM\n'
+             '- CURRENT_USER\n'
+             '\n'
+             'Examples:\n'
+             '\n'
+             '    systemd:\n'
+             '    systemd:SYSTEM+LOCAL_ONLY:SYSLOG:sshd\n'
+             '    systemd::UNIT:sshd.service'
     )
     args = ap.parse_args(argv)
 

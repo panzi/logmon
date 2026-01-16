@@ -62,8 +62,9 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--entry-start-pattern REGEXP] [--error-pattern REGEXP]
                  [--ignore-pattern REGEXP] [--seek-end | --no-seek-end]
                  [--json] [--no-json] [--json-match PATH=VALUE]
-                 [--json-ignore PATH=VALUE] [--json-brief PATH]
-                 [--output-indent WIDTH|NONE] [--output-format {JSON,YAML}]
+                 [--json-ignore PATH=VALUE] [--json-brief PATH] [--glob]
+                 [--no-glob] [--output-indent WIDTH|NONE]
+                 [--output-format {JSON,YAML}]
                  [--systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}]
                  [--systemd-match KEY=VALUE] [--host HOST] [--port PORT]
                  [--user USER] [--password PASSWORD]
@@ -107,8 +108,20 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         You can read from a SystemD journal instead of a file
                         by specifying a path in the form of:
                         
+                            systemd:[<open_flag>(+<open_flag>)*][:{UNIT,SYSLOG}:<identifier>]
                         
-                            systemd:{LOCAL_ONLY,RUNTIME_ONLY,SYSTEM,CURRENT_USER}[:{UNIT,SYSLOG}:<identifier>]
+                        Where open_flag can be one of:
+                        
+                        - LOCAL_ONLY
+                        - RUNTIME_ONLY
+                        - SYSTEM
+                        - CURRENT_USER
+                        
+                        Examples:
+                        
+                            systemd:
+                            systemd:SYSTEM+LOCAL_ONLY:SYSLOG:sshd
+                            systemd::UNIT:sshd.service
 ```
 
 ### Options
@@ -249,6 +262,12 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         Same match syntax as --json-match, but if this matches
                         the log entry is ignored.
   --json-brief PATH     Path to the JSON field
+  --glob                Interpret last segment of a logfile path is a glob
+                        pattern. The rest of the path is just a normal path
+                        still. This way multiple logfiles can be processed at
+                        once and the directory is monitored for changes for
+                        when other matching files appear. [default: False]
+  --no-glob             Opposite of --glob
   --output-indent WIDTH|NONE
                         When JSON or YAML data is included in the email indent
                         by this number of spaces. [default: 4]
