@@ -9980,6 +9980,49 @@ All logfiles inherit these settings if they don't overwrite them.</p>
         </div>
     </div>
 </div>
+<div class="accordion" id="accordiondefault_glob">
+    <div class="card">
+        <div class="card-header" id="headingdefault_glob">
+            <h2 class="mb-0">
+                <button class="btn btn-link property-name-button" type="button" data-toggle="collapse" data-target="#default_glob"
+                        aria-expanded="" aria-controls="default_glob" onclick="setAnchor('#default_glob')"><span class="property-name">glob</span></button>
+            </h2>
+        </div>
+
+        <div id="default_glob"
+             class="collapse property-definition-div" aria-labelledby="headingdefault_glob"
+             data-parent="#accordiondefault_glob">
+            <div class="card-body pl-5">
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_glob" onclick="anchorLink('default_glob')">glob</a></div><h4>Glob</h4><span class="badge badge-dark value-type">Type: boolean</span><br/>
+<span class="description"><p>If <code>true</code> the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.</p>
+
+<p><strong>Default:</strong> <code>false</code></p>
+</span>
+        
+
+        
+        
+
+        
+            </div>
+        </div>
+    </div>
+</div>
 <div class="accordion" id="accordiondefault_systemd_priority">
     <div class="card">
         <div class="card-header" id="headingdefault_systemd_priority">
@@ -10309,6 +10352,336 @@ All logfiles inherit these settings if they don't overwrite them.</p>
         </div>
     </div>
 </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="accordion" id="accordiondefault_systemd_ignore">
+    <div class="card">
+        <div class="card-header" id="headingdefault_systemd_ignore">
+            <h2 class="mb-0">
+                <button class="btn btn-link property-name-button" type="button" data-toggle="collapse" data-target="#default_systemd_ignore"
+                        aria-expanded="" aria-controls="default_systemd_ignore" onclick="setAnchor('#default_systemd_ignore')"><span class="property-name">systemd_ignore</span></button>
+            </h2>
+        </div>
+
+        <div id="default_systemd_ignore"
+             class="collapse property-definition-div" aria-labelledby="headingdefault_systemd_ignore"
+             data-parent="#accordiondefault_systemd_ignore">
+            <div class="card-body pl-5">
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore" onclick="anchorLink('default_systemd_ignore')">systemd_ignore</a></div><h4>Systemd Ignore</h4><br/>
+<span class="description"><p>Even if a log entry is matched via <code>systemd_match</code>, if it also matches via <code>systemd_ignore</code> it is ignored.</p>
+</span><div class="any-of-value" id="default_systemd_ignore_anyOf"><h2 class="handle">
+  <label>Any of</label>
+</h2><ul class="nav nav-tabs" id="tabsdefault_systemd_ignore_anyOf_anyOf" role="tablist"><li class="nav-item">
+            <a class="nav-link active anyOf-option"
+               id="default_systemd_ignore_anyOf_i0" data-toggle="tab" href="#tab-pane_default_systemd_ignore_anyOf_i0" role="tab"
+               onclick="setAnchor('#default_systemd_ignore_anyOf_i0')"
+            >Option 1</a>
+        </li><li class="nav-item">
+            <a class="nav-link anyOf-option"
+               id="default_systemd_ignore_anyOf_i1" data-toggle="tab" href="#tab-pane_default_systemd_ignore_anyOf_i1" role="tab"
+               onclick="setAnchor('#default_systemd_ignore_anyOf_i1')"
+            >Option 2</a>
+        </li></ul>
+<div class="tab-content card"><div class="tab-pane fade card-body active show"
+             id="tab-pane_default_systemd_ignore_anyOf_i0" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore" onclick="anchorLink('default_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0" onclick="anchorLink('default_systemd_ignore_anyOf_i0')">item 0</a></div><span class="badge badge-dark value-type">Type: object</span><br/>
+
+        
+
+        
+        
+
+        
+<div class="accordion" id="accordiondefault_systemd_ignore_anyOf_i0_additionalProperties">
+    <div class="card">
+        <div class="card-header" id="headingdefault_systemd_ignore_anyOf_i0_additionalProperties">
+            <h2 class="mb-0">
+                <button class="btn btn-link property-name-button" type="button" data-toggle="collapse" data-target="#default_systemd_ignore_anyOf_i0_additionalProperties"
+                        aria-expanded="" aria-controls="default_systemd_ignore_anyOf_i0_additionalProperties" onclick="setAnchor('#default_systemd_ignore_anyOf_i0_additionalProperties')"><em><span class="property-name">Additional Properties</span></em></button>
+            </h2>
+        </div>
+
+        <div id="default_systemd_ignore_anyOf_i0_additionalProperties"
+             class="collapse property-definition-div" aria-labelledby="headingdefault_systemd_ignore_anyOf_i0_additionalProperties"
+             data-parent="#accordiondefault_systemd_ignore_anyOf_i0_additionalProperties">
+            <div class="card-body pl-5"><p class="additional-properties">Each additional property must conform to the following schema</p>
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore" onclick="anchorLink('default_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0" onclick="anchorLink('default_systemd_ignore_anyOf_i0')">item 0</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties')">additionalProperties</a></div><br/>
+<div class="any-of-value" id="default_systemd_ignore_anyOf_i0_additionalProperties_anyOf"><h2 class="handle">
+  <label>Any of</label>
+</h2><ul class="nav nav-tabs" id="tabsdefault_systemd_ignore_anyOf_i0_additionalProperties_anyOf_anyOf" role="tablist"><li class="nav-item">
+            <a class="nav-link active anyOf-option"
+               id="default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" data-toggle="tab" href="#tab-pane_default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" role="tab"
+               onclick="setAnchor('#default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0')"
+            >Option 1</a>
+        </li><li class="nav-item">
+            <a class="nav-link anyOf-option"
+               id="default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" data-toggle="tab" href="#tab-pane_default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" role="tab"
+               onclick="setAnchor('#default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1')"
+            >Option 2</a>
+        </li></ul>
+<div class="tab-content card"><div class="tab-pane fade card-body active show"
+             id="tab-pane_default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore" onclick="anchorLink('default_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0" onclick="anchorLink('default_systemd_ignore_anyOf_i0')">item 0</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0')">item 0</a></div><span class="badge badge-dark value-type">Type: string</span><br/>
+
+        
+
+        
+        
+
+        
+        </div><div class="tab-pane fade card-body "
+             id="tab-pane_default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore" onclick="anchorLink('default_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0" onclick="anchorLink('default_systemd_ignore_anyOf_i0')">item 0</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" onclick="anchorLink('default_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: integer</span><br/>
+
+        
+
+        
+        
+
+        
+        </div></div></div>
+        
+
+        
+        
+
+        
+            </div>
+        </div>
+    </div>
+</div>
+        </div><div class="tab-pane fade card-body "
+             id="tab-pane_default_systemd_ignore_anyOf_i1" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default" onclick="anchorLink('default')">default</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore" onclick="anchorLink('default_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf" onclick="anchorLink('default_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#default_systemd_ignore_anyOf_i1" onclick="anchorLink('default_systemd_ignore_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: null</span><br/>
+
+        
+
+        
+        
+
+        
+        </div></div></div>
+        
+
+        
+        
+
+        
             </div>
         </div>
     </div>
@@ -13933,6 +14306,84 @@ systemd::UNIT:sshd.service
         </div>
     </div>
 </div>
+<div class="accordion" id="accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_glob">
+    <div class="card">
+        <div class="card-header" id="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_glob">
+            <h2 class="mb-0">
+                <button class="btn btn-link property-name-button" type="button" data-toggle="collapse" data-target="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_glob"
+                        aria-expanded="" aria-controls="logfiles_anyOf_i0_additionalProperties_anyOf_i0_glob" onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_glob')"><span class="property-name">glob</span></button>
+            </h2>
+        </div>
+
+        <div id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_glob"
+             class="collapse property-definition-div" aria-labelledby="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_glob"
+             data-parent="#accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_glob">
+            <div class="card-body pl-5">
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_glob" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_glob')">glob</a></div><h4>Glob</h4><span class="badge badge-dark value-type">Type: boolean</span><br/>
+<span class="description"><p>If <code>true</code> the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.</p>
+
+<p><strong>Default:</strong> <code>false</code></p>
+</span>
+        
+
+        
+        
+
+        
+            </div>
+        </div>
+    </div>
+</div>
 <div class="accordion" id="accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_priority">
     <div class="card">
         <div class="card-header" id="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_priority">
@@ -14507,6 +14958,546 @@ systemd::UNIT:sshd.service
         </div>
     </div>
 </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="accordion" id="accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore">
+    <div class="card">
+        <div class="card-header" id="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore">
+            <h2 class="mb-0">
+                <button class="btn btn-link property-name-button" type="button" data-toggle="collapse" data-target="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore"
+                        aria-expanded="" aria-controls="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')"><span class="property-name">systemd_ignore</span></button>
+            </h2>
+        </div>
+
+        <div id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore"
+             class="collapse property-definition-div" aria-labelledby="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore"
+             data-parent="#accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore">
+            <div class="card-body pl-5">
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')">systemd_ignore</a></div><h4>Systemd Ignore</h4><br/>
+<span class="description"><p>Even if a log entry is matched via <code>systemd_match</code>, if it also matches via <code>systemd_ignore</code> it is ignored.</p>
+</span><div class="any-of-value" id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf"><h2 class="handle">
+  <label>Any of</label>
+</h2><ul class="nav nav-tabs" id="tabslogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_anyOf" role="tablist"><li class="nav-item">
+            <a class="nav-link active anyOf-option"
+               id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" data-toggle="tab" href="#tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" role="tab"
+               onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0')"
+            >Option 1</a>
+        </li><li class="nav-item">
+            <a class="nav-link anyOf-option"
+               id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i1" data-toggle="tab" href="#tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i1" role="tab"
+               onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i1')"
+            >Option 2</a>
+        </li></ul>
+<div class="tab-content card"><div class="tab-pane fade card-body active show"
+             id="tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0')">item 0</a></div><span class="badge badge-dark value-type">Type: object</span><br/>
+
+        
+
+        
+        
+
+        
+<div class="accordion" id="accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties">
+    <div class="card">
+        <div class="card-header" id="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties">
+            <h2 class="mb-0">
+                <button class="btn btn-link property-name-button" type="button" data-toggle="collapse" data-target="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties"
+                        aria-expanded="" aria-controls="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties" onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties')"><em><span class="property-name">Additional Properties</span></em></button>
+            </h2>
+        </div>
+
+        <div id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties"
+             class="collapse property-definition-div" aria-labelledby="headinglogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties"
+             data-parent="#accordionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties">
+            <div class="card-body pl-5"><p class="additional-properties">Each additional property must conform to the following schema</p>
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0')">item 0</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties')">additionalProperties</a></div><br/>
+<div class="any-of-value" id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf"><h2 class="handle">
+  <label>Any of</label>
+</h2><ul class="nav nav-tabs" id="tabslogfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_anyOf" role="tablist"><li class="nav-item">
+            <a class="nav-link active anyOf-option"
+               id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" data-toggle="tab" href="#tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" role="tab"
+               onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0')"
+            >Option 1</a>
+        </li><li class="nav-item">
+            <a class="nav-link anyOf-option"
+               id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" data-toggle="tab" href="#tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" role="tab"
+               onclick="setAnchor('#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1')"
+            >Option 2</a>
+        </li></ul>
+<div class="tab-content card"><div class="tab-pane fade card-body active show"
+             id="tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0')">item 0</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i0')">item 0</a></div><span class="badge badge-dark value-type">Type: string</span><br/>
+
+        
+
+        
+        
+
+        
+        </div><div class="tab-pane fade card-body "
+             id="tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0')">item 0</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i0_additionalProperties_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: integer</span><br/>
+
+        
+
+        
+        
+
+        
+        </div></div></div>
+        
+
+        
+        
+
+        
+            </div>
+        </div>
+    </div>
+</div>
+        </div><div class="tab-pane fade card-body "
+             id="tab-pane_logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i1" role="tabpanel">
+            
+
+    <div class="breadcrumbs">root
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles" onclick="anchorLink('logfiles')">logfiles</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf" onclick="anchorLink('logfiles_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0')">Mapping of logfile settings</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties')">additionalProperties</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0')">LogConfig</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore')">systemd_ignore</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf')">anyOf</a>
+        <svg width="1em" height="1em" viewBox="0 0 16 16" class="bi bi-arrow-right-short" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path
+                fill-rule="evenodd"
+                d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
+            />
+        </svg>
+    <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i1" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_systemd_ignore_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: null</span><br/>
+
+        
+
+        
+        
+
+        
+        </div></div></div>
+        
+
+        
+        
+
+        
             </div>
         </div>
     </div>
@@ -16042,6 +17033,6 @@ systemd::UNIT:sshd.service
 </div>
 
     <footer>
-        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-01-13 at 18:15:51 +0100</p>
+        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-01-16 at 19:34:09 +0100</p>
     </footer></body>
 </html>

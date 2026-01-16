@@ -180,6 +180,13 @@ $defs:
                 description: "**Default:** `'UTF-8'`"
                 title: Encoding
                 type: string
+            glob:
+                description: |-
+                    If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.
+
+                    **Default:** `false`
+                title: Glob
+                type: boolean
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
@@ -195,6 +202,17 @@ $defs:
                     -   type: integer
                 title: Systemd Match
                 type: object
+            systemd_ignore:
+                anyOf:
+                -   additionalProperties:
+                        anyOf:
+                        -   type: string
+                        -   type: integer
+                    type: object
+                -   type: 'null'
+                description: Even if a log entry is matched via `systemd_match`,
+                    if it also matches via `systemd_ignore` it is ignored.
+                title: Systemd Ignore
         title: InputConfig
         type: object
     JsonExpr:
@@ -669,6 +687,13 @@ $defs:
                 description: "**Default:** `'UTF-8'`"
                 title: Encoding
                 type: string
+            glob:
+                description: |-
+                    If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.
+
+                    **Default:** `false`
+                title: Glob
+                type: boolean
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
@@ -684,6 +709,17 @@ $defs:
                     -   type: integer
                 title: Systemd Match
                 type: object
+            systemd_ignore:
+                anyOf:
+                -   additionalProperties:
+                        anyOf:
+                        -   type: string
+                        -   type: integer
+                    type: object
+                -   type: 'null'
+                description: Even if a log entry is matched via `systemd_match`,
+                    if it also matches via `systemd_ignore` it is ignored.
+                title: Systemd Ignore
             max_emails_per_minute:
                 description: '**Default:** `6`'
                 exclusiveMinimum: 0
