@@ -154,7 +154,7 @@ class FileAction(Action):
         stream = self.stream
         if stream is None or stream.closed:
             mode = self.file_mode
-            open_mode = getattr(os, 'O_CLOEXEC', 0) | os.O_WRONLY | os.O_CREAT
+            open_mode: int = getattr(os, 'O_CLOEXEC', 0) | os.O_WRONLY | os.O_CREAT
 
             if self.file_append:
                 open_mode |= os.O_APPEND

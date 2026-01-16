@@ -28,7 +28,9 @@ def indent(text: str, width: int=4) -> str:
 def write_file(filepath: str|Path, contents: str) -> None:
   path = Path('.').joinpath(filepath)
   path.parent.mkdir(parents=True, exist_ok=True)
-  path.write_text(contents)
+  data = contents.encode()
+  path.write_bytes(data)
+  print(f"{filepath}: written {len(data)} bytes", file=sys.stderr)
 
 def read_file(filepath: str|Path) -> str:
     with open(filepath, "r") as fp:

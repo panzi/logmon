@@ -160,6 +160,7 @@ class LogfileConfig(TypedDict):
     json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
     json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
+    glob: Annotated[NotRequired[bool], Field(description="If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.\n\n**Default:** `false`")]
 
 class SystemDConfig(TypedDict):
     systemd_priority: Annotated[

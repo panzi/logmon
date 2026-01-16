@@ -7,7 +7,6 @@ import logging
 __all__ = (
     'is_running',
     'get_read_stopfd',
-    'get_write_stopfd',
     'handle_keyboard_interrupt',
     'handle_stop_signal',
 )
@@ -23,9 +22,6 @@ def is_running() -> bool:
 
 def get_read_stopfd() -> Optional[int]:
     return _read_stopfd
-
-def get_write_stopfd() -> Optional[int]:
-    return _write_stopfd
 
 def handle_keyboard_interrupt() -> None:
     global _running

@@ -529,6 +529,14 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--json-brief', default=None, metavar='PATH',
         help='Path to the JSON field')
 
+    ap.add_argument('--glob', action='store_true', default=None,
+        help='Interpret last segment of a logfile path is a glob pattern. The '
+             'rest of the path is just a normal path still. This way multiple '
+             'logfiles can be processed at once and the directory is monitored '
+             'for changes for when other matching files appear. [default: False]')
+    ap.add_argument('--no-glob', action='store_false', dest='glob',
+        help='Opposite of --glob')
+
     ap.add_argument('--output-indent', type=either(literal('unset'), optional(non_negative(int),'NONE')), default='unset', metavar='WIDTH|NONE',
         help=f'When JSON or YAML data is included in the email indent by this number of spaces. [default: {DEFAULT_OUTPUT_INDENT}]')
     ap.add_argument('--output-format', type=str.upper, choices=get_args(OutputFormat.__value__), default=None,
@@ -979,6 +987,9 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.json_brief is not None:
         default_config['json_brief'] = parse_json_path(args.json_brief)
+
+    if args.glob is not None:
+        default_config['glob'] = args.glob
 
     if args.systemd_priority is not None:
         default_config['systemd_priority'] = args.systemd_priority
