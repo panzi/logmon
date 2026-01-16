@@ -46,10 +46,19 @@ logfiles:
         with open(logfiles[0], 'w') as fp1:
             print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
             errmsg1hdr = "ERROR: Something failed!"
-            errmsg2hdr = "CRITICAL: Something else failed!"
             errmsg1 = f"[2025-12-14T20:17:00+0100] {errmsg1hdr}"
-            errmsg2 = f"[2025-12-14T20:18:00+0100] {errmsg2hdr}"
             print(errmsg1, file=fp1); fp1.flush()
+
+        sleep(0.5)
+
+        os.unlink(logfiles[0])
+        print(f"{logfiles[0]}: deleted", file=sys.stderr)
+
+        sleep(2) # XXX: shorter sleep breaks this. it shouldn't!
+
+        with open(logfiles[0], 'w') as fp1:
+            errmsg2hdr = "CRITICAL: Something else failed!"
+            errmsg2 = f"[2025-12-14T20:18:00+0100] {errmsg2hdr}"
             print(errmsg2, file=fp1); fp1.flush()
             print("[2025-12-14T20:19:00+0100] INFO: Ok again.", file=fp1); fp1.flush()
         print(f"{logfiles[0]}: written logs", file=sys.stderr)
@@ -85,13 +94,19 @@ logfiles:
 
         yield []
 
+        sleep(0.25)
+
+        os.unlink(logfiles[0])
+        print(f"{logfiles[0]}: deleted", file=sys.stderr)
+
+        sleep(0.1)
+
     logfiles = [
         join_path(logdir, 'foo.log'),
         join_path(logdir, 'foo2.log'),
         join_path(logdir, 'foo03.log'),
     ]
 
-    print(f"staring logmon...", file=sys.stderr)
     proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, write_logs=write_logs)
 
     expected1 = f'''\

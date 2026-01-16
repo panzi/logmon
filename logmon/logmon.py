@@ -96,13 +96,13 @@ def _logmon(
                             if inotify is not None:
                                 terminated = False
                                 logger.debug(f'{logfile}: Waiting with inotify for modifications')
-                                deleted = False
                                 try:
                                     new_stat = os.stat(logfile)
                                     new_ref = (new_stat.st_dev, new_stat.st_ino)
                                     if logfp_ref != new_ref:
                                         # verify we're actually waiting on the file that is opened
                                         do_reopen = True
+                                        logger.debug(f'{logfile}: inode changed, reopening')
                                     else:
                                         stopfd = get_read_stopfd()
                                         if stopfd is not None:
@@ -138,17 +138,14 @@ def _logmon(
 
                                                 if IN_MOVED_FROM & mask:
                                                     do_reopen = True
-                                                    deleted = True
                                                     break
 
                                                 if IN_MOVED_TO & mask:
                                                     do_reopen = True
-                                                    deleted = True
                                                     break
 
                                                 if (IN_DELETE | IN_DELETE_SELF) & mask:
                                                     do_reopen = True
-                                                    deleted = True
                                                     break
 
                                     if not is_running():
@@ -157,23 +154,8 @@ def _logmon(
                                 except TerminalEventException:
                                     # filesystem unmounted
                                     do_reopen = True
-                                    deleted = True
                                     terminated = True
 
-                                finally:
-                                    try:
-                                        if not deleted:
-                                            inotify.remove_watch(logfile)
-                                    except Exception as exc:
-                                        logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
-
-                                    try:
-                                        inotify.remove_watch(parentdir)
-                                    except Exception as exc:
-                                        logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
-
-                                    if terminated:
-                                        inotify = Inotify()
                             else:
                                 logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
                                 sleep(wait_no_entries)
@@ -249,6 +231,7 @@ def _logmon_file_if_exists(
             inotify = None
 
         logfile_id: Optional[int] = None
+        parentdir_id: Optional[int] = None
 
         try:
             logfp = open(logfile, 'r', encoding=encoding)
@@ -269,6 +252,16 @@ def _logmon_file_if_exists(
                             raise FileNotFoundError(ENOENT, 'No such file or directory', logfile) from exc
                         raise
 
+                    try:
+                        parentdir_id = inotify.add_watch(parentdir, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
+                    except InotifyError as exc:
+                        try: inotify.remove_watch_with_id(logfile_id)
+                        except: pass
+
+                        if exc.errno == ENOENT:
+                            raise FileNotFoundError(ENOENT, 'No such file or directory', parentdir) from exc
+                        raise
+
                 while is_running():
                     entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
 
@@ -283,6 +276,7 @@ def _logmon_file_if_exists(
                                 new_ref = (new_stat.st_dev, new_stat.st_ino)
                                 if logfp_ref != new_ref:
                                     # verify we're actually waiting on the file that is opened
+                                    logger.debug(f'{logfile}: inode changed, stopping monitoring')
                                     return
                                 else:
                                     stopfd = get_read_stopfd()
@@ -293,9 +287,11 @@ def _logmon_file_if_exists(
                                         poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
                                         pevents = poller.poll()
                                         if not pevents:
+                                            logger.debug(f'{logfile}: no events')
                                             break
 
                                         if any(fd == stopfd for fd, _pevent in pevents):
+                                            logger.debug(f'{logfile}: stopfd signaled')
                                             break
 
                                     for event in inotify.event_gen():
@@ -313,14 +309,17 @@ def _logmon_file_if_exists(
                                                 break
 
                                             if (IN_MOVE_SELF | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE | IN_DELETE_SELF) & mask:
+                                                logger.debug(f'{logfile}: logfile went away')
                                                 return
 
                                         elif event_path == parentdir:
                                             if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
+                                                logger.debug(f'{logfile}: parent dir went away')
                                                 return
 
                             except TerminalEventException:
                                 # filesystem unmounted
+                                logger.debug(f'{logfile}: terminal event')
                                 return
 
                         else:
@@ -345,6 +344,13 @@ def _logmon_file_if_exists(
                             except Exception as exc:
                                 logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
                             logfile_id = None
+
+                        if parentdir_id is not None:
+                            try:
+                                inotify.remove_watch_with_id(parentdir_id)
+                            except Exception as exc:
+                                logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
+                            parentdir_id = None
                 finally:
                     if not logfp.closed:
                         try: logfp.close()
@@ -440,7 +446,7 @@ def _logmon_glob(
                 except TerminalEventException:
                     # unmount
                     if watch_id is not None:
-                        try: inotify.remove_watch(watch_id)
+                        try: inotify.remove_watch_with_id(watch_id)
                         except: pass
                         watch_id = None
 
@@ -462,7 +468,7 @@ def _logmon_glob(
                 )
             except FileNotFoundError:
                 if inotify is not None and watch_id is not None:
-                    try: inotify.remove_watch(watch_id)
+                    try: inotify.remove_watch_with_id(watch_id)
                     except: pass
                     watch_id = None
                 new_logfiles = set()
@@ -502,7 +508,7 @@ def _logmon_glob(
 
     finally:
         if inotify is not None and watch_id is not None:
-            try: inotify.remove_watch(watch_id)
+            try: inotify.remove_watch_with_id(watch_id)
             except: pass
             watch_id = None
 

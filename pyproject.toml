@@ -2,7 +2,7 @@
 name = "logmon"
 version = "0.8.1"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = ["pydantic==2.12.*"]
 [project.optional-dependencies]
 yaml = ["PyYAML==6.0.*"]
