@@ -380,16 +380,16 @@ def _logmon_glob(
 
     threads: dict[str, threading.Thread] = {}
     logfiles: set[tuple[int, str]] = set()
-    watching = False
     first = True
+    watch_id: Optional[int] = None
 
     try:
         while is_running():
             if inotify is not None:
                 try:
                     try:
-                        if not watching:
-                            inotify.add_watch(parentdir, IN_DELETE | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
+                        if watch_id is None:
+                            watch_id = inotify.add_watch(parentdir, IN_DELETE | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
                     except InotifyError as exc:
                         if exc.errno != ENOENT:
                             raise
@@ -402,8 +402,6 @@ def _logmon_glob(
                         else:
                             sleep(wait_file_not_found)
                     else:
-                        watching = True
-
                         if first:
                             first = False
                         else:
@@ -431,18 +429,20 @@ def _logmon_glob(
                                 mask = event[0].mask
 
                                 if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
-                                    try: inotify.remove_watch(parentdir)
-                                    except: pass
-                                    watching = False
+                                    if watch_id is not None:
+                                        try: inotify.remove_watch_with_id(watch_id)
+                                        except: pass
+                                        watch_id = None
                                     break
 
                                 break
 
                 except TerminalEventException:
                     # unmount
-                    if watching:
-                        try: inotify.remove_watch(parentdir)
+                    if watch_id is not None:
+                        try: inotify.remove_watch(watch_id)
                         except: pass
+                        watch_id = None
 
                     inotify = Inotify()
                     inotify2 = Inotify()
@@ -461,10 +461,10 @@ def _logmon_glob(
                     if fnmatch(child.name)
                 )
             except FileNotFoundError:
-                if inotify is not None and watching:
-                    try: inotify.remove_watch(parentdir)
+                if inotify is not None and watch_id is not None:
+                    try: inotify.remove_watch(watch_id)
                     except: pass
-                    watching = False
+                    watch_id = None
                 new_logfiles = set()
 
             added_logfiles = new_logfiles - logfiles
@@ -501,9 +501,10 @@ def _logmon_glob(
         handle_keyboard_interrupt()
 
     finally:
-        if inotify is not None:
-            try: inotify.remove_watch(parentdir)
+        if inotify is not None and watch_id is not None:
+            try: inotify.remove_watch(watch_id)
             except: pass
+            watch_id = None
 
         for thread in threads.values():
             try:

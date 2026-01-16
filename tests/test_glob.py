@@ -11,7 +11,6 @@ def test_glob(logmonrc_path: str, temp_prefix: tuple[str, str]) -> None:
     tempdir, prefix = temp_prefix
     logdir = join_path(tempdir, f'{prefix}.logs')
     file_path = join_path(tempdir, f'{prefix}.output.log')
-    os.mkdir(logdir)
 
     logmonrc = f'''\
 ---
@@ -29,6 +28,10 @@ logfiles:
     write_file(logmonrc_path, logmonrc)
 
     def write_logs(logfiles: list[str]):
+        sleep(0.25)
+        os.mkdir(logdir)
+        print(f"{logdir}: created directory", file=sys.stderr)
+
         write_file(join_path(logdir, 'bar.log'), "[2025-12-14T20:15:00+0100] INFO: BAR message.")
 
         with open(logfiles[0], 'w') as fp1:
