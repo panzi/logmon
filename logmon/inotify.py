@@ -27,7 +27,7 @@ except OSError as exc:
 
 __all__ = (
     'InotifyEvent',
-    'BetterInotify',
+    'Inotify',
     'TerminalEventException',
     'IN_CLOEXEC',
     'IN_NONBLOCK',
@@ -218,7 +218,7 @@ class InotifyEvent(NamedTuple):
     watch_path: str
     filename: str
 
-class BetterInotify:
+class Inotify:
     __slots__ = (
         '_inotify_fd',
         '_inotify_stream',
@@ -280,7 +280,7 @@ class BetterInotify:
             if not epoll.closed:
                 epoll.close()
 
-    def __enter__(self) -> "BetterInotify":
+    def __enter__(self) -> "Inotify":
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:

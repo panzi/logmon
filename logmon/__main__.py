@@ -36,7 +36,7 @@ from datetime import timedelta
 
 from .schema import Config, ConfigFile, Logmonrc, resolve_config, FILE_MODE_PATTERN
 from .yaml import HAS_YAML, yaml_load, yaml_dump
-from .better_inotify import HAS_INOTIFY
+from .inotify import HAS_INOTIFY
 from .json_match import parse_json_path
 from .types import *
 from .constants import *

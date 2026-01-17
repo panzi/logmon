@@ -5,7 +5,7 @@ from os.path import normpath, dirname, join as joinpath
 from errno import EINVAL
 
 from .global_state import is_running
-from .better_inotify import BetterInotify, TerminalEventException, IN_CREATE, IN_MOVED_TO, IN_DELETE_SELF, IN_MOVE_SELF
+from .inotify import Inotify, TerminalEventException, IN_CREATE, IN_MOVED_TO, IN_DELETE_SELF, IN_MOVE_SELF
 
 __all__ = (
     'inotify_wait_for_exists',
@@ -13,7 +13,7 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
-def inotify_wait_for_exists(inotify: BetterInotify, path: str) -> bool: # type: ignore
+def inotify_wait_for_exists(inotify: Inotify, path: str) -> bool: # type: ignore
     path = normpath(path)
     dirpath = dirname(path)
     while is_running():
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
     logger.setLevel(logging.DEBUG)
 
-    inotify = BetterInotify()
+    inotify = Inotify()
 
     for path in sys.argv[1:]:
         print(f'{path}: Waiting for path')
