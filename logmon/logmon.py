@@ -224,6 +224,18 @@ class GlobEntry(NamedTuple):
         except Exception as exc:
             logger.error(f'{self.logfile}: Error closing file: {exc}', exc_info=exc)
 
+class FallbackGlobEntry(NamedTuple):
+    logfile: str
+    reader: Generator[LogEntry|None, None, None]
+    stream: TextIO
+
+    def close(self) -> None:
+        try:
+            if not self.stream.closed:
+                self.stream.close()
+        except Exception as exc:
+            logger.error(f'{self.logfile}: Error closing file: {exc}', exc_info=exc)
+
 def _logmon_glob(
         logfile: str,
         config: Config,
@@ -315,7 +327,7 @@ def _logmon_glob(
                             first = False
 
                             try:
-                                added_logfiles = set(
+                                new_paths = set(
                                     normpath(child.path)
                                     for child in scandir(parentdir)
                                     if fnmatch(child.name)
@@ -323,7 +335,7 @@ def _logmon_glob(
                             except FileNotFoundError:
                                 continue
 
-                            for added_logfile in added_logfiles:
+                            for added_logfile in new_paths:
                                 open_logfile(inotify, added_logfile, seek_end)
 
                         stopfd = get_read_stopfd()
@@ -410,8 +422,77 @@ def _logmon_glob(
                         inotify = Inotify()
                         inotify2 = Inotify()
         else:
-            # TODO: no inotify fallback!
-            raise NotImplementedError('no non-inotify fallback')
+            logfiles: set[tuple[int, str]] = set()
+            entries: dict[str, FallbackGlobEntry] = {}
+
+            def open_entry(child_logfile: str, seek_end: bool) -> None:
+                old_entry = entries.pop(child_logfile, None)
+                if old_entry is not None:
+                    _read_entries(old_entry.logfile, old_entry.reader, 0, max_entries, actions, limits)
+                    old_entry.close()
+
+                try:
+                    fp = open(child_logfile, 'r', encoding=encoding)
+
+                    if seek_end:
+                        fp.seek(0, os.SEEK_END)
+
+                except FileNotFoundError:
+                    pass
+
+                except Exception as exc:
+                    logger.error(f"{child_logfile}: Error opening logfile: {exc}", exc_info=exc)
+                else:
+                    entry = entries[child_logfile] = FallbackGlobEntry(
+                        logfile = child_logfile,
+                        reader = reader_factory.create_reader(fp),
+                        stream = fp,
+                    )
+
+                    _read_entries(child_logfile, entry.reader, wait_before_send, max_entries, actions, limits, wait_on_empty_messages=False)
+
+            first = False
+            while is_running():
+                if first:
+                    first = False
+                else:
+                    seek_end = False
+
+                try:
+                    new_logfiles = set(
+                        (child.inode(), normpath(child.path))
+                        for child in scandir(parentdir)
+                        if fnmatch(child.name)
+                    )
+                except FileNotFoundError:
+                    sleep(wait_file_not_found)
+                    continue
+
+                added_logfiles = new_logfiles - logfiles
+                removed_logfiles = logfiles - new_logfiles
+
+                for _, removed_logfile in removed_logfiles:
+                    entry = entries.pop(removed_logfile, None)
+                    if entry is not None:
+                        _read_entries(removed_logfile, entry.reader, 0, max_entries, actions, limits, wait_on_empty_messages=False)
+
+                for _, added_logfile in added_logfiles:
+                    open_entry(added_logfile, seek_end)
+
+                entry_count = 0
+                for entry in entries.values():
+                    if not is_running():
+                        break
+
+                    entry_count += _read_entries(entry.logfile, entry.reader, 0, max_entries, actions, limits, wait_on_empty_messages=False)
+
+                if not is_running():
+                    break
+
+                if entry_count == 0:
+                    sleep(wait_no_entries)
+
+                logfiles = new_logfiles
 
 def logmon_mt(config: MTConfig):
     action_config = config.get('do') or {}
@@ -488,6 +569,7 @@ def _read_entries(
         max_entries: int,
         actions: list[Action],
         limits: LimitsService,
+        wait_on_empty_messages: bool = True,
 ) -> int:
     start_ts = monotonic()
     entries: list[LogEntry] = []
@@ -497,6 +579,10 @@ def _read_entries(
                 duration = monotonic() - start_ts
                 if duration >= wait_before_send:
                     break
+
+                if not entries and not wait_on_empty_messages:
+                    return 0
+
                 rem_time = wait_before_send - duration
                 logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
                 sleep(rem_time)

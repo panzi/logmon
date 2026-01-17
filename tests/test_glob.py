@@ -18,6 +18,9 @@ do:
   action: "file:{file_path}"
 default:
   use_inotify: true
+  #use_inotify: false
+  wait_no_entries: 0.01
+  wait_file_not_found: 0.01
   seek_end: true
 log:
   format: "%(message)s"
@@ -110,19 +113,19 @@ logfiles:
 
     proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, write_logs=write_logs)
 
-    expected1 = f'''\
-{logs[0][0]['message']}
-{logs[0][1]['message']}
-'''
-
-    expected2 = f'''\
-{logs[1][0]['message']}
-'''
-
     output = read_file(file_path)
 
-    assert expected1 in output, f'Message 1 not found in output!\n\n  Message:\n\n{indent(expected1)}\n\n  Output:\n\n{indent(output)}'
-    assert expected2 in output, f'Message 2 not found in output!\n\n  Message:\n\n{indent(expected2)}\n\n  Output:\n\n{indent(output)}'
+    for expected in logs[0][0]['message'], logs[0][1]['message'], logs[1][0]['message']:
+        assert expected in output, f'''\
+Message not found in output!
+
+  Message:
+
+{indent(expected)}
+
+  Output:
+
+{indent(output)}'''
 
     for filepath in *logfiles, logmonrc_path, file_path:
         try:
