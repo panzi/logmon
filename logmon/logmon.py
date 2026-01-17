@@ -53,7 +53,6 @@ def _logmon(
     reader_factory = EntryReaderFactory.from_config(config)
 
     with Action.open_actions(config) as actions:
-        parentdir = dirname(logfile)
         if use_inotify and HAS_INOTIFY:
             inotify = Inotify()
         else:
@@ -102,7 +101,6 @@ def _logmon(
                                     if logfp_ref != new_ref:
                                         # verify we're actually waiting on the file that is opened
                                         do_reopen = True
-                                        logger.debug(f'{logfile}: inode changed, reopening')
                                     else:
                                         stopfd = get_read_stopfd()
                                         if stopfd is not None:
@@ -248,8 +246,6 @@ def _logmon_glob(
     fnmatch = fncompile(pattern)
     first = True
 
-    logger.debug(f"{logfile}: start")
-
     with Action.open_actions(config) as actions:
         if use_inotify and HAS_INOTIFY:
             inotify = Inotify()
@@ -308,7 +304,6 @@ def _logmon_glob(
                             raise
 
                         if inotify2 is not None:
-                            logger.debug(f'{parentdir}: Waiting for parent dir')
                             if not inotify_wait_for_exists(inotify2, parentdir):
                                 break
                         else:
@@ -320,7 +315,6 @@ def _logmon_glob(
                             first = False
 
                             try:
-                                logger.debug(f'{parentdir}: Listing logfiles')
                                 added_logfiles = set(
                                     normpath(child.path)
                                     for child in scandir(parentdir)
@@ -338,14 +332,11 @@ def _logmon_glob(
                             poller.register(stopfd, POLLIN)
                             # why is there no official way to get that file discriptor!?
                             poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
-                            logger.debug(f'{logfile}: Polling for events')
                             pevents = poller.poll()
                             if not pevents:
-                                logger.debug(f'{logfile}: no events')
                                 break
 
                             if any(fd == stopfd for fd, _pevent in pevents):
-                                logger.debug(f'{logfile}: stopfd signaled')
                                 break
 
                         if event_gen is None:
@@ -353,7 +344,6 @@ def _logmon_glob(
 
                         for event in event_gen:
                             if not is_running():
-                                logger.debug(f'{logfile}: stopped running')
                                 break
 
                             if event is None:
@@ -362,19 +352,16 @@ def _logmon_glob(
                             header, type_names, event_dir, event_filename = event
                             mask = header.mask
 
-                            logger.debug(f'{event_filename}: {', '.join(type_names)}')
+                            #logger.debug(f'{event_filename}: {', '.join(type_names)}')
                             event_path = normpath(joinpath(event_dir, event_filename))
 
                             if event_path == parentdir:
-                                logger.debug(f'{parentdir}: parent dir event: {', '.join(type_names)}')
-
                                 if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
-                                    logger.debug(f'{parentdir}: parent dir went away')
+                                    logger.debug(f'{parentdir}: Parent dir went away! Stopping monitoring and waiting for it to reapear')
                                     break
 
                             else:
                                 if mask & IN_MODIFY:
-                                    logger.debug(f'{event_path}: modified!')
                                     entry = loghandles.get(event_path)
                                     if entry is not None:
                                         _read_entries(entry.logfile, entry.reader, wait_before_send, max_entries, actions, limits)
@@ -398,7 +385,6 @@ def _logmon_glob(
 
                 except TerminalEventException:
                     # filesystem unmounted
-                    logger.debug(f'{logfile}: terminal event')
                     terminal = True
 
                 finally:
@@ -424,6 +410,7 @@ def _logmon_glob(
                         inotify = Inotify()
                         inotify2 = Inotify()
         else:
+            # TODO: no inotify fallback!
             raise NotImplementedError('no non-inotify fallback')
 
 def logmon_mt(config: MTConfig):
