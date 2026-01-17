@@ -243,7 +243,7 @@ class Inotify:
     def __init__(self, stopfd: Optional[int] = None) -> None:
         """
         If not `None` then stopfd is a file descriptor that will
-        be added to the `poll()` call in `BetterInotify.wait()`.
+        be added to the `poll()` call in `Inotify.wait()`.
         """
         self._stopfd = stopfd
         self._inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC)
@@ -262,7 +262,7 @@ class Inotify:
         The inotify file descriptor.
 
         You can use this to call `poll()` or similar yourself
-        instead of using `BetterInotify.wait()`.
+        instead of using `Inotify.wait()`.
         """
         return self._inotify_fd
 
