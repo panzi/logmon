@@ -54,6 +54,12 @@ def _signal_stopfd() -> None:
 def open_stopfds() -> tuple[int, int]:
     global _write_stopfd, _read_stopfd
 
+    if _write_stopfd is not None:
+        raise ValueError('write_stopfd is already open')
+
+    if _read_stopfd is not None:
+        raise ValueError('read_stopfd is already open')
+
     stopfds = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
     _read_stopfd, _write_stopfd = stopfds
     return stopfds

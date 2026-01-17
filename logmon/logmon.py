@@ -19,7 +19,7 @@ from .entry_readers import EntryReaderFactory, LogEntry
 from .actions import Action
 from .inotify_wait_for_exists import inotify_wait_for_exists
 from .better_inotify import HAS_INOTIFY, BetterInotify, TerminalEventException, IN_MODIFY, IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO
-from .global_state import is_running, handle_keyboard_interrupt, open_stopfds, close_stopfds, get_read_stopfd
+from .global_state import is_running, handle_keyboard_interrupt, get_read_stopfd
 
 logger = logging.getLogger(__name__)
 
@@ -540,8 +540,6 @@ def logmon_mt(config: MTConfig):
         else:
             items = [(logfile, { 'do': [action_config] }) for logfile in logfiles]
 
-        open_stopfds()
-
         for logfile, cfg in items:
             cfg = resolve_config(default_config, action_config, cfg)
 
@@ -553,6 +551,7 @@ def logmon_mt(config: MTConfig):
 
             thread.start()
             threads.append(thread)
+
     except KeyboardInterrupt:
         handle_keyboard_interrupt()
 
@@ -563,8 +562,6 @@ def logmon_mt(config: MTConfig):
             handle_keyboard_interrupt()
         except Exception as exc:
             logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
-
-    close_stopfds()
 
 def _logmon_thread(logfile: str, config: Config, limits: LimitsService) -> None:
     logfile = normpath(abspath(logfile)) if not is_systemd_path(logfile) else logfile

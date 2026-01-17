@@ -41,7 +41,7 @@ from .json_match import parse_json_path
 from .types import *
 from .constants import *
 from .systemd import HAS_SYSTEMD, is_systemd_path, parse_systemd_path
-from .global_state import handle_stop_signal
+from .global_state import handle_stop_signal, open_stopfds, close_stopfds
 from .json_match import JsonMatch, parse_json_match
 from .limits_service import LimitsService
 from .logmon import logmon_mt, _logmon_thread
@@ -1152,25 +1152,30 @@ def main(argv: Optional[list[str]] = None) -> None:
     if SIGBREAK is not None:
         signal.signal(SIGBREAK, handle_stop_signal)
 
-    if len(abslogfiles) == 1:
-        logfile, cfg = next(iter(abslogfiles.items()))
-        cfg = resolve_config(
-            app_config.get('default') or {},
-            app_config.get('do') or {},
-            cfg,
-        )
-        limits = LimitsService.from_config(app_config.get('limits') or {})
+    open_stopfds()
 
-        _logmon_thread(
-            logfile,
-            cfg, # type: ignore
-            limits,
-        )
-    else:
-        logmon_mt(app_config)
+    try:
+        if len(abslogfiles) == 1:
+            logfile, cfg = next(iter(abslogfiles.items()))
+            cfg = resolve_config(
+                app_config.get('default') or {},
+                app_config.get('do') or {},
+                cfg,
+            )
+            limits = LimitsService.from_config(app_config.get('limits') or {})
+
+            _logmon_thread(
+                logfile,
+                cfg, # type: ignore
+                limits,
+            )
+        else:
+            logmon_mt(app_config)
+    finally:
+        close_stopfds()
 
 def _print_no_inotify() -> None:
-    print('Inotify support requires the `inotify` Python package to be installed!', file=sys.stderr)
+    print('Inotify support requires your libc to export the inotify functions!', file=sys.stderr)
 
 def _print_no_systemd() -> None:
     print('SystemD support requires the `cysystemd` Python package to be installed!', file=sys.stderr)
