@@ -82,6 +82,9 @@ class TextEntryReaderFactory(EntryReaderFactory):
                 yield None
                 continue
 
+            #import sys
+            #print(f'{logfile.name}> {line.rstrip("\n")}', file=sys.stderr)
+
             buf.append(line)
             if not line.endswith('\n'):
                 sleep(self.wait_line_incomplete)
@@ -99,6 +102,7 @@ class TextEntryReaderFactory(EntryReaderFactory):
                     sleep(self.wait_line_incomplete)
                     line += logfile.readline()
 
+                #print(f'{logfile.name}> {line.rstrip("\n")}', file=sys.stderr)
                 if entry_start_pattern.match(line):
                     next_line = line
                     break

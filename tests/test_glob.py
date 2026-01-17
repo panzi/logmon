@@ -54,7 +54,7 @@ logfiles:
         os.unlink(logfiles[0])
         print(f"{logfiles[0]}: deleted", file=sys.stderr)
 
-        sleep(2) # XXX: shorter sleep breaks this. it shouldn't!
+        #sleep(2) # XXX: shorter sleep breaks this. it shouldn't!
 
         with open(logfiles[0], 'w') as fp1:
             errmsg2hdr = "CRITICAL: Something else failed!"
@@ -94,12 +94,12 @@ logfiles:
 
         yield []
 
-        sleep(0.25)
-
-        os.unlink(logfiles[0])
-        print(f"{logfiles[0]}: deleted", file=sys.stderr)
-
-        sleep(0.1)
+#        sleep(0.25)
+#
+#        os.unlink(logfiles[0])
+#        print(f"{logfiles[0]}: deleted", file=sys.stderr)
+#
+#        sleep(0.1)
 
     logfiles = [
         join_path(logdir, 'foo.log'),
@@ -136,3 +136,4 @@ logfiles:
 
     proc.stderr.close() # type: ignore
     proc.stdout.close() # type: ignore
+    assert False

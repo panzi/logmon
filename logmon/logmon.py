@@ -22,6 +22,7 @@ from .inotify import HAS_INOTIFY, Inotify, InotifyError, TerminalEventException,
 from .global_state import is_running, handle_keyboard_interrupt, open_stopfds, close_stopfds, get_read_stopfd
 
 logger = logging.getLogger(__name__)
+#logger.isEnabledFor = lambda level: True
 
 def fncompile(pattern: str) -> Callable[[str], Match|None]:
     return re.compile(translate(pattern)).match
@@ -215,6 +216,7 @@ def _logmon_file_if_exists(
         limits: LimitsService,
         seek_end: bool,
 ) -> None:
+    logger.debug(f'{logfile}: enter')
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
@@ -230,13 +232,16 @@ def _logmon_file_if_exists(
         else:
             inotify = None
 
+        event_gen = None
         logfile_id: Optional[int] = None
         parentdir_id: Optional[int] = None
 
         try:
+            logger.debug(f'{logfile}: open logfile')
             logfp = open(logfile, 'r', encoding=encoding)
 
             try:
+                logger.debug(f'{logfile}: fstat logfile')
                 logfp_stat = os.fstat(logfp.fileno())
                 logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
                 if seek_end:
@@ -249,21 +254,26 @@ def _logmon_file_if_exists(
                         logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
                     except InotifyError as exc:
                         if exc.errno == ENOENT:
-                            raise FileNotFoundError(ENOENT, 'No such file or directory', logfile) from exc
+                            logger.debug(f'{logfile}: logfile went away')
+                            return
                         raise
 
                     try:
-                        parentdir_id = inotify.add_watch(parentdir, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
+                        parentdir_id = inotify.add_watch(parentdir, IN_MOVE_SELF | IN_DELETE_SELF)
                     except InotifyError as exc:
                         try: inotify.remove_watch_with_id(logfile_id)
                         except: pass
+                        logfile_id = None
 
                         if exc.errno == ENOENT:
-                            raise FileNotFoundError(ENOENT, 'No such file or directory', parentdir) from exc
+                            logger.debug(f'{parentdir}: parent dir went away')
+                            return
                         raise
 
                 while is_running():
+                    logger.debug(f'{logfile}: read entries')
                     entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
+                    logger.debug(f'{logfile}: read {entry_count} entries')
 
                     if entry_count < max_entries and is_running():
                         # If there are max_entries that means there are probably already more in the
@@ -294,8 +304,12 @@ def _logmon_file_if_exists(
                                             logger.debug(f'{logfile}: stopfd signaled')
                                             break
 
-                                    for event in inotify.event_gen():
+                                    if event_gen is None:
+                                        event_gen = inotify.event_gen()
+
+                                    for event in event_gen:
                                         if not is_running():
+                                            logger.debug(f'{logfile}: stopped running')
                                             break
 
                                         if event is None:
@@ -306,9 +320,10 @@ def _logmon_file_if_exists(
                                         event_path = normpath(joinpath(event_path, event_filename))
                                         if event_path == logfile:
                                             if IN_MODIFY & mask:
+                                                logger.debug(f'{logfile}: modified')
                                                 break
 
-                                            if (IN_MOVE_SELF | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE | IN_DELETE_SELF) & mask:
+                                            if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
                                                 logger.debug(f'{logfile}: logfile went away')
                                                 return
 
@@ -316,6 +331,9 @@ def _logmon_file_if_exists(
                                             if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
                                                 logger.debug(f'{logfile}: parent dir went away')
                                                 return
+
+                                        else:
+                                            logger.error(f"{event_path}: Not listening for this file! events: {', '.join(type_names)}")
 
                             except TerminalEventException:
                                 # filesystem unmounted
@@ -362,6 +380,9 @@ def _logmon_file_if_exists(
         except KeyboardInterrupt:
             handle_keyboard_interrupt()
 
+        finally:
+            logger.debug(f'{logfile}: exit')
+
 def _logmon_glob(
         logfile: str,
         config: Config,
@@ -384,14 +405,14 @@ def _logmon_glob(
         inotify = None
         inotify2 = None
 
+    event_gen = None
     threads: dict[str, threading.Thread] = {}
-    logfiles: set[tuple[int, str]] = set()
     first = True
     watch_id: Optional[int] = None
 
     try:
-        while is_running():
-            if inotify is not None:
+        if inotify is not None:
+            while is_running():
                 try:
                     try:
                         if watch_id is None:
@@ -403,15 +424,35 @@ def _logmon_glob(
                         if inotify2 is not None:
                             if not inotify_wait_for_exists(inotify2, parentdir):
                                 break
-
-                            continue # ensure watch is added before anything else happens so we won't miss events
                         else:
                             sleep(wait_file_not_found)
+
+                        continue # ensure watch is added before anything else happens so we won't miss events
                     else:
                         if first:
                             first = False
+
+                            try:
+                                added_logfiles = set(
+                                    normpath(child.path)
+                                    for child in scandir(parentdir)
+                                    if fnmatch(child.name)
+                                )
+                            except FileNotFoundError:
+                                continue
+
+                            for added_logfile in added_logfiles:
+                                logger.debug(f"{added_logfile}: New matched logfile")
+
+                                thread = threading.Thread(
+                                    target = _logmon_file_if_exists,
+                                    args = (added_logfile, config, limits, seek_end),
+                                    name = added_logfile,
+                                )
+
+                                thread.start()
+                                threads[added_logfile] = thread
                         else:
-                            seek_end = False
                             stopfd = get_read_stopfd()
                             if stopfd is not None:
                                 poller = poll()
@@ -425,14 +466,21 @@ def _logmon_glob(
                                 if any(fd == stopfd for fd, _pevent in pevents):
                                     break
 
-                            for event in inotify.event_gen():
+                            if event_gen is None:
+                                event_gen = inotify.event_gen()
+
+                            for event in event_gen:
                                 if not is_running():
+                                    logger.debug(f"{logfile}: stopped running")
                                     break
 
                                 if event is None:
                                     continue
 
-                                mask = event[0].mask
+                                header, type_names, event_path, event_filename = event
+                                mask = header.mask
+
+                                logger.debug(f"{event_filename}: {', '.join(type_names)}")
 
                                 if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
                                     if watch_id is not None:
@@ -441,7 +489,45 @@ def _logmon_glob(
                                         watch_id = None
                                     break
 
-                                break
+                                if fnmatch(event_filename):
+                                    inotify_path = normpath(joinpath(event_path, event_filename))
+                                    if mask & (IN_MOVED_FROM | IN_DELETE):
+                                        removed_logfile = inotify_path
+                                        logger.debug(f"{removed_logfile}: Logfile went away, stopping monitoring")
+
+                                        thread = threads.get(removed_logfile)
+
+                                        if thread is not None:
+                                            try:
+                                                thread.join() # XXX: thread doesn't recognize IN_MOVED_FROM | IN_DELETE
+                                                if thread.is_alive():
+                                                    logger.error(f"{thread.name}: join timeout! <<<")
+                                                else:
+                                                    del threads[removed_logfile]
+                                            except KeyboardInterrupt:
+                                                handle_keyboard_interrupt()
+                                            except Exception as exc:
+                                                logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
+
+                                        else:
+                                            logger.debug(f"{removed_logfile}: Not monitored!")
+
+                                    if mask & (IN_MOVED_TO | IN_CREATE):
+                                        added_logfile = inotify_path
+                                        logger.debug(f"{added_logfile}: New matched logfile")
+
+                                        if added_logfile not in threads:
+                                            thread = threading.Thread(
+                                                target = _logmon_file_if_exists,
+                                                args = (added_logfile, config, limits, False),
+                                                name = added_logfile,
+                                            )
+
+                                            thread.start()
+                                            threads[added_logfile] = thread
+
+                                        else:
+                                            logger.debug(f"{added_logfile}: Already monitored!")
 
                 except TerminalEventException:
                     # unmount
@@ -452,56 +538,55 @@ def _logmon_glob(
 
                     inotify = Inotify()
                     inotify2 = Inotify()
+                    event_gen = None
 
-            else:
+        else:
+            logfiles: set[tuple[int, str]] = set()
+            while is_running():
                 if first:
                     first = False
                 else:
                     seek_end = False
                     sleep(wait_file_not_found)
 
-            try:
-                new_logfiles = set(
-                    (child.inode(), normpath(child.path))
-                    for child in scandir(parentdir)
-                    if fnmatch(child.name)
-                )
-            except FileNotFoundError:
-                if inotify is not None and watch_id is not None:
-                    try: inotify.remove_watch_with_id(watch_id)
-                    except: pass
-                    watch_id = None
-                new_logfiles = set()
+                try:
+                    new_logfiles = set(
+                        (child.inode(), normpath(child.path))
+                        for child in scandir(parentdir)
+                        if fnmatch(child.name)
+                    )
+                except FileNotFoundError:
+                    new_logfiles = set()
 
-            added_logfiles = new_logfiles - logfiles
-            removed_logfiles = logfiles - new_logfiles
+                added_logfiles = new_logfiles - logfiles
+                removed_logfiles = logfiles - new_logfiles
 
-            for removed_inode, removed_logfile in removed_logfiles:
-                logger.debug(f"{removed_logfile}: Logfile went away, stopping monitoring")
+                for removed_inode, removed_logfile in removed_logfiles:
+                    logger.debug(f"{removed_logfile}: Logfile went away, stopping monitoring")
 
-                thread = threads.pop(removed_logfile, None)
+                    thread = threads.pop(removed_logfile, None)
 
-                if thread is not None:
-                    try:
-                        thread.join()
-                    except KeyboardInterrupt:
-                        handle_keyboard_interrupt()
-                    except Exception as exc:
-                        logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
+                    if thread is not None:
+                        try:
+                            thread.join()
+                        except KeyboardInterrupt:
+                            handle_keyboard_interrupt()
+                        except Exception as exc:
+                            logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
 
-            for added_inode, added_logfile in added_logfiles:
-                logger.debug(f"{added_logfile}: New matched logfile")
+                for added_inode, added_logfile in added_logfiles:
+                    logger.debug(f"{added_logfile}: New matched logfile")
 
-                thread = threading.Thread(
-                    target = _logmon_file_if_exists,
-                    args = (added_logfile, config, limits, seek_end),
-                    name = added_logfile,
-                )
+                    thread = threading.Thread(
+                        target = _logmon_file_if_exists,
+                        args = (added_logfile, config, limits, seek_end),
+                        name = added_logfile,
+                    )
 
-                thread.start()
-                threads[added_logfile] = thread
+                    thread.start()
+                    threads[added_logfile] = thread
 
-            logfiles = new_logfiles
+                logfiles = new_logfiles
 
     except KeyboardInterrupt:
         handle_keyboard_interrupt()

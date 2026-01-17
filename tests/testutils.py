@@ -177,7 +177,7 @@ def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str]]
             if status is not None and status != 0:
                 assert status == 0
 
-        sleep(0.75)
+        sleep(1.75)
 
         proc.terminate()
 
