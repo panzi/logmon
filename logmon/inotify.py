@@ -219,6 +219,11 @@ class InotifyEvent(NamedTuple):
     filename: str
 
 class Inotify:
+    """
+    Listen for inotify events.
+
+    Supports the context manager protocol.
+    """
     __slots__ = (
         '_inotify_fd',
         '_inotify_stream',
@@ -274,8 +279,8 @@ class Inotify:
             stream = self._inotify_stream
             if not stream.closed:
                 stream.close()
-                self._inotify_fd = -1
         finally:
+            self._inotify_fd = -1
             epoll = self._epoll
             if not epoll.closed:
                 epoll.close()
@@ -331,6 +336,9 @@ class Inotify:
             del self._wd_to_path[wd]
             del self._path_to_wd[path]
 
+    def watch_paths(self) -> set[str]:
+        return set(self._path_to_wd)
+
     def wait(self, timeout: Optional[float] = None) -> bool:
         """
         Wait for inotify events or for any `POLLIN` on `stopfd`,
@@ -355,6 +363,8 @@ class Inotify:
     def read_events(self, terminal_events: int = IN_Q_OVERFLOW | IN_UNMOUNT) -> list[InotifyEvent]:
         """
         Reads available events. Might return an empty list.
+
+        Raises `TerminalEventException` if the flags in `terminal_events` are set in an event `mask`.
         """
         stream = self._inotify_stream
         wd_to_path = self._wd_to_path
