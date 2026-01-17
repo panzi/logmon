@@ -10,7 +10,7 @@ Setup
 ```bash
 git clone git@github.com:panzi/logmon.git
 cd logmon
-uv pip install -r pyproject.toml --extra ruamel_yaml --extra inotify --extra systemd
+uv pip install -r pyproject.toml --extra ruamel_yaml --extra systemd
 ```
 
 Dependencies
@@ -23,8 +23,6 @@ Dependencies
 
 ### Optional
 
-* `inotify`: [PyInotify](https://github.com/dsoprea/PyInotify) - more efficient
-  way to wait for log file changes
 * `systemd`: [cysystemd](https://github.com/mosquito/cysystemd) - ingest SystemD
   journals
 * `yaml`: [PyYAML](https://pyyaml.org/) - support configuration to be YAML
@@ -210,8 +208,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         Same as --max-emails-per-minute but for a span of 60
                         minutes. Both options are evaluated one after another.
                         [default: 60]
-  --use-inotify         This is the default if the `inotify` Python package is
-                        installed. [default: True]
+  --use-inotify         This is the default if your libc exports the inofify
+                        functions. [default: True]
   --no-use-inotify      Opposite of --use-inotify
   --encoding ENCODING
   --entry-start-pattern REGEXP

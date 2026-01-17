@@ -36,7 +36,7 @@ from datetime import timedelta
 
 from .schema import Config, ConfigFile, Logmonrc, resolve_config, FILE_MODE_PATTERN
 from .yaml import HAS_YAML, yaml_load, yaml_dump
-from .inotify import HAS_INOTIFY
+from .better_inotify import HAS_INOTIFY
 from .json_match import parse_json_path
 from .types import *
 from .constants import *
@@ -480,7 +480,7 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.set_defaults(use_inotify=None)
     inotify_grp = ap.add_mutually_exclusive_group()
     inotify_grp.add_argument('--use-inotify', default=None, action='store_true',
-        help=f'This is the default if the `inotify` Python package is installed. [default: {HAS_INOTIFY}]')
+        help=f'This is the default if your libc exports the inofify functions. [default: {HAS_INOTIFY}]')
     inotify_grp.add_argument('--no-use-inotify', default=None, action='store_false', dest='use_inotify',
         help='Opposite of --use-inotify')
     ap.add_argument('--encoding', default=None)
