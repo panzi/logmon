@@ -1,4 +1,4 @@
-from typing import Iterable, Generator, Callable, Match, Optional
+from typing import Iterable, Generator, Callable, Match, Optional, NamedTuple, TextIO
 
 import re
 import os
@@ -22,7 +22,6 @@ from .inotify import HAS_INOTIFY, Inotify, InotifyError, TerminalEventException,
 from .global_state import is_running, handle_keyboard_interrupt, open_stopfds, close_stopfds, get_read_stopfd
 
 logger = logging.getLogger(__name__)
-#logger.isEnabledFor = lambda level: True
 
 def fncompile(pattern: str) -> Callable[[str], Match|None]:
     return re.compile(translate(pattern)).match
@@ -183,7 +182,7 @@ def _logmon(
                         if inotify is not None:
                             if logfile_id is not None:
                                 try:
-                                    inotify.remove_watch_with_id(logfile_id)
+                                    inotify.remove_watch(logfile)
                                 except Exception as exc:
                                     logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
                                 logfile_id = None
@@ -209,219 +208,107 @@ def _logmon(
 
             except KeyboardInterrupt:
                 handle_keyboard_interrupt()
+class GlobEntry(NamedTuple):
+    logfile: str
+    watch_id: int
+    reader: Generator[LogEntry|None, None, None]
+    stream: TextIO
 
-def _logmon_file_if_exists(
-        logfile: str,
-        config: Config,
-        limits: LimitsService,
-        seek_end: bool,
-) -> None:
-    logger.debug(f'{logfile}: enter')
-    wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
-    wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
-    max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
-    encoding = config.get('encoding', 'UTF-8')
-    use_inotify = config.get('use_inotify', HAS_INOTIFY)
-
-    reader_factory = EntryReaderFactory.from_config(config)
-
-    with Action.open_actions(config) as actions:
-        parentdir = dirname(logfile)
-        if use_inotify and HAS_INOTIFY:
-            inotify = Inotify()
-        else:
-            inotify = None
-
-        event_gen = None
-        logfile_id: Optional[int] = None
-        parentdir_id: Optional[int] = None
+    def close(self, inotify: Inotify) -> None:
+        try:
+            inotify.remove_watch(self.logfile)
+        except Exception as exc:
+            logger.error(f'{self.logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
 
         try:
-            logger.debug(f'{logfile}: open logfile')
-            logfp = open(logfile, 'r', encoding=encoding)
-
-            try:
-                logger.debug(f'{logfile}: fstat logfile')
-                logfp_stat = os.fstat(logfp.fileno())
-                logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
-                if seek_end:
-                    logfp.seek(0, os.SEEK_END)
-
-                reader = reader_factory.create_reader(logfp)
-
-                if inotify is not None:
-                    try:
-                        logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
-                    except InotifyError as exc:
-                        if exc.errno == ENOENT:
-                            logger.debug(f'{logfile}: logfile went away')
-                            return
-                        raise
-
-                    try:
-                        parentdir_id = inotify.add_watch(parentdir, IN_MOVE_SELF | IN_DELETE_SELF)
-                    except InotifyError as exc:
-                        try: inotify.remove_watch_with_id(logfile_id)
-                        except: pass
-                        logfile_id = None
-
-                        if exc.errno == ENOENT:
-                            logger.debug(f'{parentdir}: parent dir went away')
-                            return
-                        raise
-
-                while is_running():
-                    logger.debug(f'{logfile}: read entries')
-                    entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limits)
-                    logger.debug(f'{logfile}: read {entry_count} entries')
-
-                    if entry_count < max_entries and is_running():
-                        # If there are max_entries that means there are probably already more in the
-                        # log file, so try to read those before waiting via inotify.
-                        if inotify is not None:
-                            logger.debug(f'{logfile}: Waiting with inotify for modifications')
-
-                            try:
-                                new_stat = os.stat(logfile)
-                                new_ref = (new_stat.st_dev, new_stat.st_ino)
-                                if logfp_ref != new_ref:
-                                    # verify we're actually waiting on the file that is opened
-                                    logger.debug(f'{logfile}: inode changed, stopping monitoring')
-                                    return
-                                else:
-                                    stopfd = get_read_stopfd()
-                                    if stopfd is not None:
-                                        poller = poll()
-                                        poller.register(stopfd, POLLIN)
-                                        # why is there no official way to get that file discriptor!?
-                                        poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
-                                        pevents = poller.poll()
-                                        if not pevents:
-                                            logger.debug(f'{logfile}: no events')
-                                            break
-
-                                        if any(fd == stopfd for fd, _pevent in pevents):
-                                            logger.debug(f'{logfile}: stopfd signaled')
-                                            break
-
-                                    if event_gen is None:
-                                        event_gen = inotify.event_gen()
-
-                                    for event in event_gen:
-                                        if not is_running():
-                                            logger.debug(f'{logfile}: stopped running')
-                                            break
-
-                                        if event is None:
-                                            continue
-
-                                        header, type_names, event_path, event_filename = event
-                                        mask = header.mask
-                                        event_path = normpath(joinpath(event_path, event_filename))
-                                        if event_path == logfile:
-                                            if IN_MODIFY & mask:
-                                                logger.debug(f'{logfile}: modified')
-                                                break
-
-                                            if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
-                                                logger.debug(f'{logfile}: logfile went away')
-                                                return
-
-                                        elif event_path == parentdir:
-                                            if (IN_MOVE_SELF | IN_DELETE_SELF) & mask:
-                                                logger.debug(f'{logfile}: parent dir went away')
-                                                return
-
-                                        else:
-                                            logger.error(f"{event_path}: Not listening for this file! events: {', '.join(type_names)}")
-
-                            except TerminalEventException:
-                                # filesystem unmounted
-                                logger.debug(f'{logfile}: terminal event')
-                                return
-
-                        else:
-                            logger.debug(f'{logfile}: Sleeping for {wait_no_entries} seconds for modifications')
-                            sleep(wait_no_entries)
-
-                            try:
-                                new_stat = os.stat(logfile)
-                            except FileNotFoundError:
-                                return
-                            else:
-                                new_ref = (new_stat.st_dev, new_stat.st_ino)
-                                if logfp_ref != new_ref:
-                                    # inode changed!
-                                    return
-            finally:
-                try:
-                    if inotify is not None:
-                        if logfile_id is not None:
-                            try:
-                                inotify.remove_watch_with_id(logfile_id)
-                            except Exception as exc:
-                                logger.error(f'{logfile}: Error while removing inotify watch: {exc}', exc_info=exc)
-                            logfile_id = None
-
-                        if parentdir_id is not None:
-                            try:
-                                inotify.remove_watch_with_id(parentdir_id)
-                            except Exception as exc:
-                                logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
-                            parentdir_id = None
-                finally:
-                    if not logfp.closed:
-                        try: logfp.close()
-                        except: pass
-
-        except FileNotFoundError:
-            return
-
-        except KeyboardInterrupt:
-            handle_keyboard_interrupt()
-
-        finally:
-            logger.debug(f'{logfile}: exit')
+            if not self.stream.closed:
+                self.stream.close()
+        except Exception as exc:
+            logger.error(f'{self.logfile}: Error closing file: {exc}', exc_info=exc)
 
 def _logmon_glob(
         logfile: str,
         config: Config,
         limits: LimitsService,
 ) -> None:
+    wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
+    wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
+    max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
+    encoding = config.get('encoding', 'UTF-8')
     use_inotify = config.get('use_inotify', HAS_INOTIFY)
     seek_end = config.get('seek_end', True)
+
+    reader_factory = EntryReaderFactory.from_config(config)
 
     parentdir, pattern = splitpath(logfile)
     if not pattern:
         raise ValueError(f'logfile must have directory and pattern: {logfile!r}')
 
     fnmatch = fncompile(pattern)
-
-    if use_inotify and HAS_INOTIFY:
-        inotify = Inotify()
-        inotify2 = Inotify()
-    else:
-        inotify = None
-        inotify2 = None
-
-    event_gen = None
-    threads: dict[str, threading.Thread] = {}
     first = True
-    watch_id: Optional[int] = None
 
-    try:
-        if inotify is not None:
+    logger.debug(f"{logfile}: start")
+
+    with Action.open_actions(config) as actions:
+        if use_inotify and HAS_INOTIFY:
+            inotify = Inotify()
+            inotify2 = Inotify()
+            event_gen = None
+            loghandles: dict[str, GlobEntry] = {}
+            dirwatch_id: Optional[int] = None
+
+            def open_logfile(inotify: Inotify, child_logfile: str, seek_end: bool) -> None:
+                old_entry = loghandles.pop(child_logfile, None)
+                if old_entry is not None:
+                    logger.debug(f'{child_logfile}: Closing old entry')
+                    _read_entries(child_logfile, old_entry.reader, 0, max_entries, actions, limits)
+                    old_entry.close(inotify)
+
+                logger.debug(f'{child_logfile}: New logfile matched!')
+
+                try:
+                    watch_id: Optional[int] = inotify.add_watch(child_logfile, IN_DELETE_SELF | IN_MOVE_SELF | IN_MODIFY)
+                except InotifyError as exc:
+                    if exc.errno != ENOENT:
+                        raise
+                else:
+                    if watch_id is None:
+                        logger.error(f"{child_logfile}: Didn't create a watch handle!")
+                    else:
+                        try:
+                            fp = open(child_logfile, 'r', encoding=encoding)
+
+                            if seek_end:
+                                fp.seek(0, os.SEEK_END)
+
+                        except FileNotFoundError:
+                            inotify.remove_watch(child_logfile)
+
+                        except Exception as exc:
+                            logger.error(f"{child_logfile}: Error opening logfile: {exc}", exc_info=exc)
+                        else:
+                            entry = loghandles[child_logfile] = GlobEntry(
+                                logfile = child_logfile,
+                                watch_id = watch_id,
+                                reader = reader_factory.create_reader(fp),
+                                stream = fp,
+                            )
+
+                            _read_entries(child_logfile, entry.reader, wait_before_send, max_entries, actions, limits)
+
             while is_running():
+                terminal = False
                 try:
                     try:
-                        if watch_id is None:
-                            watch_id = inotify.add_watch(parentdir, IN_DELETE | IN_CREATE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
+                        if dirwatch_id is None:
+                            dirwatch_id = inotify.add_watch(parentdir, IN_CREATE | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
                     except InotifyError as exc:
                         if exc.errno != ENOENT:
                             raise
 
                         if inotify2 is not None:
+                            logger.debug(f'{parentdir}: Waiting for parent dir')
                             if not inotify_wait_for_exists(inotify2, parentdir):
                                 break
                         else:
@@ -433,6 +320,7 @@ def _logmon_glob(
                             first = False
 
                             try:
+                                logger.debug(f'{parentdir}: Listing logfiles')
                                 added_logfiles = set(
                                     normpath(child.path)
                                     for child in scandir(parentdir)
@@ -442,168 +330,101 @@ def _logmon_glob(
                                 continue
 
                             for added_logfile in added_logfiles:
-                                logger.debug(f"{added_logfile}: New matched logfile")
+                                open_logfile(inotify, added_logfile, seek_end)
 
-                                thread = threading.Thread(
-                                    target = _logmon_file_if_exists,
-                                    args = (added_logfile, config, limits, seek_end),
-                                    name = added_logfile,
-                                )
+                        stopfd = get_read_stopfd()
+                        if stopfd is not None:
+                            poller = poll()
+                            poller.register(stopfd, POLLIN)
+                            # why is there no official way to get that file discriptor!?
+                            poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
+                            logger.debug(f'{logfile}: Polling for events')
+                            pevents = poller.poll()
+                            if not pevents:
+                                logger.debug(f'{logfile}: no events')
+                                break
 
-                                thread.start()
-                                threads[added_logfile] = thread
-                        else:
-                            stopfd = get_read_stopfd()
-                            if stopfd is not None:
-                                poller = poll()
-                                poller.register(stopfd, POLLIN)
-                                # why is there no official way to get that file discriptor!?
-                                poller.register(inotify._Inotify__inotify_fd, POLLIN) # type: ignore
-                                pevents = poller.poll()
-                                if not pevents:
-                                    break
+                            if any(fd == stopfd for fd, _pevent in pevents):
+                                logger.debug(f'{logfile}: stopfd signaled')
+                                break
 
-                                if any(fd == stopfd for fd, _pevent in pevents):
-                                    break
+                        if event_gen is None:
+                            event_gen = inotify.event_gen()
 
-                            if event_gen is None:
-                                event_gen = inotify.event_gen()
+                        for event in event_gen:
+                            if not is_running():
+                                logger.debug(f'{logfile}: stopped running')
+                                break
 
-                            for event in event_gen:
-                                if not is_running():
-                                    logger.debug(f"{logfile}: stopped running")
-                                    break
+                            if event is None:
+                                continue
 
-                                if event is None:
-                                    continue
+                            header, type_names, event_dir, event_filename = event
+                            mask = header.mask
 
-                                header, type_names, event_path, event_filename = event
-                                mask = header.mask
+                            logger.debug(f'{event_filename}: {', '.join(type_names)}')
+                            event_path = normpath(joinpath(event_dir, event_filename))
 
-                                logger.debug(f"{event_filename}: {', '.join(type_names)}")
+                            if event_path == parentdir:
+                                logger.debug(f'{parentdir}: parent dir event: {', '.join(type_names)}')
 
                                 if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
-                                    if watch_id is not None:
-                                        try: inotify.remove_watch_with_id(watch_id)
-                                        except: pass
-                                        watch_id = None
+                                    logger.debug(f'{parentdir}: parent dir went away')
                                     break
 
+                            else:
+                                if mask & IN_MODIFY:
+                                    logger.debug(f'{event_path}: modified!')
+                                    entry = loghandles.get(event_path)
+                                    if entry is not None:
+                                        _read_entries(entry.logfile, entry.reader, wait_before_send, max_entries, actions, limits)
+
                                 if fnmatch(event_filename):
-                                    inotify_path = normpath(joinpath(event_path, event_filename))
-                                    if mask & (IN_MOVED_FROM | IN_DELETE):
-                                        removed_logfile = inotify_path
-                                        logger.debug(f"{removed_logfile}: Logfile went away, stopping monitoring")
-
-                                        thread = threads.get(removed_logfile)
-
-                                        if thread is not None:
+                                    if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
+                                        entry = loghandles.pop(event_path, None)
+                                        if entry is not None:
+                                            logger.debug(f"{entry.logfile}: Logfile went away, stopping monitoring")
                                             try:
-                                                thread.join() # XXX: thread doesn't recognize IN_MOVED_FROM | IN_DELETE
-                                                if thread.is_alive():
-                                                    logger.error(f"{thread.name}: join timeout! <<<")
-                                                else:
-                                                    del threads[removed_logfile]
-                                            except KeyboardInterrupt:
-                                                handle_keyboard_interrupt()
-                                            except Exception as exc:
-                                                logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
+                                                # just in case try to read any tailing entries
+                                                _read_entries(entry.logfile, entry.reader, (wait_before_send if mask & IN_DELETE_SELF else 0), max_entries, actions, limits)
+                                            finally:
+                                                entry.close(inotify)
 
-                                        else:
-                                            logger.debug(f"{removed_logfile}: Not monitored!")
+                                    if mask & (IN_CREATE | IN_MOVED_TO):
+                                        open_logfile(inotify, event_path, False)
 
-                                    if mask & (IN_MOVED_TO | IN_CREATE):
-                                        added_logfile = inotify_path
-                                        logger.debug(f"{added_logfile}: New matched logfile")
-
-                                        if added_logfile not in threads:
-                                            thread = threading.Thread(
-                                                target = _logmon_file_if_exists,
-                                                args = (added_logfile, config, limits, False),
-                                                name = added_logfile,
-                                            )
-
-                                            thread.start()
-                                            threads[added_logfile] = thread
-
-                                        else:
-                                            logger.debug(f"{added_logfile}: Already monitored!")
+                except KeyboardInterrupt:
+                    handle_keyboard_interrupt()
 
                 except TerminalEventException:
-                    # unmount
-                    if watch_id is not None:
-                        try: inotify.remove_watch_with_id(watch_id)
-                        except: pass
-                        watch_id = None
+                    # filesystem unmounted
+                    logger.debug(f'{logfile}: terminal event')
+                    terminal = True
 
-                    inotify = Inotify()
-                    inotify2 = Inotify()
-                    event_gen = None
-
-        else:
-            logfiles: set[tuple[int, str]] = set()
-            while is_running():
-                if first:
-                    first = False
-                else:
-                    seek_end = False
-                    sleep(wait_file_not_found)
-
-                try:
-                    new_logfiles = set(
-                        (child.inode(), normpath(child.path))
-                        for child in scandir(parentdir)
-                        if fnmatch(child.name)
-                    )
-                except FileNotFoundError:
-                    new_logfiles = set()
-
-                added_logfiles = new_logfiles - logfiles
-                removed_logfiles = logfiles - new_logfiles
-
-                for removed_inode, removed_logfile in removed_logfiles:
-                    logger.debug(f"{removed_logfile}: Logfile went away, stopping monitoring")
-
-                    thread = threads.pop(removed_logfile, None)
-
-                    if thread is not None:
+                finally:
+                    if dirwatch_id is not None:
                         try:
-                            thread.join()
-                        except KeyboardInterrupt:
-                            handle_keyboard_interrupt()
+                            inotify.remove_watch(parentdir)
                         except Exception as exc:
-                            logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
+                            logger.error(f'{parentdir}: Error while removing inotify watch: {exc}', exc_info=exc)
+                        dirwatch_id = None
 
-                for added_inode, added_logfile in added_logfiles:
-                    logger.debug(f"{added_logfile}: New matched logfile")
+                    for entry in loghandles.values():
+                        try:
+                            if is_running():
+                                # just in case try to read any tailing entries
+                                _read_entries(entry.logfile, entry.reader, 0, max_entries, actions, limits)
+                        finally:
+                            entry.close(inotify)
 
-                    thread = threading.Thread(
-                        target = _logmon_file_if_exists,
-                        args = (added_logfile, config, limits, seek_end),
-                        name = added_logfile,
-                    )
+                    loghandles.clear()
 
-                    thread.start()
-                    threads[added_logfile] = thread
-
-                logfiles = new_logfiles
-
-    except KeyboardInterrupt:
-        handle_keyboard_interrupt()
-
-    finally:
-        if inotify is not None and watch_id is not None:
-            try: inotify.remove_watch_with_id(watch_id)
-            except: pass
-            watch_id = None
-
-        for thread in threads.values():
-            try:
-                thread.join()
-            except KeyboardInterrupt:
-                handle_keyboard_interrupt()
-            except Exception as exc:
-                logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
+                    if terminal:
+                        event_gen = None
+                        inotify = Inotify()
+                        inotify2 = Inotify()
+        else:
+            raise NotImplementedError('no non-inotify fallback')
 
 def logmon_mt(config: MTConfig):
     action_config = config.get('do') or {}
@@ -701,6 +522,9 @@ def _read_entries(
 
     except KeyboardInterrupt:
         handle_keyboard_interrupt()
+
+    except OSError as exc:
+        logger.error(f'{logfile}: Error reading log entries: {exc}', exc_info=exc)
 
     for offset in range(0, len(entries), max_entries):
         try:

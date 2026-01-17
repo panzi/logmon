@@ -48,6 +48,7 @@ logfiles:
             errmsg1hdr = "ERROR: Something failed!"
             errmsg1 = f"[2025-12-14T20:17:00+0100] {errmsg1hdr}"
             print(errmsg1, file=fp1); fp1.flush()
+        print(f"{logfiles[0]}: written logs", file=sys.stderr)
 
         sleep(0.5)
 
@@ -136,4 +137,3 @@ logfiles:
 
     proc.stderr.close() # type: ignore
     proc.stdout.close() # type: ignore
-    assert False
