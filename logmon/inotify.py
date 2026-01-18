@@ -270,6 +270,7 @@ class Inotify:
         - `EINVAL` (shouldn't happen)
         - `EMFILE`
         - `ENOMEM`
+        - `ENOSYS` if your libc doesn't support `inotify_init1()`
         """
         self._stopfd = stopfd
         self._inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC)
@@ -336,7 +337,9 @@ class Inotify:
         - `FileExistsError` (`EEXISTS`)
         - `FileNotFoundError` (`ENOENT`)
         - `NotADirectoryError` (`ENOTDIR`)
-        - `OSError` (`WBADF`, `EFAULT`, `EINVAL`, `ENAMETOOLONG`, `ENOMEM`, `ENOSPC`)
+        - `OSError` (`WBADF`, `EFAULT`, `EINVAL`, `ENAMETOOLONG`,
+          `ENOMEM`, `ENOSPC`, `ENOSYS` if your libc doesn't support
+           `inotify_rm_watch()`)
         """
         path_bytes = path.encode('UTF-8', 'surrogateescape')
 
@@ -358,6 +361,7 @@ class Inotify:
         `OSError` with one of these `errno` values:
         - `EBADF`
         - `EINVAL`
+        - `ENOSYS` if your libc doesn't support `inotify_rm_watch()`
         """
         wd = self._path_to_wd.get(path)
         if wd is None:
@@ -380,6 +384,7 @@ class Inotify:
         `OSError` with one of these `errno` values:
         - `EBADF`
         - `EINVAL`
+        - `ENOSYS` if your libc doesn't support `inotify_rm_watch()`
         """
         path = self._wd_to_path.get(wd)
         if path is None:
