@@ -7,7 +7,7 @@ import ctypes.util
 import logging
 
 from io import BufferedReader
-from struct import unpack, calcsize
+from struct import Struct
 from errno import (
     EINTR, ENOENT, EEXIST, ENOTDIR, EISDIR, ENOMEM,
     EACCES, EAGAIN, EALREADY, EWOULDBLOCK, EINPROGRESS,
@@ -58,8 +58,7 @@ __all__ = (
     'IN_ALL_EVENTS',
 )
 
-_HEADER_STRUCT_FORMAT = 'iIII'
-_STRUCT_HEADER_LENGTH = calcsize(_HEADER_STRUCT_FORMAT)
+_HEADER_STRUCT = Struct('iIII')
 
 ## from linux/inotify.h
 
@@ -371,8 +370,8 @@ class Inotify:
 
         events: list[InotifyEvent] = []
 
-        while header_bytes := stream.read(_STRUCT_HEADER_LENGTH):
-            wd, mask, cookie, filename_len = unpack(_HEADER_STRUCT_FORMAT, header_bytes)
+        while header_bytes := stream.read(_HEADER_STRUCT.size):
+            wd, mask, cookie, filename_len = _HEADER_STRUCT.unpack(header_bytes)
 
             filename_bytes = stream.read(filename_len)
             filename = filename_bytes.rstrip(b'\0').decode('UTF-8', 'surrogateescape')
