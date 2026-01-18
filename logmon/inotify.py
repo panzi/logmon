@@ -9,7 +9,7 @@ import logging
 from io import BufferedReader
 from struct import Struct
 from errno import (
-    EINTR, ENOENT, EEXIST, ENOTDIR, EISDIR, ENOMEM,
+    EINTR, ENOENT, EEXIST, ENOTDIR, EISDIR,
     EACCES, EAGAIN, EALREADY, EWOULDBLOCK, EINPROGRESS,
     ECHILD, EPERM, ETIMEDOUT, EPIPE, ECONNABORTED,
     ECONNREFUSED, ECONNRESET, ENOSYS,
@@ -264,6 +264,12 @@ class Inotify:
         """
         If not `None` then stopfd is a file descriptor that will
         be added to the `poll()` call in `Inotify.wait()`.
+
+        This calls `inotify_init1()` and thus might raise an
+        `OSError` with one of these `errno` values:
+        - `EINVAL` (shouldn't happen)
+        - `EMFILE`
+        - `ENOMEM`
         """
         self._stopfd = stopfd
         self._inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC)
@@ -323,6 +329,14 @@ class Inotify:
     def add_watch(self, path: str, mask: int = IN_ALL_EVENTS) -> int:
         """
         Add a watch path.
+
+        This calls `inotify_add_watch()` and thus might raise one
+        of these exceptions:
+        - `PermissionError` (`EACCES`)
+        - `FileExistsError` (`EEXISTS`)
+        - `FileNotFoundError` (`ENOENT`)
+        - `NotADirectoryError` (`ENOTDIR`)
+        - `OSError` (`WBADF`, `EFAULT`, `EINVAL`, `ENAMETOOLONG`, `ENOMEM`, `ENOSPC`)
         """
         path_bytes = path.encode('UTF-8', 'surrogateescape')
 
@@ -339,6 +353,11 @@ class Inotify:
         Remove watch by path.
 
         Does nothing if the path is not watched.
+
+        This calls `inotify_rm_watch()` and this might raise an
+        `OSError` with one of these `errno` values:
+        - `EBADF`
+        - `EINVAL`
         """
         wd = self._path_to_wd.get(path)
         if wd is None:
@@ -356,6 +375,11 @@ class Inotify:
         Remove watch by handle.
 
         Does nothing if the handle is invalid.
+
+        This calls `inotify_rm_watch()` and this might raise an
+        `OSError` with one of these `errno` values:
+        - `EBADF`
+        - `EINVAL`
         """
         path = self._wd_to_path.get(wd)
         if path is None:
@@ -369,12 +393,21 @@ class Inotify:
             del self._path_to_wd[path]
 
     def watch_paths(self) -> set[str]:
+        """
+        Get the set of the watched paths.
+        """
         return set(self._path_to_wd)
 
     def get_watch_id(self, path: str) -> Optional[int]:
+        """
+        Get the watch id to a path, if the path is watched.
+        """
         return self._path_to_wd.get(path)
 
     def get_watch_path(self, wd: int) -> Optional[str]:
+        """
+        Get the path to a watch id, if the watch id is valid.
+        """
         return self._wd_to_path.get(wd)
 
     def wait(self, timeout: Optional[float] = None) -> bool:
@@ -383,7 +416,8 @@ class Inotify:
         if that is not `None`. If `stopfd` signals this function will
         return `False`, otherwise `True`.
 
-        Raises `TimeoutError` if `timeout` is not `None` and expired.
+        Raises `TimeoutError` if `timeout` is not `None` and
+        the operation has expired.
         """
         events = self._epoll.poll(timeout)
 
