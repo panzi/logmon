@@ -274,6 +274,12 @@ class Inotify:
         return self._stopfd
 
     def close(self) -> None:
+        """
+        Close the inotify handle.
+
+        Can safely be called multiple times, but you
+        can't call any other methods once closed.
+        """
         try:
             stream = self._inotify_stream
             if not stream.closed:
@@ -295,12 +301,8 @@ class Inotify:
 
     def add_watch(self, path: str, mask: int = IN_ALL_EVENTS) -> int:
         """
-        If the path is already watched returns the pre-existing watch id.
+        Add a watch path.
         """
-        wd = self._path_to_wd.get(path)
-        if wd is not None:
-            return wd
-
         path_bytes = path.encode('UTF-8', 'surrogateescape')
 
         wd = inotify_add_watch(self._inotify_fd, path_bytes, mask)
@@ -312,6 +314,11 @@ class Inotify:
         return wd
 
     def remove_watch(self, path: str) -> None:
+        """
+        Remove watch by path.
+
+        Does nothing if the path is not watched.
+        """
         wd = self._path_to_wd.get(path)
         if wd is None:
             return
@@ -324,6 +331,11 @@ class Inotify:
             del self._wd_to_path[wd]
 
     def remove_watch_with_id(self, wd: int) -> None:
+        """
+        Remove watch by handle.
+
+        Does nothing if the handle is invalid.
+        """
         path = self._wd_to_path.get(wd)
         if path is None:
             return
@@ -337,6 +349,12 @@ class Inotify:
 
     def watch_paths(self) -> set[str]:
         return set(self._path_to_wd)
+
+    def get_watch_id(self, path: str) -> Optional[int]:
+        return self._path_to_wd.get(path)
+
+    def get_watch_path(self, wd: int) -> Optional[str]:
+        return self._wd_to_path.get(wd)
 
     def wait(self, timeout: Optional[float] = None) -> bool:
         """
@@ -380,6 +398,10 @@ class Inotify:
 
             if mask & terminal_events:
                 raise TerminalEventException(wd, mask, watch_path, filename or None)
+
+            if mask & IN_IGNORED and watch_path is not None:
+                wd_to_path.pop(wd, None)
+                self._path_to_wd.pop(watch_path, None)
 
             if watch_path is not None:
                 events.append(InotifyEvent(wd, mask, cookie, filename_len, watch_path, filename))
