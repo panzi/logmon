@@ -141,9 +141,6 @@ def _check_return(value: int, filename: Optional[str] = None) -> int:
         if errnum == ENOENT:
             raise FileNotFoundError(errnum, message, filename)
 
-        if errnum == ENOMEM:
-            raise MemoryError
-
         if errnum in (EACCES, EPERM):
             raise PermissionError(errnum, message, filename)
 
