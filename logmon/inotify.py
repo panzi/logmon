@@ -56,6 +56,8 @@ __all__ = (
     'IN_ISDIR',
     'IN_ONESHOT',
     'IN_ALL_EVENTS',
+    'get_inotify_event_names',
+    'INOTIFY_CODES',
 )
 
 _HEADER_STRUCT = Struct('iIII')
@@ -108,6 +110,28 @@ IN_ALL_EVENTS = (
     IN_MOVED_TO | IN_DELETE | IN_CREATE | IN_DELETE_SELF |
     IN_MOVE_SELF
 )
+
+INOTIFY_CODES: dict[int, str] = {
+    _value: _key.removeprefix('IN_')
+    for _key, _value in globals().items()
+    if _key.startswith('IN_') and type(_value) is int and _key not in (
+        'IN_CLOSE',
+        'IN_MOVE',
+        'IN_ONLYDIR',
+        'IN_DONT_FOLLOW',
+        'IN_EXCL_UNLINK',
+        'IN_MASK_CREATE',
+        'IN_MASK_ADD',
+        'IN_ALL_EVENTS',
+    )
+}
+
+def get_inotify_event_names(mask: int) -> list[str]:
+    names: list[str] = []
+    for code, name in INOTIFY_CODES.items():
+        if mask & code:
+            names.append(name)
+    return names
 
 def _check_return(value: int, filename: Optional[str] = None) -> int:
     if value < 0:
