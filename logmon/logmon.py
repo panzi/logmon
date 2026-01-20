@@ -9,7 +9,7 @@ from os import scandir
 from os.path import abspath, normpath, join as joinpath, split as splitpath
 from time import monotonic, sleep
 from fnmatch import translate
-from errno import ENOENT, EINVAL
+from errno import EINVAL
 
 from .schema import Config, MTConfig, resolve_config
 from .limits_service import LimitsService
@@ -18,7 +18,7 @@ from .constants import *
 from .entry_readers import EntryReaderFactory, LogEntry
 from .actions import Action
 from .inotify_wait_for_exists import inotify_wait_for_exists
-from .inotify import HAS_INOTIFY, Inotify, TerminalEventException, IN_MODIFY, IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO
+from .inotify import HAS_INOTIFY, PollInotify, TerminalEventException, IN_MODIFY, IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO
 from .global_state import is_running, handle_keyboard_interrupt, get_read_stopfd
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def _logmon(
 
     with Action.open_actions(config) as actions:
         if use_inotify and HAS_INOTIFY:
-            inotify = Inotify(get_read_stopfd())
+            inotify = PollInotify(get_read_stopfd())
         else:
             inotify = None
 
@@ -106,7 +106,7 @@ def _logmon(
                                                         break
 
                                                     mask = event.mask
-                                                    inotify_path = normpath(joinpath(event.watch_path, event.filename))
+                                                    inotify_path = normpath(event.full_path())
                                                     if inotify_path == logfile:
                                                         if IN_MODIFY & mask:
                                                             do_wait = False
@@ -186,7 +186,7 @@ def _logmon(
                                         inotify.close()
                                     except Exception as exc:
                                         logger.error(f'{logfile}: Error closing inotify: {exc}', exc_info=exc)
-                                    inotify = Inotify(get_read_stopfd())
+                                    inotify = PollInotify(get_read_stopfd())
                         finally:
                             if not logfp.closed:
                                 try: logfp.close()
@@ -217,7 +217,7 @@ class GlobEntry(NamedTuple):
     reader: Generator[LogEntry|None, None, None]
     stream: TextIO
 
-    def close(self, inotify: Inotify) -> None:
+    def close(self, inotify: PollInotify) -> None:
         try:
             inotify.remove_watch(self.logfile)
         except OSError as exc:
@@ -270,9 +270,9 @@ def _logmon_glob(
 
     with Action.open_actions(config) as actions:
         if use_inotify and HAS_INOTIFY:
-            inotify = Inotify(get_read_stopfd())
+            inotify = PollInotify(get_read_stopfd())
             try:
-                inotify2 = Inotify(get_read_stopfd())
+                inotify2 = PollInotify(get_read_stopfd())
             except:
                 inotify.close()
                 raise
@@ -281,7 +281,7 @@ def _logmon_glob(
                 loghandles: dict[str, GlobEntry] = {}
                 dirwatch_id: Optional[int] = None
 
-                def open_logfile(inotify: Inotify, child_logfile: str, seek_end: bool) -> None:
+                def open_logfile(inotify: PollInotify, child_logfile: str, seek_end: bool) -> None:
                     old_entry = loghandles.pop(child_logfile, None)
                     if old_entry is not None:
                         logger.debug(f'{child_logfile}: Closing old entry')
@@ -367,7 +367,7 @@ def _logmon_glob(
                                     mask = event.mask
 
                                     #logger.debug(f'{event_filename}: {', '.join(type_names)}')
-                                    event_path = normpath(joinpath(event.watch_path, event.filename))
+                                    event_path = normpath(event.full_path())
 
                                     if event_path == parentdir:
                                         if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
@@ -380,7 +380,7 @@ def _logmon_glob(
                                             if entry is not None:
                                                 _read_entries(entry.logfile, entry.reader, wait_before_send, max_entries, actions, limits)
 
-                                        if fnmatch(event.filename):
+                                        if event.filename is not None and fnmatch(event.filename):
                                             if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
                                                 entry = loghandles.pop(event_path, None)
                                                 if entry is not None:
@@ -437,8 +437,8 @@ def _logmon_glob(
                             except Exception as exc:
                                 logger.error(f'{parentdir}: Error closing inotify: {exc}', exc_info=exc)
 
-                            inotify = Inotify(get_read_stopfd())
-                            inotify2 = Inotify(get_read_stopfd())
+                            inotify = PollInotify(get_read_stopfd())
+                            inotify2 = PollInotify(get_read_stopfd())
             finally:
                 try:
                     inotify.close()
@@ -467,13 +467,13 @@ def _logmon_glob(
                 except Exception as exc:
                     logger.error(f"{child_logfile}: Error opening logfile: {exc}", exc_info=exc)
                 else:
-                    entry = entries[child_logfile] = FallbackGlobEntry(
+                    fb_entry = entries[child_logfile] = FallbackGlobEntry(
                         logfile = child_logfile,
                         reader = reader_factory.create_reader(fp),
                         stream = fp,
                     )
 
-                    _read_entries(child_logfile, entry.reader, wait_before_send, max_entries, actions, limits, wait_on_empty_messages=False)
+                    _read_entries(child_logfile, fb_entry.reader, wait_before_send, max_entries, actions, limits, wait_on_empty_messages=False)
 
             first = False
             while is_running():
@@ -496,20 +496,20 @@ def _logmon_glob(
                 removed_logfiles = logfiles - new_logfiles
 
                 for _, removed_logfile in removed_logfiles:
-                    entry = entries.pop(removed_logfile, None)
-                    if entry is not None:
-                        while _read_entries(removed_logfile, entry.reader, 0, max_entries, actions, limits, wait_on_empty_messages=False) >= max_entries:
+                    maybe_entry = entries.pop(removed_logfile, None)
+                    if maybe_entry is not None:
+                        while _read_entries(removed_logfile, maybe_entry.reader, 0, max_entries, actions, limits, wait_on_empty_messages=False) >= max_entries:
                             pass
 
                 for _, added_logfile in added_logfiles:
                     open_entry(added_logfile, seek_end)
 
                 entry_count = 0
-                for entry in entries.values():
+                for fb_entry in entries.values():
                     if not is_running():
                         break
 
-                    entry_count += _read_entries(entry.logfile, entry.reader, 0, max_entries, actions, limits, wait_on_empty_messages=False)
+                    entry_count += _read_entries(fb_entry.logfile, fb_entry.reader, 0, max_entries, actions, limits, wait_on_empty_messages=False)
 
                 if not is_running():
                     break

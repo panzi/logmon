@@ -5,7 +5,7 @@ from os.path import normpath, dirname, join as joinpath
 from errno import EINVAL
 
 from .global_state import is_running
-from .inotify import Inotify, TerminalEventException, IN_CREATE, IN_MOVED_TO, IN_DELETE_SELF, IN_MOVE_SELF
+from .inotify import PollInotify, TerminalEventException, IN_CREATE, IN_MOVED_TO, IN_DELETE_SELF, IN_MOVE_SELF
 
 __all__ = (
     'inotify_wait_for_exists',
@@ -13,7 +13,7 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
-def inotify_wait_for_exists(inotify: Inotify, path: str) -> bool: # type: ignore
+def inotify_wait_for_exists(inotify: PollInotify, path: str) -> bool: # type: ignore
     path = normpath(path)
     dirpath = dirname(path)
     while is_running():
@@ -40,7 +40,7 @@ def inotify_wait_for_exists(inotify: Inotify, path: str) -> bool: # type: ignore
                             return False
 
                         mask = event.mask
-                        if normpath(joinpath(event.watch_path, event.filename)) == path:
+                        if normpath(event.full_path()) == path:
                             if (IN_CREATE | IN_MOVED_TO) & mask:
                                 return True
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
     logger.setLevel(logging.DEBUG)
 
-    inotify = Inotify()
+    inotify = PollInotify()
 
     for path in sys.argv[1:]:
         print(f'{path}: Waiting for path')

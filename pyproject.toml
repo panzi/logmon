@@ -4,6 +4,8 @@ version = "0.8.2"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["pydantic==2.12.*"]
+[project.scripts]
+logmon = "logmon.__main__:main"
 [project.optional-dependencies]
 yaml = ["PyYAML==6.0.*"]
 ruamel_yaml = ["ruamel.yaml==0.18.*"]
