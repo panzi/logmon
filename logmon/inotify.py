@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """
 **Source: [GitHub](https://github.com/panzi/panzi-inotify/)**
 
@@ -172,11 +176,14 @@ INOTIFY_MASK_CODES: Final[Mapping[int, str]] = {
 
         'IN_ISDIR',
     )
-}; "Mapping from inotify event mask flag to it's name."
+}; "Mapping from inotify event mask flag to it's name.\n\n**See Also:** `InotifyEvent.mask`"
 
 def get_inotify_event_names(mask: int) -> list[str]:
     """
     Get a list of event names from an event mask as returned by inotify.
+
+    If there is a flag set that isn't a know name the hexadecimal representation
+    of that flag is also returned.
     """
     names: list[str] = []
     for code, name in INOTIFY_MASK_CODES.items():
@@ -324,10 +331,24 @@ class InotifyEvent(NamedTuple):
         - `IN_IGNORED` - File was ignored.
         - `IN_ISDIR` - Event occurred against directory.
     """
-    cookie: int; "Unique cookie associating related events (for [rename(2)](https://linux.die.net/man/2/rename))."
-    filename_len: int; "Size of the filename field."
-    watch_path: str; "Path of the watched file, `None` if the Python code doesn't know about the watch."
-    filename: Optional[str]; "If the event is about the child of a watched directory, this is the name of that file, otherwise `None`."
+    cookie: int; """\
+        Unique cookie associating related events (for
+        [rename(2)](https://linux.die.net/man/2/rename)).
+    """
+    filename_len: int; "Original byte-size of the filename field."
+    watch_path: str; """\
+        Path of the watched file as it was registered.
+
+        **NOTE:** If the watched file or directory itself is moved/renamed
+        `watch_path` for any further events will *still* be the orignial path
+        that was registered. This is because it is not possible to determine
+        the new file name in a `IN_MOVE_SELF` event and thus this cannot be
+        updated.
+    """
+    filename: Optional[str]; """\
+        If the event is about the child of a watched directory, this is the name
+        of that file, otherwise `None`.
+    """
 
     def full_path(self) -> str:
         """
@@ -547,7 +568,12 @@ class Inotify:
         else:
             filename = None
 
-        watch_path = self._wd_to_path.get(wd)
+        wd_to_path = self._wd_to_path
+        watch_path = wd_to_path.get(wd)
+
+        if mask & IN_IGNORED and watch_path is not None:
+            wd_to_path.pop(wd, None)
+            self._path_to_wd.pop(watch_path, None)
 
         if watch_path is None:
             _logger.debug('Got inotify event for unknown watch handle: %d, mask: %d, cookie: %d', wd, mask, cookie)
