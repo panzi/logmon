@@ -13,6 +13,21 @@ cd logmon
 uv pip install -r pyproject.toml --extra ruamel_yaml --extra systemd
 ```
 
+For SystemD support you nead the SystemD library development files because
+`cysystemd` compiles bindings at install.
+
+Debian:
+
+```bash
+sudo apt install libsystemd-dev
+```
+
+Fedora:
+
+```bash
+sudo dnf install systemd-devel
+```
+
 Dependencies
 ------------
 
@@ -57,12 +72,13 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--max-entries COUNT] [--max-entry-lines COUNT]
                  [--max-emails-per-minute COUNT] [--max-emails-per-hour COUNT]
                  [--use-inotify | --no-use-inotify] [--encoding ENCODING]
+                 [--encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}]
                  [--entry-start-pattern REGEXP] [--error-pattern REGEXP]
                  [--ignore-pattern REGEXP] [--seek-end | --no-seek-end]
                  [--json] [--no-json] [--json-match PATH=VALUE]
-                 [--json-ignore PATH=VALUE] [--json-brief PATH] [--glob]
-                 [--no-glob] [--output-indent WIDTH|NONE]
-                 [--output-format {JSON,YAML}]
+                 [--json-ignore PATH=VALUE] [--json-brief PATH]
+                 [--compression {gzip,bz2,zstd,none}] [--glob] [--no-glob]
+                 [--output-indent WIDTH|NONE] [--output-format {JSON,YAML}]
                  [--systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}]
                  [--systemd-match KEY=VALUE] [--host HOST] [--port PORT]
                  [--user USER] [--password PASSWORD]
@@ -85,9 +101,12 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--command-stderr {file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}]
                  [--command-interactive] [--command-no-interactive]
                  [--command-timeout SECONDS|NONE] [--file FILE]
-                 [--file-encoding ENCODING] [--file-append] [--no-file-append]
-                 [--file-user USER] [--file-group GROUP]
-                 [--file-type {regular,fifo}] [--file-mode MODE]
+                 [--file-encoding ENCODING]
+                 [--file-encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}]
+                 [--file-append] [--no-file-append] [--file-user USER]
+                 [--file-group GROUP] [--file-type {regular,fifo}]
+                 [--file-compression COMPRESSION]
+                 [--file-compression-level LEVEL] [--file-mode MODE]
                  [--keep-connected] [--no-keep-connected] [-d]
                  [--pidfile PATH] [--log-file PATH]
                  [--log-level {CRITICAL,FATAL,ERROR,WARN,WARNING,INFO,DEBUG,NOTSET}]
@@ -184,13 +203,13 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --wait-line-incomplete SECONDS
                         Wait SECOONDS for a 2nd read if the read line was not
                         terminated with a newline. Only one wait is performed.
-                        [default: 0.1]
+                        [default: 0.04]
   --wait-no-entries SECONDS
                         Wait SECONDS before retry if no new entries where
                         found. Not used if inotify is used. [default: 5]
   --wait-before-send SECONDS
                         Wait SECONDS for more entries before sending email.
-                        [default: 1]
+                        [default: 0.08]
   --wait-after-crash SECONDS
                         Wait SECONDS after a monitoring thread crashed.
                         [default: 10]
@@ -212,6 +231,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         functions. [default: True]
   --no-use-inotify      Opposite of --use-inotify
   --encoding ENCODING
+  --encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}
+                        [default: replace]
   --entry-start-pattern REGEXP
                         This pattern defines the start of a log entry. A
                         multiline log entry is parsed up until the next start
@@ -260,6 +281,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         Same match syntax as --json-match, but if this matches
                         the log entry is ignored.
   --json-brief PATH     Path to the JSON field
+  --compression {gzip,bz2,zstd,none}
+                        Read a compressed logfile. [default: none]
   --glob                Interpret last segment of a logfile path is a glob
                         pattern. The rest of the path is just a normal path
                         still. This way multiple logfiles can be processed at
@@ -359,11 +382,17 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --file FILE
   --file-encoding ENCODING
                         [default: "UTF-8"]
+  --file-encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}
+                        [default: replace]
   --file-append
   --no-file-append
   --file-user USER
   --file-group GROUP
   --file-type {regular,fifo}
+  --file-compression COMPRESSION
+                        Compress the output file. [default: none]
+  --file-compression-level LEVEL
+                        [default: Python's default for given method]
   --file-mode MODE      File mode, e.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or
                         `0750`.
   --keep-connected

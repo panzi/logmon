@@ -107,6 +107,7 @@ class ActionConfigBase(TypedDict):
 
     file: Annotated[NotRequired[str], Field(description="Path of logmon logfile.")]
     file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
+    file_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
     file_append: Annotated[NotRequired[bool], Field(description="Open file in append mode.\n\n**Default:** `true`")]
     file_user: Annotated[
         NotRequired[
@@ -127,6 +128,8 @@ class ActionConfigBase(TypedDict):
             Annotated[int, Field(title='Integer')]],
         Field(description='Create the file with these permissions. E.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)
     ]
+    file_compression: Annotated[NotRequired[Optional[Compression]], Field(description="Compress output file.\n\n**Default:** `None`")]
+    file_compression_level: Annotated[NotRequired[Optional[int]], Field(description="**Default:** Python default for given method")]
 
     output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
     output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
@@ -160,7 +163,9 @@ class LogfileConfig(TypedDict):
     json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
     json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
+    encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
     glob: Annotated[NotRequired[bool], Field(description="If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.\n\n**Default:** `false`")]
+    compression: Annotated[NotRequired[Optional[Compression]], Field(description="Read compressed logfiles.\n\n**Default:** `None`")]
 
 class SystemDConfig(TypedDict):
     systemd_priority: Annotated[

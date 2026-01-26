@@ -10,6 +10,8 @@ __all__ = (
     'SystemDPriority',
     'OAuth2GrantType',
     'FileType',
+    'Compression',
+    'EncodingErrors',
 )
 
 type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
@@ -28,3 +30,6 @@ type SystemDSelector = Literal['UNIT', 'SYSLOG']
 type OAuth2GrantType = Literal['client_credentials', 'password']
 
 type FileType = Literal['regular', 'fifo']
+
+type Compression = Literal['gzip', 'bz2', 'zstd']
+type EncodingErrors = Literal['strict', 'ignore', 'replace', 'surrogateescape', 'xmlcharrefreplace', 'backslashreplace', 'namereplace']

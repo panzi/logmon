@@ -30,6 +30,13 @@ import signal
 import logging
 import pydantic
 
+try:
+    from compression import zstd
+except ImportError:
+    HAS_ZSTD = False
+else:
+    HAS_ZSTD = True
+
 from os.path import abspath, join as joinpath, dirname
 from urllib.parse import unquote_plus
 from datetime import timedelta
@@ -484,6 +491,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     inotify_grp.add_argument('--no-use-inotify', default=None, action='store_false', dest='use_inotify',
         help='Opposite of --use-inotify')
     ap.add_argument('--encoding', default=None)
+    ap.add_argument('--encoding-errors', default=None, choices=get_args(EncodingErrors.__value__),
+        help=f'[default: {DEFAULT_ENCODING_ERRORS}]')
     ap.add_argument('--entry-start-pattern', default=None, metavar='REGEXP',
         help=f'This pattern defines the start of a log entry. A multiline log entry is parsed up until the next start '
              f'pattern is matched or the end of the file is reached. [default: {esc_default_entry_start_pattern}]')
@@ -528,6 +537,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Same match syntax as --json-match, but if this matches the log entry is ignored.')
     ap.add_argument('--json-brief', default=None, metavar='PATH',
         help='Path to the JSON field')
+    ap.add_argument('--compression', choices=[ *get_args(Compression.__value__), 'none'], default=None,
+        help='Read a compressed logfile. [default: none]')
 
     ap.add_argument('--glob', action='store_true', default=None,
         help='Interpret last segment of a logfile path is a glob pattern. The '
@@ -624,11 +635,17 @@ def main(argv: Optional[list[str]] = None) -> None:
     ap.add_argument('--file', default=None)
     ap.add_argument('--file-encoding', default=None, metavar='ENCODING',
         help='[default: "UTF-8"]')
+    ap.add_argument('--file-encoding-errors', default=None, choices=get_args(EncodingErrors.__value__),
+        help=f'[default: {DEFAULT_ENCODING_ERRORS}]')
     ap.add_argument('--file-append', action='store_true', default=None)
     ap.add_argument('--no-file-append', action='store_false', dest='file_append')
     ap.add_argument('--file-user', metavar='USER', default=None)
     ap.add_argument('--file-group', metavar='GROUP', default=None)
     ap.add_argument('--file-type', choices=list(get_args(FileType.__value__)), default=None)
+    ap.add_argument('--file-compression', metavar='COMPRESSION', choices=[ *get_args(Compression.__value__), 'none'], default=None,
+        help='Compress the output file. [default: none]')
+    ap.add_argument('--file-compression-level', metavar='LEVEL', type=optional(non_negative(int)), default=None,
+        help="[default: Python's default for given method]")
 
     def parse_file_mode(value: str|None) -> str|None:
         if not value:
@@ -915,6 +932,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.file_encoding is not None:
         action_config['file_encoding'] = args.file_encoding
 
+    if args.file_encoding_errors is not None:
+        action_config['file_encoding_errors'] = args.file_encoding_errors
+
     if args.file_append is not None:
         action_config['file_append'] = args.file_append
 
@@ -929,6 +949,16 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.file_mode is not None:
         action_config['file_mode'] = args.file_mode
+
+    if args.file_compression is not None:
+        file_compression = args.file_compression
+        if not HAS_ZSTD and file_compression == 'zstd':
+            _print_no_zstd()
+            sys.exit(1)
+        action_config['file_compression'] = file_compression if file_compression != 'none' else None
+
+    if args.file_compression_level is not None:
+        action_config['file_compression'] = args.file_compression_level
 
     if args.logmails is not None:
         action_config['logmails'] = args.logmails
@@ -983,6 +1013,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.encoding is not None:
         default_config['encoding'] = args.encoding
 
+    if args.encoding_errors is not None:
+        default_config['encoding_errors'] = args.encoding_errors
+
     if args.entry_start_pattern is not None:
         default_config['entry_start_pattern'] = args.entry_start_pattern
 
@@ -1000,6 +1033,10 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.json_brief is not None:
         default_config['json_brief'] = parse_json_path(args.json_brief)
+
+    if args.compression is not None:
+        compression = args.compression
+        default_config['compression'] = compression if compression != 'none' else None
 
     if args.glob is not None:
         default_config['glob'] = args.glob
@@ -1089,20 +1126,38 @@ def main(argv: Optional[list[str]] = None) -> None:
             if not HAS_INOTIFY and cfg.get('use_inotify'):
                 _print_no_inotify()
                 sys.exit(1)
+
+            if not HAS_ZSTD and cfg.get('compression') == 'zstd':
+                _print_no_zstd()
+                sys.exit(1)
+
             abslogfiles[make_abs_logfile(logfile, context_dir)] = cfg
     else:
         for logfile in logfiles:
             abslogfiles[make_abs_logfile(logfile, context_dir)] = { 'do': [] }
     app_config['logfiles'] = abslogfiles
 
-    if not HAS_YAML:
-        if ((app_do := app_config.get('do')) and app_do.get('output_format') == 'YAML') or \
+    app_do = app_config.get('do')
+
+    if not HAS_ZSTD and (config.get('compression') == 'zstd' or
+            (app_do and app_do.get('file_compression') == 'zstd') or
             any(
-                action_cfg.get('output_format') == 'YAML'
+                action_cfg.get('file_compression') == 'zstd'
                 for logfile_cfg in abslogfiles.values()
                 for action_cfg in (logfile_cfg.get('do') or ())
-            ):
-            raise NotImplementedError('Writing YAML files requires the `PyYAML` package.')
+            )
+        ):
+        _print_no_zstd()
+        sys.exit(1)
+
+    if not HAS_YAML and ((app_do and app_do.get('output_format') == 'YAML') or
+        any(
+            action_cfg.get('output_format') == 'YAML'
+            for logfile_cfg in abslogfiles.values()
+            for action_cfg in (logfile_cfg.get('do') or ())
+        )):
+        _print_no_yaml()
+        sys.exit(1)
 
     has_systemd = False
     for logfile in abslogfiles:
@@ -1179,6 +1234,12 @@ def _print_no_inotify() -> None:
 
 def _print_no_systemd() -> None:
     print('SystemD support requires the `cysystemd` Python package to be installed!', file=sys.stderr)
+
+def _print_no_zstd() -> None:
+    print('ZStd support requires Python >=3.14!', file=sys.stderr)
+
+def _print_no_yaml() -> None:
+    print('YAML support requires the `ruamel.yaml` or `PyYAML` package!', file=sys.stderr)
 
 def _parse_json_match_arg(args: list[str]) -> JsonMatch:
     json_match: JsonMatch = {}

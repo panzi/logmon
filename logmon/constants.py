@@ -2,7 +2,7 @@ import re
 
 from datetime import timedelta
 
-from .types import ActionType, Logmails, OutputFormat, ContentType, JsonPath, OAuth2GrantType
+from .types import ActionType, Logmails, OutputFormat, ContentType, JsonPath, OAuth2GrantType, EncodingErrors
 from .yaml import HAS_YAML
 
 __all__ = (
@@ -37,6 +37,7 @@ __all__ = (
     'DEFAULT_OAUTH2_REFRESH_MARGIN',
     'DEFAULT_FILE_MODE',
     'DEFAULT_JSON_BRIEF',
+    'DEFAULT_ENCODING_ERRORS',
     'ROOT_CONFIG_PATH',
 )
 
@@ -60,6 +61,7 @@ DEFAULT_MAX_ENTRY_LINES = 2048
 DEFAULT_LOG_FORMAT = '[%(asctime)s] [%(process)d] %(levelname)s: %(message)s'
 DEFAULT_LOG_DATEFMT = '%Y-%m-%dT%H:%M:%S%z'
 DEFAULT_LOGMAILS: Logmails = 'onerror'
+DEFAULT_ENCODING_ERRORS: EncodingErrors = 'replace'
 
 DEFAULT_OUTPUT_INDENT = 4
 DEFAULT_OUTPUT_FORMAT: OutputFormat = 'YAML' if HAS_YAML else 'JSON'

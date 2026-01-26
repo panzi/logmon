@@ -2,15 +2,24 @@ from typing import Iterable, Generator, Callable, Match, Optional, NamedTuple, T
 
 import re
 import os
+import bz2
+import zlib
+import gzip
 import logging
 import threading
 
 from os import scandir
-from os.path import abspath, normpath, join as joinpath, split as splitpath
+from os.path import abspath, normpath, split as splitpath
 from time import monotonic, sleep
 from fnmatch import translate
 from errno import EINVAL
 
+try:
+    from compression import zstd
+except ImportError:
+    zstd = None # type: ignore
+
+from .types import Compression, EncodingErrors
 from .schema import Config, MTConfig, resolve_config
 from .limits_service import LimitsService
 from .systemd import is_systemd_path, logmon_systemd
@@ -23,8 +32,44 @@ from .global_state import is_running, handle_keyboard_interrupt, get_read_stopfd
 
 logger = logging.getLogger(__name__)
 
+__all__ = (
+    'logmon',
+    'logmon_mt',
+)
+
 def fncompile(pattern: str) -> Callable[[str], Match|None]:
     return re.compile(translate(pattern)).match
+
+class InodeRef(NamedTuple):
+    device: int
+    inode: int
+
+def open_logfile(logfile: str, encoding: str, seek_end: bool, compression: Optional[Compression], errors: EncodingErrors) -> TextIO:
+    match compression:
+        case None:
+            logfp = open(logfile, 'rt', encoding=encoding, errors=errors)
+
+        case 'gzip':
+            logfp = gzip.open(logfile, 'rt', encoding=encoding, errors=errors)
+
+        case 'bz2':
+            logfp = bz2.open(logfile, 'rt', encoding=encoding, errors=errors)
+
+        case 'zstd':
+            if zstd is None:
+                raise ValueError(f'zstd support requires Python >=3.14')
+            logfp = zstd.open(logfile, 'rt', encoding=encoding, errors=errors)
+
+        case _:
+            raise ValueError(f'Unsupported compression: {compression!r}')
+
+    try:
+        if seek_end:
+            logfp.seek(0, os.SEEK_END)
+        return logfp
+    except:
+        logfp.close()
+        raise
 
 def logmon(logfile: str, config: Config) -> None:
     logfile = normpath(abspath(logfile))
@@ -47,8 +92,10 @@ def _logmon(
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     encoding = config.get('encoding', 'UTF-8')
+    errors = config.get('encoding_errors', DEFAULT_ENCODING_ERRORS)
     seek_end = config.get('seek_end', True)
     use_inotify = config.get('use_inotify', HAS_INOTIFY)
+    compression = config.get('compression')
 
     reader_factory = EntryReaderFactory.from_config(config)
 
@@ -65,15 +112,14 @@ def _logmon(
 
             while is_running():
                 try:
-                    logfp = open(logfile, 'r', encoding=encoding)
+                    logfp = open_logfile(logfile, encoding, seek_end, compression, errors)
                     if file_not_found:
                         file_not_found = False
                         logger.debug(f"{logfile}: File appeared!")
+
                     try:
                         logfp_stat = os.fstat(logfp.fileno())
                         logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
-                        if seek_end:
-                            logfp.seek(0, os.SEEK_END)
 
                         reader = reader_factory.create_reader(logfp)
 
@@ -256,8 +302,10 @@ def _logmon_glob(
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
     encoding = config.get('encoding', 'UTF-8')
+    errors = config.get('encoding_errors', DEFAULT_ENCODING_ERRORS)
     use_inotify = config.get('use_inotify', HAS_INOTIFY)
     seek_end = config.get('seek_end', True)
+    compression = config.get('compression')
 
     reader_factory = EntryReaderFactory.from_config(config)
 
@@ -281,7 +329,7 @@ def _logmon_glob(
                 loghandles: dict[str, GlobEntry] = {}
                 dirwatch_id: Optional[int] = None
 
-                def open_logfile(inotify: PollInotify, child_logfile: str, seek_end: bool) -> None:
+                def _open_logfile(inotify: PollInotify, child_logfile: str, seek_end: bool) -> None:
                     old_entry = loghandles.pop(child_logfile, None)
                     if old_entry is not None:
                         logger.debug(f'{child_logfile}: Closing old entry')
@@ -300,10 +348,7 @@ def _logmon_glob(
                             logger.error(f"{child_logfile}: Didn't create a watch handle!")
                         else:
                             try:
-                                fp = open(child_logfile, 'r', encoding=encoding)
-
-                                if seek_end:
-                                    fp.seek(0, os.SEEK_END)
+                                fp = open_logfile(child_logfile, encoding, seek_end, compression, errors)
 
                             except FileNotFoundError:
                                 try:
@@ -356,7 +401,7 @@ def _logmon_glob(
                                     continue
 
                                 for added_logfile in new_paths:
-                                    open_logfile(inotify, added_logfile, seek_end)
+                                    _open_logfile(inotify, added_logfile, seek_end)
 
                             do_wait = True
                             while do_wait and inotify.wait() and is_running():
@@ -393,7 +438,7 @@ def _logmon_glob(
                                                         entry.close(inotify)
 
                                             if mask & (IN_CREATE | IN_MOVED_TO):
-                                                open_logfile(inotify, event_path, False)
+                                                _open_logfile(inotify, event_path, False)
 
                     except KeyboardInterrupt:
                         handle_keyboard_interrupt()
@@ -456,10 +501,7 @@ def _logmon_glob(
                     old_entry.close()
 
                 try:
-                    fp = open(child_logfile, 'r', encoding=encoding)
-
-                    if seek_end:
-                        fp.seek(0, os.SEEK_END)
+                    fp = open_logfile(child_logfile, encoding, seek_end, compression, errors)
 
                 except FileNotFoundError:
                     pass

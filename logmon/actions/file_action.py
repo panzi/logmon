@@ -1,16 +1,23 @@
-from typing import Optional, IO, override
+from typing import Optional, IO, Literal, override
 
 import os
 import pwd
 import grp
 import stat
 import logging
+import gzip
+import bz2
+
+try:
+    from compression import zstd
+except ImportError:
+    zstd = None # type: ignore
 
 from .action import Action
-from ..types import FileType
+from ..types import FileType, Compression, EncodingErrors
 from ..schema import Config, ActionConfig, FILE_MODE_PATTERN
 from ..entry_readers import LogEntry
-from ..constants import DEFAULT_FILE_MODE
+from ..constants import DEFAULT_FILE_MODE, DEFAULT_ENCODING_ERRORS
 
 __all__ = (
     'FileAction',
@@ -106,21 +113,27 @@ class FileAction(Action):
     __slots__ = (
         'file_path',
         'file_encoding',
+        'file_encoding_errors',
         'file_append',
         'file_user',
         'file_group',
         'file_type',
         'file_mode',
+        'file_compression',
+        'file_compression_level',
         'stream',
     )
 
     file_path: str
     file_encoding: str
+    file_encoding_errors: EncodingErrors
     file_append: bool
     file_user: Optional[int|str]
     file_group: Optional[int|str]
     file_type: FileType
     file_mode: int
+    file_compression: Optional[Compression]
+    file_compression_level: Optional[int]
     stream: Optional[IO[str]]
 
     def __init__(self, action_config: ActionConfig, config: Config) -> None:
@@ -132,6 +145,7 @@ class FileAction(Action):
 
         self.file_path = file
         self.file_encoding = action_config.get('file_encoding', 'UTF-8')
+        self.file_encoding_errors = action_config.get('file_encoding_errors', DEFAULT_ENCODING_ERRORS)
         self.file_append = action_config.get('file_append', True)
         self.file_user = action_config.get('file_user')
         self.file_group = action_config.get('file_group')
@@ -139,6 +153,8 @@ class FileAction(Action):
 
         mode = parse_file_mode(action_config.get('file_mode'))
         self.file_mode = mode if mode is not None else DEFAULT_FILE_MODE
+        self.file_compression = action_config.get('file_compression')
+        self.file_compression_level = action_config.get('file_compression_level')
         self.stream = None
 
     def reopen(self) -> IO[str]:
@@ -150,36 +166,70 @@ class FileAction(Action):
 
         return self.get_stream()
 
+    def _open_file(self) -> IO[str]:
+        compression = self.file_compression
+        level = self.file_compression_level
+        encoding = self.file_encoding
+        errors = self.file_encoding_errors
+
+        open_mode: int = getattr(os, 'O_CLOEXEC', 0) | os.O_WRONLY | os.O_CREAT
+        str_mode: Literal['at', 'wt']
+
+        if self.file_append:
+            open_mode |= os.O_APPEND
+            str_mode = 'at'
+        else:
+            open_mode |= os.O_TRUNC
+            str_mode = 'wt'
+
+
+        match compression:
+            case None:
+                return open(self.file_path, str_mode, encoding=encoding, errors=errors)
+
+            case 'gzip':
+                if level is None:
+                    level = 9
+
+                return gzip.open(self.file_path, str_mode, compresslevel=level, encoding=encoding, errors=errors)
+
+            case 'bz2':
+                if level is None:
+                    level = 9
+
+                return bz2.open(self.file_path, str_mode, compresslevel=level, encoding=encoding, errors=errors)
+
+            case 'zstd':
+                if zstd is None:
+                    raise ValueError(f'zstd support requires Python >=3.14')
+                return zstd.open(self.file_path, str_mode, level=level, encoding=encoding, errors=errors)
+
+            case _:
+                raise ValueError(f'Unsupported compression: {compression!r}')
+
     def get_stream(self) -> IO[str]:
         stream = self.stream
         if stream is None or stream.closed:
-            mode = self.file_mode
-            open_mode: int = getattr(os, 'O_CLOEXEC', 0) | os.O_WRONLY | os.O_CREAT
-
-            if self.file_append:
-                open_mode |= os.O_APPEND
-            else:
-                open_mode |= os.O_TRUNC
-
             if self.file_type == 'fifo':
                 try:
-                    os.mkfifo(self.file_path, mode)
+                    os.mkfifo(self.file_path, self.file_mode)
                 except FileExistsError:
-                    fd = os.open(self.file_path, open_mode, mode)
+                    stream = self._open_file()
                     try:
-                        meta = os.fstat(fd)
+                        meta = os.fstat(stream.fileno())
                         if stat.S_IFIFO & meta.st_mode == 0:
                             raise TypeError(f"{self.file_path}: File exists but isn't a FIFO")
                     except:
-                        os.close(fd)
+                        stream.close()
                         raise
                 else:
-                    fd = os.open(self.file_path, open_mode, mode)
+                    stream = self._open_file()
             else:
-                fd = os.open(self.file_path, open_mode, mode)
+                stream = self._open_file()
 
-            stream = os.fdopen(fd, "w", encoding=self.file_encoding)
             self.stream = stream
+
+            os.chmod(stream.fileno(), self.file_mode)
 
             user  = self.file_user
             group = self.file_group
@@ -201,7 +251,7 @@ class FileAction(Action):
 
             if uid != -1 or gid != -1:
                 try:
-                    os.chown(fd, uid, gid)
+                    os.chown(stream.fileno(), uid, gid)
                 except PermissionError as exc:
                     who: list[str] = []
 
