@@ -30,14 +30,14 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    def write_logs(logfiles: list[str]):
+    def write_logs(logfiles: list[str], compression: Compression|None):
         sleep(0.25)
         os.mkdir(logdir)
         print(f"{logdir}: created directory", file=sys.stderr)
 
         write_file(join_path(logdir, 'bar.log'), "[2025-12-14T20:15:00+0100] INFO: BAR message.")
 
-        with open(logfiles[0], 'w') as fp1:
+        with open_compressed_file(logfiles[0], compression) as fp1:
             print("[2025-12-14T20:15:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         print(f"{logfiles[0]}: written logs", file=sys.stderr)
 
@@ -46,7 +46,7 @@ logfiles:
         os.unlink(logfiles[0])
         print(f"{logfiles[0]}: deleted", file=sys.stderr)
 
-        with open(logfiles[0], 'w') as fp1:
+        with open_compressed_file(logfiles[0], compression) as fp1:
             print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
             errmsg1hdr = "ERROR: Something failed!"
             errmsg1 = f"[2025-12-14T20:17:00+0100] {errmsg1hdr}"
@@ -60,7 +60,7 @@ logfiles:
 
         #sleep(2) # XXX: shorter sleep breaks this. it shouldn't!
 
-        with open(logfiles[0], 'w') as fp1:
+        with open_compressed_file(logfiles[0], compression) as fp1:
             errmsg2hdr = "CRITICAL: Something else failed!"
             errmsg2 = f"[2025-12-14T20:18:00+0100] {errmsg2hdr}"
             print(errmsg2, file=fp1); fp1.flush()
@@ -73,7 +73,7 @@ logfiles:
         ]
 
         bar2 = join_path(logdir, 'bar2.log')
-        with open(bar2, 'w') as fp2:
+        with open_compressed_file(bar2, compression) as fp2:
             errmsg3hdr = "ERROR: Starts with an error!"
             errmsg3_1 = f"[2025-12-14T20:16:00+0100] {errmsg3hdr}"
             errmsg3_2 = "Which is actually multi line!"
@@ -91,7 +91,7 @@ logfiles:
             { "header": errmsg3hdr, "message": f"{errmsg3_1}\n{errmsg3_2}" },
         ]
 
-        with open(logfiles[2], 'w') as fp3:
+        with open_compressed_file(logfiles[2], compression) as fp3:
             pass
 
         print(f"{logfiles[2]}: written empty file", file=sys.stderr)

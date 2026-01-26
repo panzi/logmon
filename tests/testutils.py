@@ -1,6 +1,13 @@
-from typing import TypedDict, Generator, IO, Optional, Callable, TypeVar, overload
+from typing import TypedDict, Generator, IO, Optional, Callable, TypeVar, Literal, TextIO, overload
 
 import sys
+import gzip
+import bz2
+
+try:
+    from compression import zstd
+except ImportError:
+    zstd = None # type: ignore
 
 from time import sleep
 from pathlib import Path
@@ -17,6 +24,8 @@ __all__ = (
     'write_logs',
     'pipe_io',
     'run_logmon',
+    'Compression',
+    'open_compressed_file',
 )
 
 SRC_PATH = str(Path(__file__).resolve().parent.parent)
@@ -52,10 +61,30 @@ class ExampleLog(TypedDict):
     header: str
     message: str
 
-def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
+Compression = Literal['gzip', 'bz2', 'zstd']
+
+def open_compressed_file(path: str, compression: Compression|None) -> TextIO:
+    match compression:
+        case None:
+            return open(path, 'wt')
+
+        case 'gzip':
+            return gzip.open(path, 'wt')
+
+        case 'bz2':
+            return bz2.open(path, 'wt')
+
+        case 'zstd':
+            assert zstd is not None
+            return zstd.open(path, 'wt')
+
+        case _:
+            raise ValueError(f'Unsupported compression: {compression!r}')
+
+def write_logs(logfiles: list[str], compression: Compression|None = None) -> Generator[list[ExampleLog], None, None]:
     sleep(0.25)
 
-    with open(logfiles[0], 'w') as fp1:
+    with open_compressed_file(logfiles[0], compression) as fp1:
         print("[2025-12-14T20:15:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         errmsg1hdr = "ERROR: Something failed!"
@@ -73,7 +102,7 @@ def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
 
     sleep(0.25)
 
-    with open(logfiles[1], 'w') as fp2:
+    with open_compressed_file(logfiles[1], compression) as fp2:
         errmsg3hdr = "ERROR: Starts with an error!"
         errmsg3_1 = f"[2025-12-14T20:16:00+0100] {errmsg3hdr}"
         errmsg3_2 = "Which is actually multi line!"
@@ -87,7 +116,7 @@ def write_logs(logfiles: list[str]) -> Generator[list[ExampleLog], None, None]:
 
     sleep(0.25)
 
-    with open(logfiles[2], 'w') as fp3:
+    with open_compressed_file(logfiles[2], compression) as fp3:
         pass
 
     yield []
@@ -153,7 +182,7 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
 
 LogEntry = TypeVar('LogEntry')
 
-def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str]], Generator[list[LogEntry], None, None]]=write_logs) -> tuple[Popen[bytes], list[list[LogEntry]], str, str]:
+def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str], Compression|None], Generator[list[LogEntry], None, None]]=write_logs, compression: Compression|None=None) -> tuple[Popen[bytes], list[list[LogEntry]], str, str]:
     proc = Popen(
         [sys.executable, '-m', 'logmon', *args],
         cwd=SRC_PATH,
@@ -170,7 +199,7 @@ def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str]]
     logs: list[list[LogEntry]] = []
 
     try:
-        for l in write_logs(logfiles):
+        for l in write_logs(logfiles, compression):
             logs.append(l)
 
             status: Optional[int] = proc.returncode

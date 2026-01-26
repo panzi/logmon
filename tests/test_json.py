@@ -7,8 +7,8 @@ from os.path import join as join_path
 
 from tests.testutils import *
 
-def write_json_logs(logfiles: list[str]) -> Generator[list[dict], None, None]:
-    with open(logfiles[0], 'w') as fp1:
+def write_json_logs(logfiles: list[str], compression: Compression|None) -> Generator[list[dict], None, None]:
+    with open_compressed_file(logfiles[0], compression) as fp1:
         fp1.write(json.dumps({
             "datetime": "2025-12-14T20:15:00+0100",
             "level": "INFO",
@@ -41,7 +41,7 @@ def write_json_logs(logfiles: list[str]) -> Generator[list[dict], None, None]:
 
     yield [err1, err2]
 
-    with open(logfiles[1], 'w') as fp2:
+    with open_compressed_file(logfiles[1], compression) as fp2:
         fp2.write(json.dumps(err3 := {
             "datetime": "2025-12-14T20:16:00+0100",
             "level": "ERROR",
@@ -56,7 +56,7 @@ def write_json_logs(logfiles: list[str]) -> Generator[list[dict], None, None]:
 
     yield [err3]
 
-    with open(logfiles[2], 'w') as fp3:
+    with open_compressed_file(logfiles[2], compression) as fp3:
         pass
 
     yield []
