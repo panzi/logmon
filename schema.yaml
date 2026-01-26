@@ -37,12 +37,28 @@ $defs:
                 type: string
         title: AppLogConfig
         type: object
+    Compression:
+        enum:
+        -   gzip
+        -   bz2
+        -   zstd
+        type: string
     ContentType:
         enum:
         -   JSON
         -   YAML
         -   URL
         -   multipart
+        type: string
+    EncodingErrors:
+        enum:
+        -   strict
+        -   ignore
+        -   replace
+        -   surrogateescape
+        -   xmlcharrefreplace
+        -   backslashreplace
+        -   namereplace
         type: string
     EqExpr:
         maxItems: 2
@@ -98,7 +114,7 @@ $defs:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `0.1`'
+                description: '**Default:** `0.04`'
                 ge: 0
                 title: Wait Line Incomplete
             wait_file_not_found:
@@ -119,7 +135,7 @@ $defs:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `1`'
+                description: '**Default:** `0.08`'
                 ge: 0
                 title: Wait Before Send
             wait_after_crash:
@@ -180,6 +196,12 @@ $defs:
                 description: "**Default:** `'UTF-8'`"
                 title: Encoding
                 type: string
+            encoding_errors:
+                $ref: '#/$defs/EncodingErrors'
+                description: |-
+                    See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]
+
+                    **Default:** `'replace'`
             glob:
                 description: |-
                     If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.
@@ -187,6 +209,14 @@ $defs:
                     **Default:** `false`
                 title: Glob
                 type: boolean
+            compression:
+                anyOf:
+                -   $ref: '#/$defs/Compression'
+                -   type: 'null'
+                description: |-
+                    Read compressed logfiles.
+
+                    **Default:** `None`
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
@@ -476,6 +506,12 @@ $defs:
                 description: "**Default:** `'UTF-8'`"
                 title: File Encoding
                 type: string
+            file_encoding_errors:
+                $ref: '#/$defs/EncodingErrors'
+                description: |-
+                    See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]
+
+                    **Default:** `'replace'`
             file_append:
                 description: |-
                     Open file in append mode.
@@ -511,6 +547,20 @@ $defs:
                 description: 'Create the file with these permissions. E.g.: `rwxr-x---`,
                     `u=rwx,g=rx,o=`, or `0750`.'
                 title: File Mode
+            file_compression:
+                anyOf:
+                -   $ref: '#/$defs/Compression'
+                -   type: 'null'
+                description: |-
+                    Compress output file.
+
+                    **Default:** `None`
+            file_compression_level:
+                anyOf:
+                -   type: integer
+                -   type: 'null'
+                description: '**Default:** Python default for given method'
+                title: File Compression Level
             output_indent:
                 anyOf:
                 -   minimum: 0
@@ -605,7 +655,7 @@ $defs:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `0.1`'
+                description: '**Default:** `0.04`'
                 ge: 0
                 title: Wait Line Incomplete
             wait_file_not_found:
@@ -626,7 +676,7 @@ $defs:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `1`'
+                description: '**Default:** `0.08`'
                 ge: 0
                 title: Wait Before Send
             wait_after_crash:
@@ -687,6 +737,12 @@ $defs:
                 description: "**Default:** `'UTF-8'`"
                 title: Encoding
                 type: string
+            encoding_errors:
+                $ref: '#/$defs/EncodingErrors'
+                description: |-
+                    See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]
+
+                    **Default:** `'replace'`
             glob:
                 description: |-
                     If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.
@@ -694,6 +750,14 @@ $defs:
                     **Default:** `false`
                 title: Glob
                 type: boolean
+            compression:
+                anyOf:
+                -   $ref: '#/$defs/Compression'
+                -   type: 'null'
+                description: |-
+                    Read compressed logfiles.
+
+                    **Default:** `None`
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
