@@ -3,7 +3,6 @@ from typing import Iterable, Generator, Callable, Match, Optional, NamedTuple, T
 import re
 import os
 import bz2
-import zlib
 import gzip
 import logging
 import threading
@@ -39,10 +38,6 @@ __all__ = (
 
 def fncompile(pattern: str) -> Callable[[str], Match|None]:
     return re.compile(translate(pattern)).match
-
-class InodeRef(NamedTuple):
-    device: int
-    inode: int
 
 def open_logfile(logfile: str, encoding: str, seek_end: bool, compression: Optional[Compression], errors: EncodingErrors) -> TextIO:
     match compression:
