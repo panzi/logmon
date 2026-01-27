@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, TextIO
 
 __all__ = (
     'yaml_load',
@@ -22,7 +22,7 @@ try:
 
     YamlRepresenter.add_representer(str, YamlRepresenter.represent_str)
 
-    def yaml_load(stream) -> Any:
+    def yaml_load(stream: TextIO) -> Any:
         yaml = YAML(typ='safe', pure=True)
         return yaml.load(stream)
 
@@ -54,8 +54,8 @@ except ImportError:
 
         import json
 
-        def yaml_load(stream) -> Any:
-            raise NotImplementedError('Reading YAML files requires the `PyYAML` package.')
+        def yaml_load(stream: TextIO) -> Any:
+            raise NotImplementedError('Reading YAML files requires the `ruamel.yaml` or `PyYAML` package.')
 
         def yaml_dump(data: Any, /, indent: Optional[int] = None) -> str:
             return json.dumps(data, indent=indent)
