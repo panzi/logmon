@@ -1,9 +1,11 @@
 [project]
 name = "logmon"
-version = "0.8.3"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = ["pydantic==2.12.*"]
+dynamic = ["version"]
+[tool.setuptools.dynamic]
+version = {attr = "logmon.constants.__version__"}
 [project.scripts]
 logmon = "logmon.__main__:main"
 [project.optional-dependencies]
@@ -18,3 +20,6 @@ dev = [
     "types-PyYAML==6.0.*",
     "json-schema-for-humans>=1.5.1",
 ]
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
