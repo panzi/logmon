@@ -43,7 +43,10 @@ class JsonEntryReaderFactory(EntryReaderFactory):
     @override
     def create_reader(self, logfile: TextIO) -> Generator[LogEntry | None, None, None]:
         while is_running():
-            line = logfile.readline()
+            try:
+                line = logfile.readline()
+            except EOFError:
+                line = ''
 
             if not line:
                 yield None
@@ -51,7 +54,10 @@ class JsonEntryReaderFactory(EntryReaderFactory):
 
             if not line.endswith('\n'):
                 sleep(self.wait_line_incomplete)
-                line += logfile.readline()
+                try:
+                    line += logfile.readline()
+                except EOFError:
+                    pass
 
             line = line.strip()
 

@@ -144,7 +144,7 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
                 infile = stdout
                 outfile = sys.stdout
                 buf = stdout_buf
-                if POLLRDHUP & event or POLLHUP & event:
+                if (POLLRDHUP | POLLHUP) & event:
                     wait_stdout = False
                     poller.unregister(stdout.fileno())
                 closed = not wait_stdout
@@ -153,7 +153,7 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
                 infile = stderr
                 outfile = sys.stderr
                 buf = stderr_buf
-                if POLLRDHUP & event or POLLHUP & event:
+                if (POLLRDHUP | POLLHUP) & event:
                     wait_stderr = False
                     poller.unregister(stderr.fileno())
                 closed = not wait_stderr

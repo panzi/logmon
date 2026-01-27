@@ -75,7 +75,10 @@ class TextEntryReaderFactory(EntryReaderFactory):
                 line = next_line
                 next_line = None
             else:
-                line = logfile.readline()
+                try:
+                    line = logfile.readline()
+                except EOFError:
+                    line = ''
 
             if not line:
                 # singal no more entries for now
@@ -84,13 +87,22 @@ class TextEntryReaderFactory(EntryReaderFactory):
 
             buf.append(line)
             if not line.endswith('\n'):
+                print('wait for line end')
                 sleep(self.wait_line_incomplete)
-                buf.append(logfile.readline())
+                try:
+                    rest_of_line = logfile.readline()
+                except EOFError:
+                    pass
+                else:
+                    buf.append(rest_of_line)
 
             line_count = 1
             entry_start_pattern = self.entry_start_pattern
             while line_count < self.max_entry_lines:
-                line = logfile.readline()
+                try:
+                    line = logfile.readline()
+                except EOFError:
+                    break
 
                 if not line:
                     break

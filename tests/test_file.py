@@ -97,8 +97,6 @@ def _make_test(compression: Compression|None):
     if compression == 'zstd':
       if zstd is None:
           test_file = pytest.mark.skip('zstd not supported on your system')(test_file)
-      else:
-          test_file = pytest.mark.skip('TODO: zstd support')(test_file)
 
     globals()[test_file.__name__] = test_file
 
