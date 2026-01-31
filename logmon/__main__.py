@@ -50,7 +50,7 @@ from .constants import *
 from .systemd import HAS_SYSTEMD, is_systemd_path, parse_systemd_path
 from .global_state import handle_stop_signal, open_stopfds, close_stopfds
 from .json_match import JsonMatch, parse_json_match
-from .limits_service import LimitsService
+from .limiter import Limiter
 from .logmon import logmon_mt, _logmon_thread
 
 ACTIONS: set[ActionType] = set(get_args(ActionType.__value__))
@@ -1217,12 +1217,12 @@ def main(argv: Optional[list[str]] = None) -> None:
                 app_config.get('do') or {},
                 cfg,
             )
-            limits = LimitsService.from_config(app_config.get('limits') or {})
+            limiter = Limiter.from_config(app_config.get('limits') or {})
 
             _logmon_thread(
                 logfile,
                 cfg, # type: ignore
-                limits,
+                limiter,
             )
         else:
             logmon_mt(app_config)

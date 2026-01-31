@@ -9,7 +9,7 @@ from .schema import LimitsConfig
 logger = logging.getLogger(__name__)
 
 __all__ = (
-    'LimitsService',
+    'Limiter',
 )
 
 def remove_smaller(items: list[float], cutoff: float) -> None:
@@ -28,7 +28,7 @@ def remove_smaller(items: list[float], cutoff: float) -> None:
         else:
             index += 1
 
-class LimitsService:
+class Limiter:
     __slots__ = (
         '_lock', '_hour_timestamps', '_minute_timestamps',
         '_max_emails_per_minute', '_max_emails_per_hour',
@@ -53,8 +53,8 @@ class LimitsService:
         self._last_hour_warning_ts = -inf
 
     @staticmethod
-    def from_config(config: LimitsConfig) -> 'LimitsService':
-        return LimitsService(
+    def from_config(config: LimitsConfig) -> 'Limiter':
+        return Limiter(
             max_emails_per_hour=config.get('max_emails_per_hour', DEFAULT_MAX_EMAILS_PER_HOUR),
             max_emails_per_minute=config.get('max_emails_per_minute', DEFAULT_MAX_EMAILS_PER_MINUTE),
         )

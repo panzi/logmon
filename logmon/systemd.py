@@ -9,7 +9,7 @@ from .constants import *
 from .global_state import is_running, get_read_stopfd
 from .cleanup_brief import cleanup_brief
 from .schema import Config
-from .limits_service import LimitsService
+from .limiter import Limiter
 from .actions import Action
 from .global_state import handle_keyboard_interrupt
 from .entry_readers import LogEntry
@@ -41,7 +41,7 @@ try:
     def logmon_systemd(
         logfile: str,
         config: Config,
-        limits: LimitsService,
+        limiter: Limiter,
     ) -> None:
         wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
@@ -160,7 +160,7 @@ try:
                                 brief = chunk[0].brief
 
                                 for action in actions:
-                                    if limits.check():
+                                    if limiter.check():
                                         action.perform_action(
                                             logfile = logfile,
                                             entries = chunk,
@@ -193,7 +193,7 @@ except ImportError:
     def logmon_systemd(
         logfile: str,
         config: Config,
-        limits: LimitsService,
+        limiter: Limiter,
     ) -> None:
         raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
 
