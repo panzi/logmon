@@ -183,13 +183,12 @@ logfiles:
                         return
 
                     access_token = b64encode(uuid4().bytes).decode('ISO-8859-1')
-                    token = TokenData(
+                    access_tokens[access_token] = TokenData(
                         client_id    = client_id,
                         access_token = access_token,
                         scopes       = scope_set,
                         expires_at   = datetime.now() + token_lifetime,
                     )
-                    access_tokens[access_token] = token
                     response = json.dumps({
                         "access_token": access_token,
                         "token_type": "bearer",

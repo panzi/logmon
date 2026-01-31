@@ -1,4 +1,4 @@
-from typing import TypedDict, Generator, IO, Optional, Callable, TypeVar, Literal, TextIO, overload
+from typing import TypedDict, Generator, IO, Optional, Callable, Literal, TextIO, TypeVar, overload
 
 import sys
 import gzip
@@ -180,9 +180,20 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
         stderr_buf.decode(errors='replace'),
     )
 
-LogEntry = TypeVar('LogEntry')
+T = TypeVar('T')
 
-def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str], Compression|None], Generator[list[LogEntry], None, None]]=write_logs, compression: Compression|None=None) -> tuple[Popen[bytes], list[list[LogEntry]], str, str]:
+@overload
+def run_logmon(logfiles: list[str], *args: str, compression: Compression|None=None) -> tuple[Popen[bytes], list[list[ExampleLog]], str, str]: ...
+
+@overload
+def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]], compression: Compression|None=None) -> tuple[Popen[bytes], list[list[T]], str, str]: ...
+
+def run_logmon(
+        logfiles: list[str],
+        *args: str,
+        write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]]=write_logs, # type: ignore
+        compression: Compression|None=None,
+) -> tuple[Popen[bytes], list[list[T]], str, str]:
     proc = Popen(
         [sys.executable, '-m', 'logmon', *args],
         cwd=SRC_PATH,
@@ -196,13 +207,13 @@ def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str],
 
     status: Optional[int] = proc.returncode
 
-    logs: list[list[LogEntry]] = []
+    logs: list[list[T]] = []
 
     try:
         for l in write_logs(logfiles, compression):
             logs.append(l)
 
-            status: Optional[int] = proc.returncode
+            status = proc.returncode
             if status is not None and status != 0:
                 assert status == 0
 

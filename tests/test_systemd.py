@@ -110,7 +110,7 @@ logfiles:
         for l in write_systemd_logs(service_prefix):
             logs.append(l)
 
-            status: Optional[int] = proc.returncode
+            status = proc.returncode
             if status is not None and status != 0:
                 assert status == 0
 

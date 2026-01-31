@@ -46,11 +46,11 @@ logfiles:
     class Handler(StreamRequestHandler):
         def recv_command(self) -> Optional[tuple[str, Optional[str]]]:
             while True:
-                line = self.rfile.readline()
-                if not line:
+                bytes_line = self.rfile.readline()
+                if not bytes_line:
                     return None
 
-                line = line.decode('ASCII').strip()
+                line = bytes_line.decode('ASCII').strip()
                 if not line:
                     continue
                 cmd = line.split(maxsplit=1)
