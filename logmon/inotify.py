@@ -48,6 +48,7 @@ import ctypes
 import ctypes.util
 import logging
 
+from os import fsencode, fsdecode
 from os.path import join as join_path
 from io import BufferedReader
 from struct import Struct
@@ -58,17 +59,25 @@ from errno import (
     ECONNREFUSED, ECONNRESET, ENOSYS,
 )
 
-__version__ = '1.0.0'
-
 _logger = logging.getLogger(__name__)
 
-_LIBC_PATH = ctypes.util.find_library('c') or 'libc.so.6'
+_LIBC_PATH: Optional[str] = None
 
 try:
-    _LIBC: Optional[ctypes.CDLL] = ctypes.CDLL(_LIBC_PATH, use_errno=True)
+    # ctypes.util.find_library() runs multiple external programs (ldconfig, ld,
+    # gcc etc.) to find the library! So try to use dlopen(NULL) first.
+    _LIBC: Optional[ctypes.CDLL] = ctypes.CDLL(None, use_errno=True)
+
+    if not hasattr(_LIBC, 'inotify_init1'):
+        _LIBC_PATH = ctypes.util.find_library('c') or 'libc.so.6'
+        _LIBC = ctypes.CDLL(_LIBC_PATH, use_errno=True)
+
 except OSError as exc:
     _LIBC = None
-    _logger.debug('Loading %r: %s', _LIBC_PATH, exc, exc_info=exc)
+    if _LIBC_PATH is None:
+        _logger.debug('Loading C library: %s', exc, exc_info=exc)
+    else:
+        _logger.debug('Loading %r: %s', _LIBC_PATH, exc, exc_info=exc)
 
 __all__ = (
     'InotifyEvent',
@@ -76,6 +85,7 @@ __all__ = (
     'PollInotify',
     'TerminalEventException',
     'get_inotify_event_names',
+    'HAS_INOTIFY',
     'IN_CLOEXEC',
     'IN_NONBLOCK',
     'IN_ACCESS',
@@ -251,7 +261,7 @@ def _check_return(value: int, filename: Optional[str] = None) -> int:
 
     return value
 
-HAS_INOTIFY = True
+HAS_INOTIFY = True; "`True` if your libc exports `inotify_init1`, `inotify_add_watch`, and `inotify_rm_watch`, otherwise `False`."
 
 _CDataType = type[ctypes.c_int]|type[ctypes.c_char_p]|type[ctypes.c_uint32]
 
@@ -426,6 +436,8 @@ class Inotify:
                 # A crash during inotify_init1() in __init__() means
                 # self._inotify_stream is not assigned, but self._inotify_fd
                 # is initialized with -1.
+                # Since this method is called in __del__() this state needs
+                # be handled.
                 self._inotify_stream.close()
         finally:
             self._inotify_fd = -1
@@ -475,7 +487,7 @@ class Inotify:
           `ENOMEM`, `ENOSPC`, `ENOSYS` if your libc doesn't support
           `inotify_rm_watch()`)
         """
-        path_bytes = path.encode('UTF-8', 'surrogateescape')
+        path_bytes = fsencode(path)
 
         wd = inotify_add_watch(self._inotify_fd, path_bytes, mask)
         _check_return(wd, path)
@@ -564,7 +576,8 @@ class Inotify:
 
         if filename_len:
             filename_bytes = stream.read(filename_len)
-            filename = filename_bytes.rstrip(b'\0').decode('UTF-8', 'surrogateescape')
+            index = filename_bytes.find(b'\0')
+            filename = fsdecode(filename_bytes[:index] if index >= 0 else filename_bytes)
         else:
             filename = None
 
@@ -603,7 +616,8 @@ class Inotify:
 
             if filename_len:
                 filename_bytes = stream.read(filename_len)
-                filename = filename_bytes.rstrip(b'\0').decode('UTF-8', 'surrogateescape')
+                index = filename_bytes.find(b'\0')
+                filename = fsdecode(filename_bytes[:index] if index >= 0 else filename_bytes)
             else:
                 filename = None
 
