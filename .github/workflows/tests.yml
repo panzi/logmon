@@ -15,6 +15,10 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
+    - name: Install Debian Packages
+      run: |
+        sudo apt install -y libsystemd-dev
+
     - name: "Set-up Python"
       uses: actions/setup-python@v6
       with:
