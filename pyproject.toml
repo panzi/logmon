@@ -1,9 +1,22 @@
 [project]
 name = "logmon"
+description = "Monitore log files and run actions when patterns match."
 readme = "README.md"
 requires-python = ">=3.12"
+license = "GPL-2.0"
+keywords = ["logs", "monitoring", "systemd"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: System :: Logging",
+    "Topic :: System :: Monitoring",
+]
 dependencies = ["pydantic==2.12.*"]
 dynamic = ["version"]
+[project.urls]
+"Homepage" = "https://github.com/panzi/logmon/"
+"Repository" = "https://github.com/panzi/logmon/"
+"Issue Tracker" = "https://github.com/panzi/logmon/issues"
 [tool.setuptools.dynamic]
 version = {attr = "logmon.constants.__version__"}
 [project.scripts]
@@ -23,3 +36,6 @@ dev = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+[tool.setuptools]
+packages = ["logmon"]
+package-data = { logmon = ["py.typed"] }

@@ -1,9 +1,16 @@
 /tmp
 .*
+*.pyo
+*.pyc
 __pycache__
 uv.lock
-!.gitignore
 schema.yaml
 schema.html
 schema_doc.css
 schema_doc.min.js
+new_schema.yaml
+new_index.html
+new_schema_doc.css
+new_schema_doc.min.js
+!.github
+!.gitignore

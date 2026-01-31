@@ -1,5 +1,9 @@
 logmon
 ======
+[![Test Status](https://img.shields.io/github/actions/workflow/status/panzi/logmon/tests.yml)](https://github.com/panzi/logmon/actions/workflows/tests.yml)
+[![Release](https://img.shields.io/github/v/tag/panzi/logmon)](https://github.com/panzi/logmon/tags)
+[![GNU General Public License Version 3](https://img.shields.io/github/license/panzi/logmon)](https://github.com/panzi/logmon/blob/main/LICENSE.txt)
+[![Config Schema](https://img.shields.io/badge/Config_Schema-informational)](https://panzi.github.io/logmon/)
 
 A very simple log file monitoring script that runs actions like seinding emails
 when it finds configured error patterns.
@@ -54,7 +58,9 @@ The settings are read from `$HOME/.logmonrc`, or if run as root from
 read the log files. The command line options overwrite the default settings,
 but not the per-logfile settings. See below for the settings file format.
 
-Configuration schema: [HTML](https://panzi.github.io/logmon) [YAML](https://panzi.github.io/logmon/schema.yaml)
+Configuration schema:
+[![HTML](https://img.shields.io/badge/HTML-red)](https://panzi.github.io/logmon/)
+[![YAML](https://img.shields.io/badge/YAML-blue)](https://panzi.github.io/logmon/schema.yaml)
 
 When running via uv:
 

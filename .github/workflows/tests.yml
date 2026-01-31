@@ -1,0 +1,41 @@
+---
+name: Tests
+
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: "Set-up Python"
+      uses: actions/setup-python@v6
+      with:
+        python-version-file: "pyproject.toml"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
+    - name: Setup Environment
+      run: |
+        uv venv
+        uv pip install -r pyproject.toml --group dev --extra systemd --extra yaml --extra ruamel_yaml
+
+    - name: Tests
+      run: |
+        . .venv/bin/activate
+        pytest tests -vvv -rs --color=yes -W all
+
+    - name: Type Checking
+      run: |
+        . .venv/bin/activate
+        mypy
