@@ -1,6 +1,7 @@
 from typing import NotRequired, TypedDict, Optional, Annotated, Literal
 
 import re
+import json
 import pydantic
 
 from pydantic import Field
@@ -46,7 +47,15 @@ For SMTP and IMAP these query parameters are supported:
 
 ''' f'**Default:** `{DEFAULT_ACTION!r}`'
 
+_default_limits = {
+    "default": {
+        "max_actions_per_minute": DEFAULT_MAX_ACTIONS_PER_MINUTE,
+        "max_actions_per_hour": DEFAULT_MAX_ACTIONS_PER_HOUR,
+    }
+}
+
 class ActionConfigBase(TypedDict):
+    limiter: NotRequired[str|None]
     subject: Annotated[NotRequired[str], Field(description=f"Email subject template.\n**Default:** `{DEFAULT_SUBJECT!r}`")]
     body: Annotated[NotRequired[str], Field(description=f"Email body template.\n**Default:** `{DEFAULT_BODY!r}`")]
     host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).\n**Default:** `'localhost'`")]
@@ -141,8 +150,8 @@ class ActionConfig(ActionConfigBase):
     action: Annotated[NotRequired[ActionType], Field(description=_action_description)]
 
 class LimitsConfig(TypedDict):
-    max_emails_per_minute: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_EMAILS_PER_MINUTE!r}`", gt=0)]
-    max_emails_per_hour: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_EMAILS_PER_HOUR!r}`", gt=0)]
+    max_actions_per_minute: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)]
+    max_actions_per_hour: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)]
 
 class LogfileConfig(TypedDict):
     entry_start_pattern: Annotated[NotRequired[str | list[str]], Field(description=f"**Default:** `{DEFAULT_ENTRY_START_PATTERN.pattern!r}`")]
@@ -179,6 +188,7 @@ class SystemDConfig(TypedDict):
     systemd_ignore: Annotated[NotRequired[Optional[dict[str, str|int]]], Field(description="Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.")]
 
 class Config(LogfileConfig, SystemDConfig, LimitsConfig):
+    limiter: NotRequired[str|None]
     do: list[ActionConfig]
 
 class InputConfig(LogfileConfig, SystemDConfig):
@@ -213,7 +223,7 @@ class MTConfig(TypedDict):
     do: Annotated[NotRequired[ActionConfig], Field(description=_do_description)]
     default: Annotated[NotRequired[InputConfig], Field(description=_default_description)]
     logfiles: Annotated[dict[str, Config]|list[str], Field(description=_logfiles_description)]
-    limits: NotRequired[LimitsConfig]
+    limits: NotRequired[dict[str, LimitsConfig|None]]
 
 class AppLogConfig(TypedDict):
     """
@@ -270,7 +280,8 @@ class LogActionConfig(ActionConfigBase):
         Field(description=_action_description)
     ]
 
-class LogConfig(LogfileConfig, SystemDConfig, LimitsConfig):
+class LogConfig(LogfileConfig, SystemDConfig):
+    limiter: NotRequired[str|None]
     do: NotRequired[
         list[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]]|
         LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]
@@ -362,7 +373,13 @@ class Logmonrc(TypedDict):
         Annotated[list[str], Field(title='List of logfiles', description='All the configuration is taken from the global settings.')],
         Field(description=_logfiles_description)
     ]
-    limits: NotRequired[LimitsConfig]
+    limits: Annotated[
+        NotRequired[dict[str, LimitsConfig|None]],
+        Field(
+            title='Rate limit actions',
+            description=f'Map of action limiters that can be assigned to actions. You can set a limiter to `null` to make it unlimited.**Default:** `{json.dumps(_default_limits)}`'
+        )
+    ]
 
     log: Annotated[NotRequired[AppLogConfig], Field(description=_log_description)]
     pidfile: Annotated[NotRequired[str], Field(title=_pidfile_title, description=_pidfile_description)]

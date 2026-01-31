@@ -1,15 +1,23 @@
+from typing import Mapping, Optional, Literal, override
+
 import logging
 import threading
 
 from time import monotonic
 from math import inf
+from abc import ABC, abstractmethod
+
 from .constants import *
-from .schema import LimitsConfig
+from .schema import LimitsConfig, ActionConfig, Config, MTConfig
 
 logger = logging.getLogger(__name__)
 
 __all__ = (
+    'AbstractLimiter',
     'Limiter',
+    'NullLimiter',
+    'resolve_limiter',
+    'build_limiters',
 )
 
 def remove_smaller(items: list[float], cutoff: float) -> None:
@@ -28,44 +36,87 @@ def remove_smaller(items: list[float], cutoff: float) -> None:
         else:
             index += 1
 
-class Limiter:
+class AbstractLimiter(ABC):
+    __slots__ = (
+        '_name'
+    )
+
+    _name: str
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @abstractmethod
+    def check(self) -> bool:
+        ...
+
+class NullLimiter(AbstractLimiter):
+    __slots__ = ()
+
+    @override
+    def check(self) -> bool:
+        return True
+
+    @staticmethod
+    def get_instance() -> "NullLimiter":
+        global _null_limiter
+
+        limiter = _null_limiter
+        if limiter is None:
+            limiter = _null_limiter = NullLimiter('')
+
+        return limiter
+
+_null_limiter: Optional[NullLimiter] = None
+
+class Limiter(AbstractLimiter):
     __slots__ = (
         '_lock', '_hour_timestamps', '_minute_timestamps',
-        '_max_emails_per_minute', '_max_emails_per_hour',
+        '_max_actions_per_minute', '_max_actions_per_hour',
         '_last_minute_warning_ts', '_last_hour_warning_ts',
     )
 
     _lock: threading.Lock
     _hour_timestamps: list[float]
     _minute_timestamps: list[float]
-    _max_emails_per_minute: int
-    _max_emails_per_hour: int
+    _max_actions_per_minute: int
+    _max_actions_per_hour: int
     _last_minute_warning_ts: float
     _last_hour_warning_ts: float
 
-    def __init__(self, max_emails_per_minute: int, max_emails_per_hour: int) -> None:
+    def __init__(self, name: str, max_actions_per_minute: int, max_actions_per_hour: int) -> None:
+        super().__init__(name)
         self._lock = threading.Lock()
         self._hour_timestamps   = []
         self._minute_timestamps = []
-        self._max_emails_per_minute = max_emails_per_minute
-        self._max_emails_per_hour   = max_emails_per_hour
+        self._max_actions_per_minute = max_actions_per_minute
+        self._max_actions_per_hour   = max_actions_per_hour
         self._last_minute_warning_ts = -inf
         self._last_hour_warning_ts = -inf
 
     @staticmethod
-    def from_config(config: LimitsConfig) -> 'Limiter':
+    def from_config(name: str, config: LimitsConfig) -> 'Limiter':
         return Limiter(
-            max_emails_per_hour=config.get('max_emails_per_hour', DEFAULT_MAX_EMAILS_PER_HOUR),
-            max_emails_per_minute=config.get('max_emails_per_minute', DEFAULT_MAX_EMAILS_PER_MINUTE),
+            name=name,
+            max_actions_per_hour=config.get('max_actions_per_hour', DEFAULT_MAX_ACTIONS_PER_HOUR),
+            max_actions_per_minute=config.get('max_actions_per_minute', DEFAULT_MAX_ACTIONS_PER_MINUTE),
         )
 
     @property
-    def max_emails_per_minute(self) -> int:
-        return self._max_emails_per_minute
+    def name(self) -> str:
+        return self._name
 
     @property
-    def max_emails_per_hour(self) -> int:
-        return self._max_emails_per_hour
+    def max_actions_per_minute(self) -> int:
+        return self._max_actions_per_minute
+
+    @property
+    def max_actions_per_hour(self) -> int:
+        return self._max_actions_per_hour
 
     def check(self) -> bool:
         warn_minute = False
@@ -82,8 +133,8 @@ class Limiter:
             minutes_count = len(self._minute_timestamps)
             hours_count   = len(self._hour_timestamps)
 
-            minutes_ok = minutes_count < self._max_emails_per_minute
-            hours_ok   = hours_count   < self._max_emails_per_hour
+            minutes_ok = minutes_count < self._max_actions_per_minute
+            hours_ok   = hours_count   < self._max_actions_per_hour
 
             if not minutes_ok:
                 if self._last_minute_warning_ts < minute_cutoff:
@@ -100,9 +151,52 @@ class Limiter:
                 self._minute_timestamps.append(now)
 
         if warn_minute:
-            logger.warning(f"Maximum emails per minute exceeded! {minutes_count} >= {self._max_emails_per_minute}")
+            logger.warning(f"Maximum actions per minute exceeded! {minutes_count} >= {self._max_actions_per_minute}")
 
         if warn_hour:
-            logger.warning(f"Maximum emails per hour exceeded! {hours_count} >= {self._max_emails_per_hour}")
+            logger.warning(f"Maximum actions per hour exceeded! {hours_count} >= {self._max_actions_per_hour}")
 
         return minutes_ok and hours_ok
+
+def resolve_limiter(limiters: Mapping[str, AbstractLimiter], action_config: ActionConfig, config: Config) -> AbstractLimiter:
+    global _null_limiter
+
+    name: str|None|Literal[-1] = action_config.get('limiter', -1)
+    if name == -1:
+        name = config.get('limiter', -1)
+
+        if name == -1:
+            name = 'default'
+
+    if name is None:
+        return NullLimiter.get_instance()
+
+    limiter = limiters.get(name)
+
+    if limiter is None:
+        raise KeyError(f'Limiter {name!r} is not defined!')
+
+    return limiter
+
+def build_limiters(config: MTConfig) -> Mapping[str, AbstractLimiter]:
+    limiters: dict[str, AbstractLimiter] = {}
+
+    limits = config.get('limits')
+    if limits:
+        for name, cfg in limits.items():
+            if cfg is None:
+                limiters[name] = NullLimiter(name)
+            elif not name:
+                # because the empty string is used for the default NullLimiter
+                raise ValueError(f'Limiter name may not be empty!')
+            else:
+                limiters[name] = Limiter.from_config(name, cfg)
+
+    if 'default' not in limiters:
+        limiters['default'] = Limiter(
+            name = 'default',
+            max_actions_per_minute = DEFAULT_MAX_ACTIONS_PER_MINUTE,
+            max_actions_per_hour   = DEFAULT_MAX_ACTIONS_PER_HOUR,
+        )
+
+    return limiters

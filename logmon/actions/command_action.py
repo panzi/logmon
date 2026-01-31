@@ -11,6 +11,7 @@ from .action import Action, TemplParams
 from ..schema import Config, ActionConfig
 from ..entry_readers import LogEntry
 from ..template import expand_args_inline, expand
+from ..limiter import AbstractLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +148,8 @@ class CommandAction(Action):
     pipe_fmt: Optional[str]
     timeout: Optional[float]
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
-        super().__init__(action_config, config)
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        super().__init__(action_config, config, limiter)
 
         interactive = action_config.get('command_interactive')
         command = action_config.get('command')
@@ -271,10 +272,13 @@ class CommandAction(Action):
                 self.pipe_fmt = None
 
     @override
-    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:
+        if not self.limiter.check():
+            return False
+
         templ_params = self.get_templ_params(logfile, entries, brief)
         if not self.check_logmails(logfile, templ_params):
-            return
+            return True
 
         try:
             if self.interactive:
@@ -330,6 +334,8 @@ class CommandAction(Action):
         except Exception as exc:
             self.handle_error(templ_params, exc)
             raise
+
+        return True
 
 def write_stdin(proc: Popen, pipe_fmt: str, templ_params: TemplParams) -> None:
     stdin = proc.stdin

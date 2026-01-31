@@ -18,6 +18,7 @@ from ..types import FileType, Compression, EncodingErrors
 from ..schema import Config, ActionConfig, FILE_MODE_PATTERN
 from ..entry_readers import LogEntry
 from ..constants import DEFAULT_FILE_MODE, DEFAULT_ENCODING_ERRORS
+from ..limiter import AbstractLimiter
 
 __all__ = (
     'FileAction',
@@ -136,8 +137,8 @@ class FileAction(Action):
     file_compression_level: Optional[int]
     stream: Optional[IO[str]]
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
-        super().__init__(action_config, config)
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        super().__init__(action_config, config, limiter)
 
         file = action_config.get('file')
         if not file:
@@ -266,10 +267,13 @@ class FileAction(Action):
         return stream
 
     @override
-    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:
+        if not self.limiter.check():
+            return False
+
         templ_params = self.get_templ_params(logfile, entries, brief)
         if not self.check_logmails(logfile, templ_params):
-            return
+            return True
 
         try:
             output_format = self.output_format
@@ -298,6 +302,8 @@ class FileAction(Action):
         except Exception as exc:
             self.handle_error(templ_params, exc)
             raise
+
+        return True
 
     def close(self) -> None:
         stream = self.stream

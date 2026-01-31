@@ -9,7 +9,7 @@ from .constants import *
 from .global_state import is_running, get_read_stopfd
 from .cleanup_brief import cleanup_brief
 from .schema import Config
-from .limiter import Limiter
+from .limiter import AbstractLimiter
 from .actions import Action
 from .global_state import handle_keyboard_interrupt
 from .entry_readers import LogEntry
@@ -41,7 +41,7 @@ try:
     def logmon_systemd(
         logfile: str,
         config: Config,
-        limiter: Limiter,
+        limiters: Mapping[str, AbstractLimiter],
     ) -> None:
         wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
@@ -52,7 +52,7 @@ try:
         # TODO: respect max_entry_lines? break the JSON?
         # max_entry_lines = config.get('max_entry_lines', DEFAULT_MAX_ENTRY_LINES)
 
-        with Action.open_actions(config) as actions:
+        with Action.open_actions(config, limiters) as actions:
             seek_end = config.get('seek_end', True)
             raw_priority = config.get('systemd_priority')
             match_dict = config.get('systemd_match')
@@ -160,12 +160,12 @@ try:
                                 brief = chunk[0].brief
 
                                 for action in actions:
-                                    if limiter.check():
-                                        action.perform_action(
-                                            logfile = logfile,
-                                            entries = chunk,
-                                            brief = brief,
-                                        )
+                                    if action.perform_action(
+                                        logfile = logfile,
+                                        entries = chunk,
+                                        brief = brief,
+                                    ):
+                                        pass
                                     elif logger.isEnabledFor(logging.DEBUG):
                                         logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {brief}')
 
@@ -193,7 +193,7 @@ except ImportError:
     def logmon_systemd(
         logfile: str,
         config: Config,
-        limiter: Limiter,
+        limiters: Mapping[str, AbstractLimiter],
     ) -> None:
         raise NotImplementedError(f'{logfile}: Reading SystemD journals requires the `cysystemd` package!')
 

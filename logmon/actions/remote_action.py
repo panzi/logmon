@@ -2,6 +2,7 @@ from typing import Optional
 
 from ..schema import Config, ActionConfig
 from ..constants import *
+from ..limiter import AbstractLimiter
 from .action import Action
 
 __all__ = (
@@ -56,8 +57,8 @@ class RemoteAction(Action):
     password: Optional[str]
     keep_connected: bool
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
-        super().__init__(action_config, config)
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        super().__init__(action_config, config, limiter)
 
         port = action_config.get('port')
         self.host = action_config.get('host', DEFAULT_EMAIL_HOST)

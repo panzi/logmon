@@ -1,4 +1,4 @@
-from typing import Iterable, Generator, Callable, Match, Optional, NamedTuple, TextIO
+from typing import Iterable, Generator, Callable, Match, Optional, NamedTuple, TextIO, Mapping
 
 import re
 import os
@@ -20,7 +20,7 @@ except ImportError:
 
 from .types import Compression, EncodingErrors
 from .schema import Config, MTConfig, resolve_config
-from .limiter import Limiter
+from .limiter import AbstractLimiter, build_limiters
 from .systemd import is_systemd_path, logmon_systemd
 from .constants import *
 from .entry_readers import EntryReaderFactory, LogEntry
@@ -32,7 +32,6 @@ from .global_state import is_running, handle_keyboard_interrupt, get_read_stopfd
 logger = logging.getLogger(__name__)
 
 __all__ = (
-    'logmon',
     'logmon_mt',
 )
 
@@ -66,21 +65,16 @@ def open_logfile(logfile: str, encoding: str, seek_end: bool, compression: Optio
         logfp.close()
         raise
 
-def logmon(logfile: str, config: Config) -> None:
-    logfile = normpath(abspath(logfile))
-    limiter = Limiter.from_config(config)
-    _logmon(logfile, config, limiter)
-
 def _logmon(
         logfile: str,
         config: Config,
-        limiter: Limiter,
+        limiters: Mapping[str, AbstractLimiter],
 ) -> None:
     if is_systemd_path(logfile):
-        return logmon_systemd(logfile, config, limiter)
+        return logmon_systemd(logfile, config, limiters)
 
     if config.get('glob'):
-        return _logmon_glob(logfile, config, limiter)
+        return _logmon_glob(logfile, config, limiters)
 
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
@@ -94,7 +88,7 @@ def _logmon(
 
     reader_factory = EntryReaderFactory.from_config(config)
 
-    with Action.open_actions(config) as actions:
+    with Action.open_actions(config, limiters) as actions:
         if use_inotify and HAS_INOTIFY:
             inotify = PollInotify(get_read_stopfd())
         else:
@@ -123,7 +117,7 @@ def _logmon(
                             logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
 
                         while is_running():
-                            entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions, limiter)
+                            entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions)
 
                             if entry_count < max_entries and is_running():
                                 # If there are max_entries that means there are probably already more in the
@@ -197,7 +191,7 @@ def _logmon(
 
                                 if do_reopen:
                                     # try to read the rest before closing the file
-                                    while _read_entries(logfile, reader, 0, max_entries, actions, limiter) >= max_entries:
+                                    while _read_entries(logfile, reader, 0, max_entries, actions) >= max_entries:
                                         pass
 
                                     logger.info(f"{logfile}: File changed, reopening...")
@@ -290,7 +284,7 @@ class FallbackGlobEntry(NamedTuple):
 def _logmon_glob(
         logfile: str,
         config: Config,
-        limiter: Limiter,
+        limiters: Mapping[str, AbstractLimiter],
 ) -> None:
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
     wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
@@ -311,7 +305,7 @@ def _logmon_glob(
     fnmatch = fncompile(pattern)
     first = True
 
-    with Action.open_actions(config) as actions:
+    with Action.open_actions(config, limiters) as actions:
         if use_inotify and HAS_INOTIFY:
             inotify = PollInotify(get_read_stopfd())
             try:
@@ -328,7 +322,7 @@ def _logmon_glob(
                     old_entry = loghandles.pop(child_logfile, None)
                     if old_entry is not None:
                         logger.debug(f'{child_logfile}: Closing old entry')
-                        while _read_entries(child_logfile, old_entry.reader, 0, max_entries, actions, limiter) >= max_entries:
+                        while _read_entries(child_logfile, old_entry.reader, 0, max_entries, actions) >= max_entries:
                             pass
                         old_entry.close(inotify)
 
@@ -366,7 +360,7 @@ def _logmon_glob(
                                     stream = fp,
                                 )
 
-                                _read_entries(child_logfile, entry.reader, wait_before_send, max_entries, actions, limiter)
+                                _read_entries(child_logfile, entry.reader, wait_before_send, max_entries, actions)
 
                 while is_running():
                     terminal = False
@@ -418,7 +412,7 @@ def _logmon_glob(
                                         if mask & IN_MODIFY:
                                             entry = loghandles.get(event_path)
                                             if entry is not None:
-                                                _read_entries(entry.logfile, entry.reader, wait_before_send, max_entries, actions, limiter)
+                                                _read_entries(entry.logfile, entry.reader, wait_before_send, max_entries, actions)
 
                                         if event.filename is not None and fnmatch(event.filename):
                                             if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
@@ -427,7 +421,7 @@ def _logmon_glob(
                                                     logger.debug(f"{entry.logfile}: Logfile went away, stopping monitoring")
                                                     try:
                                                         # just in case try to read any tailing entries
-                                                        while _read_entries(entry.logfile, entry.reader, (wait_before_send if mask & IN_DELETE_SELF else 0), max_entries, actions, limiter) >= max_entries:
+                                                        while _read_entries(entry.logfile, entry.reader, (wait_before_send if mask & IN_DELETE_SELF else 0), max_entries, actions) >= max_entries:
                                                             pass
                                                     finally:
                                                         entry.close(inotify)
@@ -459,7 +453,7 @@ def _logmon_glob(
                             try:
                                 if is_running():
                                     # just in case try to read any tailing entries
-                                    while _read_entries(entry.logfile, entry.reader, 0, max_entries, actions, limiter) >= max_entries:
+                                    while _read_entries(entry.logfile, entry.reader, 0, max_entries, actions) >= max_entries:
                                         pass
                             finally:
                                 entry.close(inotify)
@@ -491,7 +485,7 @@ def _logmon_glob(
             def open_entry(child_logfile: str, seek_end: bool) -> None:
                 old_entry = entries.pop(child_logfile, None)
                 if old_entry is not None:
-                    while _read_entries(old_entry.logfile, old_entry.reader, 0, max_entries, actions, limiter) >= max_entries:
+                    while _read_entries(old_entry.logfile, old_entry.reader, 0, max_entries, actions) >= max_entries:
                         pass
                     old_entry.close()
 
@@ -510,7 +504,7 @@ def _logmon_glob(
                         stream = fp,
                     )
 
-                    _read_entries(child_logfile, fb_entry.reader, wait_before_send, max_entries, actions, limiter, wait_on_empty_messages=False)
+                    _read_entries(child_logfile, fb_entry.reader, wait_before_send, max_entries, actions, wait_on_empty_messages=False)
 
             first = False
             while is_running():
@@ -535,7 +529,7 @@ def _logmon_glob(
                 for _, removed_logfile in removed_logfiles:
                     maybe_entry = entries.pop(removed_logfile, None)
                     if maybe_entry is not None:
-                        while _read_entries(removed_logfile, maybe_entry.reader, 0, max_entries, actions, limiter, wait_on_empty_messages=False) >= max_entries:
+                        while _read_entries(removed_logfile, maybe_entry.reader, 0, max_entries, actions, wait_on_empty_messages=False) >= max_entries:
                             pass
 
                 for _, added_logfile in added_logfiles:
@@ -546,7 +540,7 @@ def _logmon_glob(
                     if not is_running():
                         break
 
-                    entry_count += _read_entries(fb_entry.logfile, fb_entry.reader, 0, max_entries, actions, limiter, wait_on_empty_messages=False)
+                    entry_count += _read_entries(fb_entry.logfile, fb_entry.reader, 0, max_entries, actions, wait_on_empty_messages=False)
 
                 if not is_running():
                     break
@@ -565,7 +559,7 @@ def logmon_mt(config: MTConfig):
     if not logfiles:
         raise ValueError('no logfiles given')
 
-    limiter = Limiter.from_config(config.get('limits') or {})
+    limiters = build_limiters(config)
 
     threads: list[threading.Thread] = []
 
@@ -582,7 +576,7 @@ def logmon_mt(config: MTConfig):
 
             thread = threading.Thread(
                 target = _logmon_thread,
-                args = (logfile, cfg, limiter),
+                args = (logfile, cfg, limiters),
                 name = logfile,
             )
 
@@ -600,7 +594,7 @@ def logmon_mt(config: MTConfig):
         except Exception as exc:
             logger.error(f"{thread.name}: Error waiting for thread: {exc}", exc_info=exc)
 
-def _logmon_thread(logfile: str, config: Config, limiter: Limiter) -> None:
+def _logmon_thread(logfile: str, config: Config, limiters: Mapping[str, AbstractLimiter]) -> None:
     logfile = normpath(abspath(logfile)) if not is_systemd_path(logfile) else logfile
     wait_after_crash = config.get('wait_after_crash', DEFAULT_WAIT_AFTER_CRASH)
 
@@ -609,7 +603,7 @@ def _logmon_thread(logfile: str, config: Config, limiter: Limiter) -> None:
             _logmon(
                 logfile = logfile,
                 config = config,
-                limiter = limiter,
+                limiters = limiters,
             )
         except KeyboardInterrupt:
             handle_keyboard_interrupt()
@@ -627,7 +621,6 @@ def _read_entries(
         wait_before_send: float|int,
         max_entries: int,
         actions: list[Action],
-        limiter: Limiter,
         wait_on_empty_messages: bool = True,
 ) -> int:
     start_ts = monotonic()
@@ -664,12 +657,12 @@ def _read_entries(
             brief = chunk[0].brief
 
             for action in actions:
-                if limiter.check():
-                    action.perform_action(
-                        logfile = logfile,
-                        entries = chunk,
-                        brief = brief,
-                    )
+                if action.perform_action(
+                    logfile = logfile,
+                    entries = chunk,
+                    brief = brief,
+                ):
+                    pass
                 elif logger.isEnabledFor(logging.DEBUG):
                     templ_params = action.get_templ_params(logfile, chunk, brief)
                     subject = action.subject_templ.format_map(templ_params)

@@ -50,7 +50,7 @@ from .constants import *
 from .systemd import HAS_SYSTEMD, is_systemd_path, parse_systemd_path
 from .global_state import handle_stop_signal, open_stopfds, close_stopfds
 from .json_match import JsonMatch, parse_json_match
-from .limiter import Limiter
+from .limiter import build_limiters
 from .logmon import logmon_mt, _logmon_thread
 
 ACTIONS: set[ActionType] = set(get_args(ActionType.__value__))
@@ -477,13 +477,13 @@ def main(argv: Optional[list[str]] = None) -> None:
         help=f'Only gather up to COUNT entries before sending an email. [default: {DEFAULT_MAX_ENTRIES}]')
     ap.add_argument('--max-entry-lines', type=positive(int), default=None, metavar='COUNT',
         help=f'Limit the length of a log entry to COUNT lines. [default: {DEFAULT_MAX_ENTRY_LINES}]')
-    ap.add_argument('--max-emails-per-minute', type=positive(int), default=None, metavar='COUNT',
-        help=f'Limit emails sent per minute to COUNT. Once the limit is reached an error will be logged and '
-             f'no more emails are sent until the message count in the last 60 seconds dropped below COUNT. '
-             f'[default: {DEFAULT_MAX_EMAILS_PER_MINUTE}]')
-    ap.add_argument('--max-emails-per-hour', type=positive(int), default=None, metavar='COUNT',
-        help=f'Same as --max-emails-per-minute but for a span of 60 minutes. Both options are evaluated one after another. '
-             f'[default: {DEFAULT_MAX_EMAILS_PER_HOUR}]')
+    ap.add_argument('--max-actions-per-minute', type=positive(int), default=None, metavar='COUNT',
+        help=f'Limit actions performed per minute to COUNT. Once the limit is reached an error will be logged and '
+             f'no more actions are performed until the message count in the last 60 seconds dropped below COUNT. '
+             f'[default: {DEFAULT_MAX_ACTIONS_PER_MINUTE}]')
+    ap.add_argument('--max-actions-per-hour', type=positive(int), default=None, metavar='COUNT',
+        help=f'Same as --max-actions-per-minute but for a span of 60 minutes. Both options are evaluated one after another. '
+             f'[default: {DEFAULT_MAX_ACTIONS_PER_HOUR}]')
     ap.set_defaults(use_inotify=None)
     inotify_grp = ap.add_mutually_exclusive_group()
     inotify_grp.add_argument('--use-inotify', default=None, action='store_true',
@@ -992,11 +992,11 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.max_entry_lines is not None:
         default_config['max_entry_lines'] = args.max_entry_lines
 
-    if args.max_emails_per_minute is not None:
-        limits_config['max_emails_per_minute'] = args.max_emails_per_minute
+    if args.max_actions_per_minute is not None:
+        limits_config['max_actions_per_minute'] = args.max_actions_per_minute
 
-    if args.max_emails_per_hour is not None:
-        limits_config['max_emails_per_hour'] = args.max_emails_per_hour
+    if args.max_actions_per_hour is not None:
+        limits_config['max_actions_per_hour'] = args.max_actions_per_hour
 
     if args.seek_end is not None:
         default_config['seek_end'] = args.seek_end
@@ -1217,12 +1217,13 @@ def main(argv: Optional[list[str]] = None) -> None:
                 app_config.get('do') or {},
                 cfg,
             )
-            limiter = Limiter.from_config(app_config.get('limits') or {})
+
+            limiters = build_limiters(app_config)
 
             _logmon_thread(
                 logfile,
                 cfg, # type: ignore
-                limiter,
+                limiters,
             )
         else:
             logmon_mt(app_config)

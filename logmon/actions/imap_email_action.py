@@ -9,6 +9,7 @@ from ..schema import Config, ActionConfig
 from .action import make_message
 from .base_email_action import BaseEmailAction
 from ..entry_readers import LogEntry
+from ..limiter import AbstractLimiter
 
 __all__ = (
     'ImapEmailAction',
@@ -23,8 +24,8 @@ class ImapEmailAction(BaseEmailAction):
 
     imap: Optional[imaplib.IMAP4]
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
-        super().__init__(action_config, config)
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        super().__init__(action_config, config, limiter)
 
         self.imap = None
 
@@ -65,10 +66,13 @@ class ImapEmailAction(BaseEmailAction):
         return imap
 
     @override
-    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:
+        if not self.limiter.check():
+            return False
+
         templ_params = self.get_templ_params(logfile, entries, brief)
         if not self.check_logmails(logfile, templ_params):
-            return
+            return True
 
         try:
             msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
@@ -94,3 +98,5 @@ class ImapEmailAction(BaseEmailAction):
         except Exception as exc:
             self.handle_error(templ_params, exc)
             raise
+
+        return True

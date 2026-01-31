@@ -1,4 +1,4 @@
-from typing import TypedDict, Self, Any, NotRequired, Optional, Generator
+from typing import TypedDict, Self, Any, NotRequired, Optional, Generator, Mapping
 
 import logging
 
@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from ..types import ActionType, Logmails, OutputFormat
 from ..schema import Config, ActionConfig
 from ..entry_readers import LogEntry
+from ..limiter import AbstractLimiter, resolve_limiter
 from ..constants import *
 
 __all__ = (
@@ -72,6 +73,7 @@ def debug_message(
 
 class Action(ABC):
     __slots__ = (
+        'limiter',
         'subject_templ',
         'body_templ',
         'sender',
@@ -82,6 +84,8 @@ class Action(ABC):
         'output_indent',
         'line_prefix',
     )
+
+    limiter: AbstractLimiter
 
     subject_templ: str
     body_templ: str
@@ -96,41 +100,43 @@ class Action(ABC):
     line_prefix: str
 
     @staticmethod
-    def from_config(action_config: ActionConfig, config: Config) -> "Action":
+    def from_config(action_config: ActionConfig, config: Config, limiters: Mapping[str, AbstractLimiter]) -> "Action":
         action = action_config.get('action', DEFAULT_ACTION)
+
+        limiter = resolve_limiter(limiters, action_config, config)
 
         match action:
             case 'HTTP' | 'HTTPS':
                 from .http_action import HttpAction
-                return HttpAction(action_config, config)
+                return HttpAction(action_config, config, limiter)
 
             case 'IMAP':
                 from .imap_email_action import ImapEmailAction
-                return ImapEmailAction(action_config, config)
+                return ImapEmailAction(action_config, config, limiter)
 
             case 'SMTP':
                 from .smtp_email_action import SmtpEmailAction
-                return SmtpEmailAction(action_config, config)
+                return SmtpEmailAction(action_config, config, limiter)
 
             case 'COMMAND':
                 from .command_action import CommandAction
-                return CommandAction(action_config, config)
+                return CommandAction(action_config, config, limiter)
 
             case 'FILE':
                 from .file_action import FileAction
-                return FileAction(action_config, config)
+                return FileAction(action_config, config, limiter)
 
             case _:
                 raise ValueError(f'Illegal action: {action!r}')
 
     @contextmanager
     @staticmethod
-    def open_actions(config: Config) -> Generator[list["Action"], None, None]:
+    def open_actions(config: Config, limiters: Mapping[str, AbstractLimiter]) -> Generator[list["Action"], None, None]:
         actions: list["Action"] = []
 
         for action_config in config['do']:
             try:
-                action = Action.from_config(action_config, config)
+                action = Action.from_config(action_config, config, limiters)
                 action = action.__enter__()
                 actions.append(action)
             except Exception as exc:
@@ -158,7 +164,8 @@ class Action(ABC):
             elif excs:
                 raise ExceptionGroup('Multiple errors during action cleanup', excs)
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        self.limiter = limiter
         self.subject_templ = action_config.get('subject', DEFAULT_SUBJECT)
         self.body_templ = action_config.get('body', DEFAULT_BODY)
 
@@ -177,7 +184,10 @@ class Action(ABC):
         self.line_prefix = '> '
 
     @abstractmethod
-    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:
+        """
+        Returns `False` if the action was rate limited.
+        """
         ...
 
     def __enter__(self) -> Self:

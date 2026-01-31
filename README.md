@@ -76,7 +76,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
                  [--wait-before-send SECONDS] [--wait-after-crash SECONDS]
                  [--max-entries COUNT] [--max-entry-lines COUNT]
-                 [--max-emails-per-minute COUNT] [--max-emails-per-hour COUNT]
+                 [--max-actions-per-minute COUNT] [--max-actions-per-hour COUNT]
                  [--use-inotify | --no-use-inotify] [--encoding ENCODING]
                  [--encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}]
                  [--entry-start-pattern REGEXP] [--error-pattern REGEXP]
@@ -224,13 +224,13 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --max-entry-lines COUNT
                         Limit the length of a log entry to COUNT lines.
                         [default: 2048]
-  --max-emails-per-minute COUNT
-                        Limit emails sent per minute to COUNT. Once the limit
+  --max-actions-per-minute COUNT
+                        Limit actions performed per minute to COUNT. Once the limit
                         is reached an error will be logged and no more emails
                         are sent until the message count in the last 60
                         seconds dropped below COUNT. [default: 6]
-  --max-emails-per-hour COUNT
-                        Same as --max-emails-per-minute but for a span of 60
+  --max-actions-per-hour COUNT
+                        Same as --max-actions-per-minute but for a span of 60
                         minutes. Both options are evaluated one after another.
                         [default: 60]
   --use-inotify         This is the default if your libc exports the inofify

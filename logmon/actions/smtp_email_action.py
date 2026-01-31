@@ -3,10 +3,11 @@ from typing import override
 import ssl
 import smtplib
 
-from ..schema import Config, ActionConfig
 from .action import make_message
 from .base_email_action import BaseEmailAction
+from ..schema import Config, ActionConfig
 from ..entry_readers import LogEntry
+from ..limiter import AbstractLimiter
 
 __all__ = (
     'SmtpEmailAction',
@@ -19,8 +20,8 @@ class SmtpEmailAction(BaseEmailAction):
 
     smtp: smtplib.SMTP
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
-        super().__init__(action_config, config)
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        super().__init__(action_config, config, limiter)
 
         if self.secure == 'SSL/TLS':
             self.smtp = smtplib.SMTP_SSL()
@@ -44,10 +45,13 @@ class SmtpEmailAction(BaseEmailAction):
             self.smtp.login(self.username or '', self.password or '')
 
     @override
-    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:
+        if not self.limiter.check():
+            return False
+
         templ_params = self.get_templ_params(logfile, entries, brief)
         if not self.check_logmails(logfile, templ_params):
-            return
+            return True
 
         try:
             msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
@@ -68,3 +72,5 @@ class SmtpEmailAction(BaseEmailAction):
         except Exception as exc:
             self.handle_error(templ_params, exc)
             raise
+
+        return True

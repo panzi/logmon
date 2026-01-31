@@ -19,6 +19,7 @@ from ..constants import *
 from .remote_action import RemoteAction
 from ..entry_readers import LogEntry
 from ..template import expand, expand_object
+from ..limiter import AbstractLimiter
 
 __all__ = (
     'HttpAction',
@@ -116,8 +117,8 @@ class HttpAction(RemoteAction):
     oauth2_token: Optional[OAuth2Token]
     oauth2_token_expires_at: Optional[datetime]
 
-    def __init__(self, action_config: ActionConfig, config: Config) -> None:
-        super().__init__(action_config, config)
+    def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
+        super().__init__(action_config, config, limiter)
 
         self.http_method = action_config.get('http_method', DEFAULT_HTTP_METHOD)
         http_path = action_config.get('http_path', '/')
@@ -234,10 +235,13 @@ class HttpAction(RemoteAction):
                         raise HTTPException(f"[{oauth2_token_url}] Error parsing OAuth2 response: {exc}") from exc
 
     @override
-    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> None:
+    def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:
+        if not self.limiter.check():
+            return False
+
         templ_params = self.get_templ_params(logfile, entries, brief)
         if not self.check_logmails(logfile, templ_params):
-            return
+            return True
 
         try:
             subject = self.subject_templ.format_map(templ_params)
@@ -405,6 +409,8 @@ class HttpAction(RemoteAction):
         except Exception as exc:
             self.handle_error(templ_params, exc)
             raise
+
+        return True
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.http_connection.close()
