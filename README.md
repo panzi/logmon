@@ -74,10 +74,11 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--sender EMAIL] [--receivers EMAIL,...] [--subject TEMPLATE]
                  [--body TEMPLATE] [--wait-file-not-found SECONDS]
                  [--wait-line-incomplete SECONDS] [--wait-no-entries SECONDS]
-                 [--wait-before-send SECONDS] [--wait-after-crash SECONDS]
+                 [--wait-for-more SECONDS] [--wait-after-crash SECONDS]
                  [--max-entries COUNT] [--max-entry-lines COUNT]
-                 [--max-actions-per-minute COUNT] [--max-actions-per-hour COUNT]
-                 [--use-inotify | --no-use-inotify] [--encoding ENCODING]
+                 [--max-actions-per-minute COUNT]
+                 [--max-actions-per-hour COUNT] [--use-inotify |
+                 --no-use-inotify] [--encoding ENCODING]
                  [--encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}]
                  [--entry-start-pattern REGEXP] [--error-pattern REGEXP]
                  [--ignore-pattern REGEXP] [--seek-end | --no-seek-end]
@@ -211,9 +212,9 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         terminated with a newline. Only one wait is performed.
                         [default: 0.04]
   --wait-no-entries SECONDS
-                        Wait SECONDS before retry if no new entries where
-                        found. Not used if inotify is used. [default: 5]
-  --wait-before-send SECONDS
+                        Wait SECONDS when there are no entries and inotify
+                        isn't used. [default: 5]
+  --wait-for-more SECONDS
                         Wait SECONDS for more entries before sending email.
                         [default: 0.08]
   --wait-after-crash SECONDS
@@ -225,10 +226,10 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         Limit the length of a log entry to COUNT lines.
                         [default: 2048]
   --max-actions-per-minute COUNT
-                        Limit actions performed per minute to COUNT. Once the limit
-                        is reached an error will be logged and no more emails
-                        are sent until the message count in the last 60
-                        seconds dropped below COUNT. [default: 6]
+                        Limit actions performed per minute to COUNT. Once the
+                        limit is reached an error will be logged and no more
+                        actions are performed until the message count in the
+                        last 60 seconds dropped below COUNT. [default: 6]
   --max-actions-per-hour COUNT
                         Same as --max-actions-per-minute but for a span of 60
                         minutes. Both options are evaluated one after another.
