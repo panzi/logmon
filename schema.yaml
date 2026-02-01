@@ -282,7 +282,8 @@ $defs:
         properties:
             max_actions_per_minute:
                 anyOf:
-                -   type: integer
+                -   title: Integer
+                    type: integer
                 -   title: Unlimited
                     type: 'null'
                 description: '**Default:** `6`'
@@ -290,7 +291,8 @@ $defs:
                 title: Max Actions Per Minute
             max_actions_per_hour:
                 anyOf:
-                -   type: integer
+                -   title: Integer
+                    type: integer
                 -   title: Unlimited
                     type: 'null'
                 description: '**Default:** `60`'
@@ -302,8 +304,10 @@ $defs:
         properties:
             limiter:
                 anyOf:
-                -   type: string
-                -   type: 'null'
+                -   title: Limiter Name
+                    type: string
+                -   title: Unlimited
+                    type: 'null'
                 title: Limiter
             subject:
                 description: |-
@@ -827,8 +831,10 @@ $defs:
                 title: Systemd Ignore
             limiter:
                 anyOf:
-                -   type: string
-                -   type: 'null'
+                -   title: Limiter Name
+                    type: string
+                -   title: Unlimited
+                    type: 'null'
                 title: Limiter
             do:
                 anyOf:
