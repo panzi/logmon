@@ -61,7 +61,10 @@ For SMTP and IMAP these query parameters are supported:
 ''' f'**Default:** `{DEFAULT_ACTION!r}`'
 
 class ActionConfigBase(TypedDict):
-    limiter: NotRequired[str|None]
+    limiter: NotRequired[
+        Annotated[str, Field(title='Limiter Name')]|
+        Annotated[None, Field(title=_unlimited)]
+    ]
     subject: Annotated[NotRequired[str], Field(description=f"Email subject template.\n**Default:** `{DEFAULT_SUBJECT!r}`")]
     body: Annotated[NotRequired[str], Field(description=f"Email body template.\n**Default:** `{DEFAULT_BODY!r}`")]
     host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).\n**Default:** `'localhost'`")]
@@ -157,11 +160,17 @@ class ActionConfig(ActionConfigBase):
 
 class LimitsConfig(TypedDict):
     max_actions_per_minute: Annotated[
-        NotRequired[int|Annotated[None, Field(title=_unlimited)]],
+        NotRequired[
+            Annotated[int, Field(title='Integer')]|
+            Annotated[None, Field(title=_unlimited)]
+        ],
         Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)
     ]
     max_actions_per_hour: Annotated[
-        NotRequired[int|Annotated[None, Field(title=_unlimited)]],
+        NotRequired[
+            Annotated[int, Field(title='Integer')]|
+            Annotated[None, Field(title=_unlimited)]
+        ],
         Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)
     ]
 
@@ -200,7 +209,10 @@ class SystemDConfig(TypedDict):
     systemd_ignore: Annotated[NotRequired[Optional[dict[str, str|int]]], Field(description="Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.")]
 
 class Config(LogfileConfig, SystemDConfig):
-    limiter: NotRequired[str|None]
+    limiter: NotRequired[
+        Annotated[str, Field(title='Limiter Name')]|
+        Annotated[None, Field(title=_unlimited)]
+    ]
     do: list[ActionConfig]
 
 class InputConfig(LogfileConfig, SystemDConfig):
@@ -304,7 +316,10 @@ class LogActionConfig(ActionConfigBase):
     ]
 
 class LogConfig(LogfileConfig, SystemDConfig):
-    limiter: NotRequired[str|None]
+    limiter: NotRequired[
+        Annotated[str, Field(title='Limiter Name')]|
+        Annotated[None, Field(title=_unlimited)]
+    ]
     do: NotRequired[
         list[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]]|
         LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]
