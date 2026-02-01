@@ -33,6 +33,7 @@ _default_limits = {
     }
 }
 
+_action_array_title = 'Action Array'
 _unlimited = 'Unlimited'
 _limits_title = 'Rate limit actions'
 _limits_description = f'''\
@@ -161,17 +162,17 @@ class ActionConfig(ActionConfigBase):
 class LimitsConfig(TypedDict):
     max_actions_per_minute: Annotated[
         NotRequired[
-            Annotated[int, Field(title='Integer')]|
+            Annotated[int, Field(title='Integer', gt=0)]|
             Annotated[None, Field(title=_unlimited)]
         ],
-        Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)
+        Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`")
     ]
     max_actions_per_hour: Annotated[
         NotRequired[
-            Annotated[int, Field(title='Integer')]|
+            Annotated[int, Field(title='Integer', gt=0)]|
             Annotated[None, Field(title=_unlimited)]
         ],
-        Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)
+        Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`")
     ]
 
 class LogfileConfig(TypedDict):
@@ -321,7 +322,10 @@ class LogConfig(LogfileConfig, SystemDConfig):
         Annotated[None, Field(title=_unlimited)]
     ]
     do: NotRequired[
-        list[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]]|
+        Annotated[list[
+            LogActionConfig|
+            Annotated[str, Field(title=_action_string_tilte, description=_see_action)]
+        ], Field(title=_action_array_title)]|
         LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]
     ]
 
@@ -406,7 +410,12 @@ class Logmonrc(TypedDict):
             str,
             LogConfig|
             Annotated[str, Field(title=_action_string_tilte, description=_see_action)]|
-            list[LogActionConfig|Annotated[str, Field(title=_action_string_tilte, description=_see_action)]]
+            Annotated[
+                list[
+                    LogActionConfig|
+                    Annotated[str, Field(title=_action_string_tilte, description=_see_action)]],
+                Field(title=_action_array_title)
+            ]
         ], Field(title='Mapping of logfile settings', description='Mapping from logfiles to their configurations.')]|
         Annotated[list[str], Field(title='List of logfiles', description='All the configuration is taken from the global settings.')],
         Field(description=_logfiles_description)
