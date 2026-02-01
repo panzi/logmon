@@ -1,4 +1,7 @@
 /tmp
+/logmon.egg-info
+/build
+/dist
 .*
 *.pyo
 *.pyc
