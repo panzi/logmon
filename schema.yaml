@@ -282,21 +282,21 @@ $defs:
         properties:
             max_actions_per_minute:
                 anyOf:
-                -   title: Integer
+                -   exclusiveMinimum: 0
+                    title: Integer
                     type: integer
                 -   title: Unlimited
                     type: 'null'
                 description: '**Default:** `6`'
-                gt: 0
                 title: Max Actions Per Minute
             max_actions_per_hour:
                 anyOf:
-                -   title: Integer
+                -   exclusiveMinimum: 0
+                    title: Integer
                     type: integer
                 -   title: Unlimited
                     type: 'null'
                 description: '**Default:** `60`'
-                gt: 0
                 title: Max Actions Per Hour
         title: LimitsConfig
         type: object
@@ -845,6 +845,7 @@ $defs:
                                 LogActionConfig &rarr; action for more details.
                             title: Action String
                             type: string
+                    title: Action Array
                     type: array
                 -   $ref: '#/$defs/LogActionConfig'
                 -   description: See root &rarr; do &rarr; anyOf &rarr; 
@@ -1044,6 +1045,7 @@ properties:
                                 LogActionConfig &rarr; action for more details.
                             title: Action String
                             type: string
+                    title: Action Array
                     type: array
             description: Mapping from logfiles to their configurations.
             title: Mapping of logfile settings
