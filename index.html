@@ -17877,7 +17877,9 @@ systemd::UNIT:sshd.service
             />
         </svg>
     <a href="#limits" onclick="anchorLink('limits')">limits</a></div><h4>Rate limit actions</h4><span class="badge badge-dark value-type">Type: object</span><br/>
-<span class="description"><p>Map of action limiters that can be assigned to actions. You can set a limiter to <code>null</code> to make it unlimited.<strong>Default:</strong> <code>{"default": {"max_actions_per_minute": 6, "max_actions_per_hour": 60}}</code></p>
+<span class="description"><p>Map of action limiters that can be assigned to actions. You can set a limiter to <code>null</code> to make it unlimited.</p>
+
+<p><strong>Default:</strong> <code>{"default": {"max_actions_per_minute": 6, "max_actions_per_hour": 60}}</code></p>
 </span>
         
 
@@ -17925,7 +17927,7 @@ systemd::UNIT:sshd.service
             <a class="nav-link anyOf-option"
                id="limits_additionalProperties_anyOf_i1" data-toggle="tab" href="#tab-pane_limits_additionalProperties_anyOf_i1" role="tab"
                onclick="setAnchor('#limits_additionalProperties_anyOf_i1')"
-            >Option 2</a>
+            >Unlimited</a>
         </li></ul>
 <div class="tab-content card"><div class="tab-pane fade card-body active show"
              id="tab-pane_limits_additionalProperties_anyOf_i0" role="tabpanel">
@@ -18031,7 +18033,7 @@ systemd::UNIT:sshd.service
             <a class="nav-link anyOf-option"
                id="limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1" data-toggle="tab" href="#tab-pane_limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1" role="tab"
                onclick="setAnchor('#limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1')"
-            >Option 2</a>
+            >Unlimited</a>
         </li></ul>
 <div class="tab-content card"><div class="tab-pane fade card-body active show"
              id="tab-pane_limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i0" role="tabpanel">
@@ -18091,7 +18093,7 @@ systemd::UNIT:sshd.service
         
 
         
-        <p><span class="badge badge-light restriction numeric-restriction" id="limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i0_number">Value must be strictly greater than <code>0</code></span></p>
+        
 
         
         </div><div class="tab-pane fade card-body "
@@ -18147,7 +18149,7 @@ systemd::UNIT:sshd.service
                 d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
             />
         </svg>
-    <a href="#limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1" onclick="anchorLink('limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: null</span><br/>
+    <a href="#limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1" onclick="anchorLink('limits_additionalProperties_anyOf_i0_max_actions_per_minute_anyOf_i1')">Unlimited</a></div><h4>Unlimited</h4><span class="badge badge-dark value-type">Type: null</span><br/>
 
         
 
@@ -18228,7 +18230,7 @@ systemd::UNIT:sshd.service
             <a class="nav-link anyOf-option"
                id="limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1" data-toggle="tab" href="#tab-pane_limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1" role="tab"
                onclick="setAnchor('#limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1')"
-            >Option 2</a>
+            >Unlimited</a>
         </li></ul>
 <div class="tab-content card"><div class="tab-pane fade card-body active show"
              id="tab-pane_limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i0" role="tabpanel">
@@ -18288,7 +18290,7 @@ systemd::UNIT:sshd.service
         
 
         
-        <p><span class="badge badge-light restriction numeric-restriction" id="limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i0_number">Value must be strictly greater than <code>0</code></span></p>
+        
 
         
         </div><div class="tab-pane fade card-body "
@@ -18344,7 +18346,7 @@ systemd::UNIT:sshd.service
                 d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
             />
         </svg>
-    <a href="#limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1" onclick="anchorLink('limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: null</span><br/>
+    <a href="#limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1" onclick="anchorLink('limits_additionalProperties_anyOf_i0_max_actions_per_hour_anyOf_i1')">Unlimited</a></div><h4>Unlimited</h4><span class="badge badge-dark value-type">Type: null</span><br/>
 
         
 
@@ -18395,7 +18397,7 @@ systemd::UNIT:sshd.service
                 d="M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z"
             />
         </svg>
-    <a href="#limits_additionalProperties_anyOf_i1" onclick="anchorLink('limits_additionalProperties_anyOf_i1')">item 1</a></div><span class="badge badge-dark value-type">Type: null</span><br/>
+    <a href="#limits_additionalProperties_anyOf_i1" onclick="anchorLink('limits_additionalProperties_anyOf_i1')">Unlimited</a></div><h4>Unlimited</h4><span class="badge badge-dark value-type">Type: null</span><br/>
 
         
 
@@ -18655,6 +18657,6 @@ systemd::UNIT:sshd.service
 </div>
 
     <footer>
-        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-02-01 at 04:06:54 +0100</p>
+        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-02-01 at 04:17:27 +0100</p>
     </footer></body>
 </html>

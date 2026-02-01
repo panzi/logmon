@@ -282,17 +282,19 @@ $defs:
         properties:
             max_actions_per_minute:
                 anyOf:
-                -   exclusiveMinimum: 0
-                    type: integer
-                -   type: 'null'
+                -   type: integer
+                -   title: Unlimited
+                    type: 'null'
                 description: '**Default:** `6`'
+                gt: 0
                 title: Max Actions Per Minute
             max_actions_per_hour:
                 anyOf:
-                -   exclusiveMinimum: 0
-                    type: integer
-                -   type: 'null'
+                -   type: integer
+                -   title: Unlimited
+                    type: 'null'
                 description: '**Default:** `60`'
+                gt: 0
                 title: Max Actions Per Hour
         title: LimitsConfig
         type: object
@@ -1069,10 +1071,12 @@ properties:
         additionalProperties:
             anyOf:
             -   $ref: '#/$defs/LimitsConfig'
-            -   type: 'null'
-        description: 'Map of action limiters that can be assigned to actions. You
-            can set a limiter to `null` to make it unlimited.**Default:** `{"default":
-            {"max_actions_per_minute": 6, "max_actions_per_hour": 60}}`'
+            -   title: Unlimited
+                type: 'null'
+        description: |-
+            Map of action limiters that can be assigned to actions. You can set a limiter to `null` to make it unlimited.
+
+            **Default:** `{"default": {"max_actions_per_minute": 6, "max_actions_per_hour": 60}}`
         title: Rate limit actions
         type: object
     log:
