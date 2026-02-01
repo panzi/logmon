@@ -114,35 +114,50 @@ $defs:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `0.04`'
+                description: |-
+                    Seconds to wait for more data if the line wasn't ended with a newline character.
+
+                    **Default:** `0.04`
                 ge: 0
                 title: Wait Line Incomplete
             wait_file_not_found:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `30`'
+                description: |-
+                    Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.
+
+                    **Default:** `30`
                 ge: 0
                 title: Wait File Not Found
             wait_no_entries:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `5`'
+                description: |-
+                    Seconds to wait when there are no entries if inotify is not used.
+
+                    **Default:** `5`
                 ge: 0
                 title: Wait No Entries
-            wait_before_send:
+            wait_for_more:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `0.08`'
+                description: |-
+                    Seconds to wait for more messages before the action is performed.
+
+                    **Default:** `0.08`
                 ge: 0
-                title: Wait Before Send
+                title: Wait For More
             wait_after_crash:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `10`'
+                description: |-
+                    Seconds to wait after a logfile handler has crashed before it is restarted.
+
+                    **Default:** `10`
                 ge: 0
                 title: Wait After Crash
             max_entries:
@@ -265,20 +280,29 @@ $defs:
         type: array
     LimitsConfig:
         properties:
-            max_emails_per_minute:
+            max_actions_per_minute:
+                anyOf:
+                -   exclusiveMinimum: 0
+                    type: integer
+                -   type: 'null'
                 description: '**Default:** `6`'
-                exclusiveMinimum: 0
-                title: Max Emails Per Minute
-                type: integer
-            max_emails_per_hour:
+                title: Max Actions Per Minute
+            max_actions_per_hour:
+                anyOf:
+                -   exclusiveMinimum: 0
+                    type: integer
+                -   type: 'null'
                 description: '**Default:** `60`'
-                exclusiveMinimum: 0
-                title: Max Emails Per Hour
-                type: integer
+                title: Max Actions Per Hour
         title: LimitsConfig
         type: object
     LogActionConfig:
         properties:
+            limiter:
+                anyOf:
+                -   type: string
+                -   type: 'null'
+                title: Limiter
             subject:
                 description: |-
                     Email subject template.
@@ -655,35 +679,50 @@ $defs:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `0.04`'
+                description: |-
+                    Seconds to wait for more data if the line wasn't ended with a newline character.
+
+                    **Default:** `0.04`
                 ge: 0
                 title: Wait Line Incomplete
             wait_file_not_found:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `30`'
+                description: |-
+                    Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.
+
+                    **Default:** `30`
                 ge: 0
                 title: Wait File Not Found
             wait_no_entries:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `5`'
+                description: |-
+                    Seconds to wait when there are no entries if inotify is not used.
+
+                    **Default:** `5`
                 ge: 0
                 title: Wait No Entries
-            wait_before_send:
+            wait_for_more:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `0.08`'
+                description: |-
+                    Seconds to wait for more messages before the action is performed.
+
+                    **Default:** `0.08`
                 ge: 0
-                title: Wait Before Send
+                title: Wait For More
             wait_after_crash:
                 anyOf:
                 -   type: integer
                 -   type: number
-                description: '**Default:** `10`'
+                description: |-
+                    Seconds to wait after a logfile handler has crashed before it is restarted.
+
+                    **Default:** `10`
                 ge: 0
                 title: Wait After Crash
             max_entries:
@@ -784,16 +823,11 @@ $defs:
                 description: Even if a log entry is matched via `systemd_match`,
                     if it also matches via `systemd_ignore` it is ignored.
                 title: Systemd Ignore
-            max_emails_per_minute:
-                description: '**Default:** `6`'
-                exclusiveMinimum: 0
-                title: Max Emails Per Minute
-                type: integer
-            max_emails_per_hour:
-                description: '**Default:** `60`'
-                exclusiveMinimum: 0
-                title: Max Emails Per Hour
-                type: integer
+            limiter:
+                anyOf:
+                -   type: string
+                -   type: 'null'
+                title: Limiter
             do:
                 anyOf:
                 -   items:
@@ -1032,7 +1066,15 @@ properties:
                 systemd::UNIT:sshd.service
         title: Logfiles
     limits:
-        $ref: '#/$defs/LimitsConfig'
+        additionalProperties:
+            anyOf:
+            -   $ref: '#/$defs/LimitsConfig'
+            -   type: 'null'
+        description: 'Map of action limiters that can be assigned to actions. You
+            can set a limiter to `null` to make it unlimited.**Default:** `{"default":
+            {"max_actions_per_minute": 6, "max_actions_per_hour": 60}}`'
+        title: Rate limit actions
+        type: object
     log:
         $ref: '#/$defs/AppLogConfig'
         description: Log configuration of logmon itself.
