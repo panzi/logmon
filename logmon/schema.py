@@ -26,6 +26,19 @@ __all__ = (
 
 FILE_MODE_PATTERN = re.compile(r'^(?:(?P<ls>(?:[-r][-w][-x]){3})|(?P<eq>([ugo]=r?w?x?(,[ugo]=r?w?x?)*)?)|(?P<oct>(?:0o?)?[0-7]{3}))$')
 
+_default_limits = {
+    "default": {
+        "max_actions_per_minute": DEFAULT_MAX_ACTIONS_PER_MINUTE,
+        "max_actions_per_hour": DEFAULT_MAX_ACTIONS_PER_HOUR,
+    }
+}
+
+_unlimited = 'Unlimited'
+_limits_title = 'Rate limit actions'
+_limits_description = f'''\
+Map of action limiters that can be assigned to actions. You can set a limiter to `null` to make it unlimited.
+
+**Default:** `{json.dumps(_default_limits)}`'''
 _action_string_tilte = 'Action String'
 _see_action = 'See root &rarr; do &rarr; anyOf &rarr; LogActionConfig &rarr; action for more details.'
 _action_description = '''\
@@ -46,13 +59,6 @@ For SMTP and IMAP these query parameters are supported:
 * `secure`
 
 ''' f'**Default:** `{DEFAULT_ACTION!r}`'
-
-_default_limits = {
-    "default": {
-        "max_actions_per_minute": DEFAULT_MAX_ACTIONS_PER_MINUTE,
-        "max_actions_per_hour": DEFAULT_MAX_ACTIONS_PER_HOUR,
-    }
-}
 
 class ActionConfigBase(TypedDict):
     limiter: NotRequired[str|None]
@@ -150,8 +156,14 @@ class ActionConfig(ActionConfigBase):
     action: Annotated[NotRequired[ActionType], Field(description=_action_description)]
 
 class LimitsConfig(TypedDict):
-    max_actions_per_minute: Annotated[NotRequired[Optional[int]], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)]
-    max_actions_per_hour: Annotated[NotRequired[Optional[int]], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)]
+    max_actions_per_minute: Annotated[
+        NotRequired[int|Annotated[None, Field(title=_unlimited)]],
+        Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)
+    ]
+    max_actions_per_hour: Annotated[
+        NotRequired[int|Annotated[None, Field(title=_unlimited)]],
+        Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)
+    ]
 
 class LogfileConfig(TypedDict):
     entry_start_pattern: Annotated[NotRequired[str | list[str]], Field(description=f"**Default:** `{DEFAULT_ENTRY_START_PATTERN.pattern!r}`")]
@@ -187,7 +199,7 @@ class SystemDConfig(TypedDict):
     systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
     systemd_ignore: Annotated[NotRequired[Optional[dict[str, str|int]]], Field(description="Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.")]
 
-class Config(LogfileConfig, SystemDConfig, LimitsConfig):
+class Config(LogfileConfig, SystemDConfig):
     limiter: NotRequired[str|None]
     do: list[ActionConfig]
 
@@ -223,7 +235,18 @@ class MTConfig(TypedDict):
     do: Annotated[NotRequired[ActionConfig], Field(description=_do_description)]
     default: Annotated[NotRequired[InputConfig], Field(description=_default_description)]
     logfiles: Annotated[dict[str, Config]|list[str], Field(description=_logfiles_description)]
-    limits: NotRequired[dict[str, LimitsConfig|None]]
+    limits: Annotated[
+        NotRequired[
+            dict[
+                str,
+                LimitsConfig|Annotated[None, Field(title=_unlimited)]
+            ]
+        ],
+        Field(
+            title=_limits_title,
+            description=_limits_description
+        )
+    ]
 
 class AppLogConfig(TypedDict):
     """
@@ -374,10 +397,15 @@ class Logmonrc(TypedDict):
         Field(description=_logfiles_description)
     ]
     limits: Annotated[
-        NotRequired[dict[str, LimitsConfig|None]],
+        NotRequired[
+            dict[
+                str,
+                LimitsConfig|Annotated[None, Field(title=_unlimited)]
+            ]
+        ],
         Field(
-            title='Rate limit actions',
-            description=f'Map of action limiters that can be assigned to actions. You can set a limiter to `null` to make it unlimited.**Default:** `{json.dumps(_default_limits)}`'
+            title=_limits_title,
+            description=_limits_description
         )
     ]
 
