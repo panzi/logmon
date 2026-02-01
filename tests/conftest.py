@@ -1,10 +1,13 @@
 import os
 import sys
 import pytest
+import tracemalloc
 
 from pathlib import Path
 from os.path import join as join_path
 from tempfile import gettempdir
+
+tracemalloc.start()
 
 SRC_PATH = str(Path(__file__).resolve().parent.parent)
 

@@ -1,10 +1,4 @@
-from typing import Optional
-
 import os
-import sys
-
-from subprocess import Popen, PIPE
-from time import sleep
 
 from tests.testutils import *
 
@@ -35,7 +29,7 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, '--logmails=instead')
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, '--logmails=instead')
 
     expected1 = f'''\
 {logfiles[0]}: Simulate sending email
@@ -72,6 +66,3 @@ logfiles:
             os.remove(filepath)
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore

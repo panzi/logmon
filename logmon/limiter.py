@@ -83,12 +83,12 @@ class Limiter(AbstractLimiter):
     _lock: threading.Lock
     _hour_timestamps: list[float]
     _minute_timestamps: list[float]
-    _max_actions_per_minute: int
-    _max_actions_per_hour: int
+    _max_actions_per_minute: Optional[int]
+    _max_actions_per_hour: Optional[int]
     _last_minute_warning_ts: float
     _last_hour_warning_ts: float
 
-    def __init__(self, name: str, max_actions_per_minute: int, max_actions_per_hour: int) -> None:
+    def __init__(self, name: str, max_actions_per_minute: Optional[int], max_actions_per_hour: Optional[int]) -> None:
         super().__init__(name)
         self._lock = threading.Lock()
         self._hour_timestamps   = []
@@ -111,11 +111,11 @@ class Limiter(AbstractLimiter):
         return self._name
 
     @property
-    def max_actions_per_minute(self) -> int:
+    def max_actions_per_minute(self) -> Optional[int]:
         return self._max_actions_per_minute
 
     @property
-    def max_actions_per_hour(self) -> int:
+    def max_actions_per_hour(self) -> Optional[int]:
         return self._max_actions_per_hour
 
     def check(self) -> bool:
@@ -133,8 +133,11 @@ class Limiter(AbstractLimiter):
             minutes_count = len(self._minute_timestamps)
             hours_count   = len(self._hour_timestamps)
 
-            minutes_ok = minutes_count < self._max_actions_per_minute
-            hours_ok   = hours_count   < self._max_actions_per_hour
+            max_actions_per_minute = self._max_actions_per_minute
+            max_actions_per_hour   = self._max_actions_per_hour
+
+            minutes_ok = max_actions_per_minute is None or minutes_count < max_actions_per_minute
+            hours_ok   = max_actions_per_hour   is None or hours_count   < max_actions_per_hour
 
             if not minutes_ok:
                 if self._last_minute_warning_ts < minute_cutoff:
@@ -151,10 +154,10 @@ class Limiter(AbstractLimiter):
                 self._minute_timestamps.append(now)
 
         if warn_minute:
-            logger.warning(f"Maximum actions per minute exceeded! {minutes_count} >= {self._max_actions_per_minute}")
+            logger.warning(f"[{self._name}] Maximum actions per minute exceeded! {minutes_count} >= {max_actions_per_minute}")
 
         if warn_hour:
-            logger.warning(f"Maximum actions per hour exceeded! {hours_count} >= {self._max_actions_per_hour}")
+            logger.warning(f"[{self._name}] Maximum actions per hour exceeded! {hours_count} >= {max_actions_per_hour}")
 
         return minutes_ok and hours_ok
 
@@ -190,7 +193,17 @@ def build_limiters(config: MTConfig) -> Mapping[str, AbstractLimiter]:
                 # because the empty string is used for the default NullLimiter
                 raise ValueError(f'Limiter name may not be empty!')
             else:
-                limiters[name] = Limiter.from_config(name, cfg)
+                max_actions_per_hour   = cfg.get('max_actions_per_hour', DEFAULT_MAX_ACTIONS_PER_HOUR)
+                max_actions_per_minute = cfg.get('max_actions_per_minute', DEFAULT_MAX_ACTIONS_PER_MINUTE)
+
+                if max_actions_per_hour is None and max_actions_per_minute is None:
+                    limiters[name] = NullLimiter(name)
+                else:
+                    limiters[name] = Limiter(
+                        name = name,
+                        max_actions_per_hour   = max_actions_per_hour,
+                        max_actions_per_minute = max_actions_per_minute,
+                    )
 
     if 'default' not in limiters:
         limiters['default'] = Limiter(

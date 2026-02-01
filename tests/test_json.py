@@ -86,7 +86,7 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, write_logs=write_json_logs)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, write_logs=write_json_logs)
 
     output: list[dict] = []
     with open(file_path) as fp:
@@ -116,6 +116,3 @@ logfiles:
             os.remove(filepath)
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore

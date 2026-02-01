@@ -43,7 +43,7 @@ try:
         config: Config,
         limiters: Mapping[str, AbstractLimiter],
     ) -> None:
-        wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
+        wait_for_more = config.get('wait_for_more', DEFAULT_WAIT_FOR_MORE)
         max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
 
         output_indent = config.get('output_indent', DEFAULT_OUTPUT_INDENT) or None
@@ -132,8 +132,8 @@ try:
                     duration = monotonic() - start_ts
 
                     try:
-                        while len(systemd_entries) < max_entries and duration < wait_before_send:
-                            rem_time = wait_before_send - duration
+                        while len(systemd_entries) < max_entries and duration < wait_for_more:
+                            rem_time = wait_for_more - duration
                             logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
                             reader.wait(rem_time)
                             systemd_entries.extend(reader)

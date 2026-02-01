@@ -176,7 +176,7 @@ logfiles:
     thread = Thread(target=server.serve_forever)
     thread.start()
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
 
     server.shutdown()
     thread.join()
@@ -241,9 +241,6 @@ MIME-Version: 1.0
             os.remove(filepath)
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore
 
 MAIL_LINE_PATTERN = re.compile(r'^\s*(?P<what>[^:]+):(?P<adr>(?:\"[^"]*")?\s*<[^>]*>)(?P<args>(?:\s+[^\s=]+=\S*)*)\s*$', re.I)
 

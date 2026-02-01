@@ -1,13 +1,10 @@
 from typing import Optional, Any, Literal, NamedTuple
 
 import os
-import sys
 import json
 import pydantic
 import traceback
 
-from time import sleep
-from subprocess import Popen, PIPE
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 from base64 import b64encode
@@ -297,7 +294,7 @@ logfiles:
     thread = Thread(target=lambda: server.serve_forever())
     thread.start()
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
 
     server.shutdown()
     thread.join()
@@ -356,6 +353,3 @@ Entry not found:
             os.remove(filepath)
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore

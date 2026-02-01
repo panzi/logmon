@@ -37,7 +37,7 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
 
     expected1 = f'''\
 {logs[0][0]['message']}
@@ -62,16 +62,13 @@ logfiles:
     assert_message_not_exists(expected2, output1)
 
     assert output4 == ''
-  
+
     for filepath in *logfiles, logmonrc_path, file_path1, file_path2, file_path3, file_path4:
         try:
             if os.path.exists(filepath):
               os.remove(filepath)
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore
 
 def assert_message_exists(message: str, output: str) -> None:
     assert message in output, (

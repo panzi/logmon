@@ -468,9 +468,9 @@ def main(argv: Optional[list[str]] = None) -> None:
         help=f'Wait SECOONDS for a 2nd read if the read line was not terminated with a newline. '
              f'Only one wait is performed. [default: {DEFAULT_WAIT_LINE_INCOMPLETE}]')
     ap.add_argument('--wait-no-entries', type=non_negative(float), default=None, metavar='SECONDS',
-        help=f'Wait SECONDS before retry if no new entries where found. Not used if inotify is used. [default: {DEFAULT_WAIT_NO_ENTRIES}]')
-    ap.add_argument('--wait-before-send', type=non_negative(float), default=None, metavar='SECONDS',
-        help=f'Wait SECONDS for more entries before sending email. [default: {DEFAULT_WAIT_BEFORE_SEND}]')
+        help=f"Wait SECONDS when there are no entries and inotify isn't used. [default: {DEFAULT_WAIT_NO_ENTRIES}]")
+    ap.add_argument('--wait-for-more', type=non_negative(float), default=None, metavar='SECONDS',
+        help=f'Wait SECONDS for more entries before sending email. [default: {DEFAULT_WAIT_FOR_MORE}]')
     ap.add_argument('--wait-after-crash', type=non_negative(float), default=None, metavar='SECONDS',
         help=f'Wait SECONDS after a monitoring thread crashed. [default: {DEFAULT_WAIT_AFTER_CRASH}]')
     ap.add_argument('--max-entries', type=positive(int), default=None, metavar='COUNT',
@@ -980,8 +980,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     if args.wait_no_entries is not None:
         default_config['wait_no_entries'] = args.wait_no_entries
 
-    if args.wait_before_send is not None:
-        default_config['wait_before_send'] = args.wait_before_send
+    if args.wait_for_more is not None:
+        default_config['wait_for_more'] = args.wait_for_more
 
     if args.wait_after_crash is not None:
         default_config['wait_after_crash'] = args.wait_after_crash

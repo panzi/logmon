@@ -150,19 +150,19 @@ class ActionConfig(ActionConfigBase):
     action: Annotated[NotRequired[ActionType], Field(description=_action_description)]
 
 class LimitsConfig(TypedDict):
-    max_actions_per_minute: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)]
-    max_actions_per_hour: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)]
+    max_actions_per_minute: Annotated[NotRequired[Optional[int]], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_MINUTE!r}`", gt=0)]
+    max_actions_per_hour: Annotated[NotRequired[Optional[int]], Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`", gt=0)]
 
 class LogfileConfig(TypedDict):
     entry_start_pattern: Annotated[NotRequired[str | list[str]], Field(description=f"**Default:** `{DEFAULT_ENTRY_START_PATTERN.pattern!r}`")]
     error_pattern: Annotated[NotRequired[str | list[str]], Field(description=f"**Default:** `{DEFAULT_ERROR_PATTERN.pattern!r}`")]
     #warning_pattern: Annotated[NotRequired[str|list[str]], Field(description=f"**Default:** `{DEFAULT_WARNING_PATTERN.pattern!r}`")]
     ignore_pattern: Annotated[NotRequired[str | list[str] | None], Field(description="Even if the `error_pattern` matches, if this pattern also matches the log entry is ignored.")]
-    wait_line_incomplete: Annotated[NotRequired[int | float], Field(description=f"**Default:** `{DEFAULT_WAIT_LINE_INCOMPLETE!r}`", ge=0)]
-    wait_file_not_found: Annotated[NotRequired[int | float], Field(description=f"**Default:** `{DEFAULT_WAIT_FILE_NOT_FOUND!r}`", ge=0)]
-    wait_no_entries: Annotated[NotRequired[int | float], Field(description=f"**Default:** `{DEFAULT_WAIT_NO_ENTRIES!r}`", ge=0)]
-    wait_before_send: Annotated[NotRequired[int | float], Field(description=f"**Default:** `{DEFAULT_WAIT_BEFORE_SEND!r}`", ge=0)]
-    wait_after_crash: Annotated[NotRequired[int | float], Field(description=f"**Default:** `{DEFAULT_WAIT_AFTER_CRASH!r}`", ge=0)]
+    wait_line_incomplete: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait for more data if the line wasn't ended with a newline character.\n\n**Default:** `{DEFAULT_WAIT_LINE_INCOMPLETE!r}`", ge=0)]
+    wait_file_not_found: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.\n\n**Default:** `{DEFAULT_WAIT_FILE_NOT_FOUND!r}`", ge=0)]
+    wait_no_entries: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait when there are no entries if inotify is not used.\n\n**Default:** `{DEFAULT_WAIT_NO_ENTRIES!r}`", ge=0)]
+    wait_for_more: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait for more messages before the action is performed.\n\n**Default:** `{DEFAULT_WAIT_FOR_MORE!r}`", ge=0)]
+    wait_after_crash: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait after a logfile handler has crashed before it is restarted.\n\n**Default:** `{DEFAULT_WAIT_AFTER_CRASH!r}`", ge=0)]
     max_entries: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRIES!r}`", ge=0)]
     max_entry_lines: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRY_LINES!r}`", ge=0)]
     use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `true`.")]

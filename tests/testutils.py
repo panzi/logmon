@@ -183,48 +183,50 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
 T = TypeVar('T')
 
 @overload
-def run_logmon(logfiles: list[str], *args: str, compression: Compression|None=None) -> tuple[Popen[bytes], list[list[ExampleLog]], str, str]: ...
+def run_logmon(logfiles: list[str], *args: str, compression: Compression|None=None) -> tuple[list[list[ExampleLog]], str, str]: ...
 
 @overload
-def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]], compression: Compression|None=None) -> tuple[Popen[bytes], list[list[T]], str, str]: ...
+def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]], compression: Compression|None=None) -> tuple[list[list[T]], str, str]: ...
 
 def run_logmon(
         logfiles: list[str],
         *args: str,
         write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]]=write_logs, # type: ignore
         compression: Compression|None=None,
-) -> tuple[Popen[bytes], list[list[T]], str, str]:
+) -> tuple[list[list[T]], str, str]:
     proc = Popen(
         [sys.executable, '-m', 'logmon', *args],
         cwd=SRC_PATH,
         stdout=PIPE,
         stderr=PIPE,
     )
-    assert proc.stdout is not None
-    assert proc.stderr is not None
 
-    sleep(0.25)
+    with proc:
+        assert proc.stdout is not None
+        assert proc.stderr is not None
 
-    status: Optional[int] = proc.returncode
+        sleep(0.25)
 
-    logs: list[list[T]] = []
+        status: Optional[int] = proc.returncode
 
-    try:
-        for l in write_logs(logfiles, compression):
-            logs.append(l)
+        logs: list[list[T]] = []
 
-            status = proc.returncode
-            if status is not None and status != 0:
-                assert status == 0
+        try:
+            for l in write_logs(logfiles, compression):
+                logs.append(l)
 
-        sleep(1.75)
+                status = proc.returncode
+                if status is not None and status != 0:
+                    assert status == 0
 
-        proc.terminate()
+            sleep(1.75)
 
-        status = proc.wait(5)
-    finally:
-        stdout, stderr = pipe_io(proc.stdout, proc.stderr)
+            proc.terminate()
 
-    assert proc.returncode == 0
+            status = proc.wait(5)
+        finally:
+            stdout, stderr = pipe_io(proc.stdout, proc.stderr)
 
-    return proc, logs, stdout, stderr
+        assert proc.returncode == 0
+
+        return logs, stdout, stderr

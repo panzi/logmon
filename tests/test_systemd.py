@@ -97,79 +97,78 @@ logfiles:
         stdout=PIPE,
         stderr=PIPE,
     )
-    assert proc.stdout is not None
-    assert proc.stderr is not None
 
-    sleep(0.5)
-
-    status: Optional[int] = proc.returncode
-
-    logs: list[list[str]] = []
-
-    try:
-        for l in write_systemd_logs(service_prefix):
-            logs.append(l)
-
-            status = proc.returncode
-            if status is not None and status != 0:
-                assert status == 0
+    with proc:
+        assert proc.stdout is not None
+        assert proc.stderr is not None
 
         sleep(0.5)
 
-        proc.terminate()
+        status: Optional[int] = proc.returncode
 
-        status = proc.wait(5)
-    finally:
-        stdout, stderr = pipe_io(proc.stdout, proc.stderr)
+        logs: list[list[str]] = []
 
-    assert proc.returncode == 0
+        try:
+            for l in write_systemd_logs(service_prefix):
+                logs.append(l)
 
-    output1: list[dict] = []
-    with open(file_path1) as fp:
-        for line in fp:
-            output1.append(json.loads(line))
+                status = proc.returncode
+                if status is not None and status != 0:
+                    assert status == 0
 
-    output2: list[dict] = []
-    with open(file_path2) as fp:
-        for line in fp:
-            output2.append(json.loads(line))
+            sleep(0.5)
 
-    output1_messages = [o['MESSAGE'] for o in output1]
-    output2_messages = [o['MESSAGE'] for o in output2]
+            proc.terminate()
 
-    nr = 0
-    for logentries in logs[:-1]:
-        for entry in logentries:
-            nr += 1
-            assert entry in output1_messages, (
-                f'Message {nr} not found in output!\n'
-                 '\n'
-                 '  Message:\n'
-                 '\n'
-                f'{indent(entry)}\n'
-                 '\n'
-                 '  Output:\n'
-                 '\n'
-                f'{indent('\n'.join(output1_messages))}'
-            )
+            status = proc.wait(5)
+        finally:
+            stdout, stderr = pipe_io(proc.stdout, proc.stderr)
 
-    for logentries in logs[1:4]:
-        for entry in logentries:
-            nr += 1
-            assert entry in output2_messages, (
-                f'Message {nr} not found in output!\n'
-                 '\n'
-                 '  Message:\n'
-                 '\n'
-                f'{indent(entry)}\n'
-                 '\n'
-                 '  Output:\n'
-                 '\n'
-                f'{indent('\n'.join(output2_messages))}'
-            )
+        assert proc.returncode == 0
 
-    assert len(output1_messages) == sum(len(logentries) for logentries in logs[:-1])
-    assert len(output2_messages) == sum(len(logentries) for logentries in logs[1:4])
+        output1: list[dict] = []
+        with open(file_path1) as fp:
+            for line in fp:
+                output1.append(json.loads(line))
 
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore
+        output2: list[dict] = []
+        with open(file_path2) as fp:
+            for line in fp:
+                output2.append(json.loads(line))
+
+        output1_messages = [o['MESSAGE'] for o in output1]
+        output2_messages = [o['MESSAGE'] for o in output2]
+
+        nr = 0
+        for logentries in logs[:-1]:
+            for entry in logentries:
+                nr += 1
+                assert entry in output1_messages, (
+                    f'Message {nr} not found in output!\n'
+                    '\n'
+                    '  Message:\n'
+                    '\n'
+                    f'{indent(entry)}\n'
+                    '\n'
+                    '  Output:\n'
+                    '\n'
+                    f'{indent('\n'.join(output1_messages))}'
+                )
+
+        for logentries in logs[1:4]:
+            for entry in logentries:
+                nr += 1
+                assert entry in output2_messages, (
+                    f'Message {nr} not found in output!\n'
+                    '\n'
+                    '  Message:\n'
+                    '\n'
+                    f'{indent(entry)}\n'
+                    '\n'
+                    '  Output:\n'
+                    '\n'
+                    f'{indent('\n'.join(output2_messages))}'
+                )
+
+        assert len(output1_messages) == sum(len(logentries) for logentries in logs[:-1])
+        assert len(output2_messages) == sum(len(logentries) for logentries in logs[1:4])

@@ -78,7 +78,7 @@ def _logmon(
 
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
-    wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
+    wait_for_more = config.get('wait_for_more', DEFAULT_WAIT_FOR_MORE)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     encoding = config.get('encoding', 'UTF-8')
     errors = config.get('encoding_errors', DEFAULT_ENCODING_ERRORS)
@@ -117,7 +117,7 @@ def _logmon(
                             logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
 
                         while is_running():
-                            entry_count = _read_entries(logfile, reader, wait_before_send, max_entries, actions)
+                            entry_count = _read_entries(logfile, reader, wait_for_more, max_entries, actions)
 
                             if entry_count < max_entries and is_running():
                                 # If there are max_entries that means there are probably already more in the
@@ -287,7 +287,7 @@ def _logmon_glob(
         limiters: Mapping[str, AbstractLimiter],
 ) -> None:
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
-    wait_before_send = config.get('wait_before_send', DEFAULT_WAIT_BEFORE_SEND)
+    wait_for_more = config.get('wait_for_more', DEFAULT_WAIT_FOR_MORE)
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
     encoding = config.get('encoding', 'UTF-8')
@@ -360,7 +360,7 @@ def _logmon_glob(
                                     stream = fp,
                                 )
 
-                                _read_entries(child_logfile, entry.reader, wait_before_send, max_entries, actions)
+                                _read_entries(child_logfile, entry.reader, wait_for_more, max_entries, actions)
 
                 while is_running():
                     terminal = False
@@ -412,7 +412,7 @@ def _logmon_glob(
                                         if mask & IN_MODIFY:
                                             entry = loghandles.get(event_path)
                                             if entry is not None:
-                                                _read_entries(entry.logfile, entry.reader, wait_before_send, max_entries, actions)
+                                                _read_entries(entry.logfile, entry.reader, wait_for_more, max_entries, actions)
 
                                         if event.filename is not None and fnmatch(event.filename):
                                             if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
@@ -421,7 +421,7 @@ def _logmon_glob(
                                                     logger.debug(f"{entry.logfile}: Logfile went away, stopping monitoring")
                                                     try:
                                                         # just in case try to read any tailing entries
-                                                        while _read_entries(entry.logfile, entry.reader, (wait_before_send if mask & IN_DELETE_SELF else 0), max_entries, actions) >= max_entries:
+                                                        while _read_entries(entry.logfile, entry.reader, (wait_for_more if mask & IN_DELETE_SELF else 0), max_entries, actions) >= max_entries:
                                                             pass
                                                     finally:
                                                         entry.close(inotify)
@@ -504,7 +504,7 @@ def _logmon_glob(
                         stream = fp,
                     )
 
-                    _read_entries(child_logfile, fb_entry.reader, wait_before_send, max_entries, actions, wait_on_empty_messages=False)
+                    _read_entries(child_logfile, fb_entry.reader, wait_for_more, max_entries, actions, wait_on_empty_messages=False)
 
             first = False
             while is_running():
@@ -618,7 +618,7 @@ def _logmon_thread(logfile: str, config: Config, limiters: Mapping[str, Abstract
 def _read_entries(
         logfile: str,
         reader: Generator[LogEntry|None, None, None],
-        wait_before_send: float|int,
+        wait_for_more: float|int,
         max_entries: int,
         actions: list[Action],
         wait_on_empty_messages: bool = True,
@@ -629,13 +629,13 @@ def _read_entries(
         for entry in reader:
             if entry is None:
                 duration = monotonic() - start_ts
-                if duration >= wait_before_send:
+                if duration >= wait_for_more:
                     break
 
                 if not entries and not wait_on_empty_messages:
                     return 0
 
-                rem_time = wait_before_send - duration
+                rem_time = wait_for_more - duration
                 logger.debug(f'{logfile}: Waiting for {rem_time} seconds to gather more messages')
                 sleep(rem_time)
                 continue

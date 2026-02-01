@@ -111,7 +111,7 @@ logfiles:
         join_path(logdir, 'foo03.log'),
     ]
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, write_logs=write_logs)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, write_logs=write_logs)
 
     output = read_file(file_path)
 
@@ -137,6 +137,3 @@ Message not found in output!
         rmtree(logdir)
     except Exception as exc:
         print(f'Error deleting {logdir}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore

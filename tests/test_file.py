@@ -55,13 +55,13 @@ logfiles:
   "{logfiles[0]}": "file:{logfiles[0]}.out"
   "{logfiles[1]}": "file:{logfiles[1]}.out"
   "{logfiles[2]}":
-    action: "file:{logfiles[2]}.out"
+    do: "file:{logfiles[2]}.out"
     entry_start_pattern: >-
       "^{{"
 '''
     write_file(logmonrc_path, logmonrc)
 
-    proc, logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, compression=compression)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, compression=compression)
 
     expected1 = f'''\
 {logs[0][0]['message']}
@@ -83,9 +83,6 @@ logfiles:
             os.remove(filepath)
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
-
-    proc.stderr.close() # type: ignore
-    proc.stdout.close() # type: ignore
 
 def _make_test(compression: Compression|None):
     def test_file(logmonrc_path: str, logfiles: list[str], temp_prefix: tuple[str, str]) -> None:
