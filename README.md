@@ -5,8 +5,8 @@ logmon
 [![GNU General Public License Version 3](https://img.shields.io/github/license/panzi/logmon)](https://github.com/panzi/logmon/blob/main/LICENSE.txt)
 [![Config Schema](https://img.shields.io/badge/Config_Schema-informational)](https://panzi.github.io/logmon/)
 
-A very simple log file monitoring script that runs actions like seinding emails
-when it finds configured error patterns.
+A log file monitoring script that runs actions like sending emails when it finds
+configured error patterns.
 
 Setup
 -----
