@@ -89,9 +89,9 @@ class ActionConfigBase(TypedDict):
     http_headers: Annotated[NotRequired[dict[str, str]], Field(description="Additional HTTP headers. The `Authorization` header will be overwritten if OAuth 2.0 is used or if `username` and `password` are set.")]
     http_max_redirect: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_HTTP_MAX_REDIRECT!r}`", ge=0)]
     http_timeout: Annotated[NotRequired[
-        Annotated[float, Field(title="Seconds")]|
+        Annotated[float, Field(title="Seconds", ge=0.0)]|
         Annotated[None,  Field(title=_unlimited)]
-    ], Field(description="`null` means no timeout.\n**Default:** `null`", ge=0.0)]
+    ], Field(description="`null` means no timeout.\n**Default:** `null`")]
 
     oauth2_grant_type: Annotated[NotRequired[OAuth2GrantType], Field(description=f"**Default:** `{DEFAULT_OAUTH2_GRANT_TYPE!r}`")]
     oauth2_token_url: Annotated[NotRequired[
@@ -157,9 +157,9 @@ class ActionConfigBase(TypedDict):
     command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`\n\n**Default:** `'null:'`")]
     command_interactive: Annotated[NotRequired[bool], Field(description="If `true` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.\n\n**Default:** `false`")]
     command_timeout: Annotated[NotRequired[
-        Annotated[float, Field(title="Seconds")]|
+        Annotated[float, Field(title="Seconds", ge=0.0)]|
         Annotated[None,  Field(title=_unlimited)]
-    ], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n\n**Default:** `null`", ge=0.0)]
+    ], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n\n**Default:** `null`")]
     command_chroot: Annotated[NotRequired[
         Annotated[str, Field(title="Path")]|
         Null
@@ -210,7 +210,7 @@ class ActionConfigBase(TypedDict):
     output_indent: Annotated[NotRequired[
         Annotated[int, Field(title="Integer", ge=0)]|
         Annotated[None, Field(title="Null", description="Whole JSON document on a single line.")]
-    ], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
+    ], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`")]
     output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
     entries_delimiter: Annotated[NotRequired[str], Field(description="String used to delimite entries in {entries_str}.\n\n**Default:** `'\\n\\n'`")]
 
