@@ -173,11 +173,11 @@ class ActionConfigBase(TypedDict):
         Null
     ], Field(description="`nice()` to apply for the sub-process.")]
     command_encoding: Annotated[NotRequired[str], Field(description="Encoding used to communicate with sub-process.")]
-    command_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
+    command_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: [Python's encoding error handling](https://docs.python.org/3/library/codecs.html#error-handlers)\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
 
     file: Annotated[NotRequired[str], Field(description="Path of logmon logfile.")]
     file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
-    file_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
+    file_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: [Python's encoding error handling](https://docs.python.org/3/library/codecs.html#error-handlers)\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
     file_append: Annotated[NotRequired[bool], Field(description="Open file in append mode.\n\n**Default:** `true`")]
     file_user: Annotated[
         NotRequired[
@@ -269,7 +269,7 @@ class LogfileConfig(TypedDict):
         ], Field(title="JSON Path")]|Null
     ], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
-    encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
+    encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: [Python's encoding error handling](https://docs.python.org/3/library/codecs.html#error-handlers)\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
     glob: Annotated[NotRequired[bool], Field(description="If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.\n\n**Default:** `false`")]
     compression: Annotated[NotRequired[Compression|Null], Field(description="Read compressed logfiles.\n\n**Default:** `null`")]
 
@@ -412,7 +412,7 @@ class LogConfig(LogfileConfig, SystemDConfig):
 
 class Logmonrc(TypedDict):
     """\
-    logmon configuration file schema.
+    [logmon](https://github.com/panzi/logmon) configuration file schema.
 
     ### Examples
 
