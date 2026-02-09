@@ -397,14 +397,14 @@ $defs:
                 type: integer
             http_timeout:
                 anyOf:
-                -   title: Seconds
+                -   minimum: 0.0
+                    title: Seconds
                     type: number
                 -   title: Unlimited
                     type: 'null'
                 description: |-
                     `null` means no timeout.
                     **Default:** `null`
-                ge: 0.0
                 title: Http Timeout
             oauth2_grant_type:
                 $ref: '#/$defs/OAuth2GrantType'
@@ -555,7 +555,8 @@ $defs:
                 type: boolean
             command_timeout:
                 anyOf:
-                -   title: Seconds
+                -   minimum: 0.0
+                    title: Seconds
                     type: number
                 -   title: Unlimited
                     type: 'null'
@@ -563,7 +564,6 @@ $defs:
                     Timeout in seconds. If the timeout expires the process is killed.
 
                     **Default:** `null`
-                ge: 0.0
                 title: Command Timeout
             command_chroot:
                 anyOf:
@@ -683,7 +683,6 @@ $defs:
                     Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.
 
                     **Default:** `4`
-                ge: 0
                 title: Output Indent
             output_format:
                 $ref: '#/$defs/OutputFormat'
