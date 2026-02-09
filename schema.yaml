@@ -441,10 +441,27 @@ $defs:
                 title: Oauth2 Refresh Margin
                 type: string
             command:
-                description: |-
+                anyOf:
+                -   items:
+                        type: string
+                    title: Argument Array
+                    type: array
+                -   description: This string is split into the argument array 
+                        using `shlex.split()`.
+                    title: Command String
+                    type: string
+                description: |
                     Command to run if `action` is `'COMMAND'`.
 
-                    The template parameters are the same as with `body` plus the special syntax `{...entries}`, which makes the argument repeat as a separate argument for each entry. E.g. if there are the entries `'foo'` and `'bar'` the argument list `['command', '--entry={...entries}']` will expand to `['command', '--entry=foo', '--entry=bar']`
+                    The template parameters are the same as with `body` plus the special syntax `{...entries}`, which makes the argument repeat as a separate argument for each entry. E.g. if there are the entries `'foo'` and `'bar'` the argument list `['command', '--entry={...entries}']` will expand to `['command', '--entry=foo', '--entry=bar']`.
+
+                    Additional parameters:
+
+                    - `{python}` - Path of the Python binary used to execute logmon itself. (`sys.executable`)
+                    - `{python_version}` - Full vesrsion string of the Python binary. (`sys.version`)
+                    - `{python_version_major}` - `sys.version_info.major`.
+                    - `{python_version_minor}` - `sys.version_info.minor`.
+                    - `{python_version_micro}` - `sys.version_info.micro`.
                 examples:
                 -   -   /path/to/command
                     -   --sender
@@ -453,10 +470,7 @@ $defs:
                     -   '{receivers}'
                     -   --
                     -   '{...entries}'
-                items:
-                    type: string
                 title: Command
-                type: array
             command_cwd:
                 description: Working directory of spawned process.
                 title: Command Cwd
@@ -477,6 +491,27 @@ $defs:
                     type: integer
                 description: Run the process as group/GID.
                 title: Command Group
+            command_process_group:
+                description: '`setpgid()` to apply for the sub-process.'
+                title: Command Process Group
+                type: integer
+            command_new_session:
+                description: |-
+                    If `True` use `setsid()` in the sub-process.
+
+                    **Default:** `False`
+                title: Command New Session
+                type: boolean
+            command_extra_groups:
+                description: '`setgroups()` to apply for the sub-process.'
+                items:
+                    anyOf:
+                    -   title: Group Name
+                        type: string
+                    -   title: Group Id
+                        type: integer
+                title: Command Extra Groups
+                type: array
             command_env:
                 additionalProperties:
                     anyOf:
@@ -528,6 +563,37 @@ $defs:
 
                     **Default:** `null`
                 title: Command Timeout
+            command_chroot:
+                anyOf:
+                -   type: string
+                -   type: 'null'
+                description: |-
+                    `chroot()` into the given path before the sub-process is executed.
+
+                    **Default:** `null`
+                title: Command Chroot
+            command_umask:
+                anyOf:
+                -   type: integer
+                -   type: 'null'
+                description: '`umask()` to apply for the sub-process.'
+                title: Command Umask
+            command_nice:
+                anyOf:
+                -   type: integer
+                -   type: 'null'
+                description: '`nice()` to apply for the sub-process.'
+                title: Command Nice
+            command_encoding:
+                description: Encoding used to communicate with sub-process.
+                title: Command Encoding
+                type: string
+            command_encoding_errors:
+                $ref: '#/$defs/EncodingErrors'
+                description: |-
+                    See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]
+
+                    **Default:** `'replace'`
             file:
                 description: Path of logmon logfile.
                 title: File
@@ -607,6 +673,15 @@ $defs:
                     Use this format when writing JSON log entries to the output.
 
                     **Default:** `'YAML'`
+            entries_delimiter:
+                description: |-
+                    String used to delimite entries in {entries_str}.
+
+                    **Default:** `'
+
+                    '`
+                title: Entries Delimiter
+                type: string
             sender:
                 description: |-
                     Email sender address.
