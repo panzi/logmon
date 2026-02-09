@@ -75,6 +75,17 @@ $defs:
             -   type: string
             -   type: 'null'
         type: array
+    ErrorPattern:
+        anyOf:
+        -   description: Python regular expression.
+            title: Pattern
+            type: string
+        -   description: List of Python regular expressions that will be joined 
+                with `|` into a single expression.
+            items:
+                type: string
+            title: List of Patterns
+            type: array
     FileType:
         enum:
         -   regular
@@ -83,83 +94,61 @@ $defs:
     InputConfig:
         properties:
             entry_start_pattern:
-                anyOf:
-                -   type: string
-                -   items:
-                        type: string
-                    type: array
+                $ref: '#/$defs/ErrorPattern'
                 description: "**Default:** `'^\\\\[\\\\d\\\\d\\\\d\\\\d-\\\\d\\\\\
                     d-\\\\d\\\\d[T ]\\\\d\\\\d:\\\\d\\\\d:\\\\d\\\\d(?:\\\\.\\\\d+)?(?:
                     ?(?:[-+]\\\\d\\\\d:?\\\\d\\\\d|Z))?\\\\]'`"
-                title: Entry Start Pattern
             error_pattern:
-                anyOf:
-                -   type: string
-                -   items:
-                        type: string
-                    type: array
+                $ref: '#/$defs/ErrorPattern'
                 description: "**Default:** `'ERROR|CRITICAL|Exception'`"
-                title: Error Pattern
             ignore_pattern:
                 anyOf:
-                -   type: string
-                -   items:
-                        type: string
-                    type: array
-                -   type: 'null'
+                -   $ref: '#/$defs/ErrorPattern'
+                -   title: 'Null'
+                    type: 'null'
                 description: Even if the `error_pattern` matches, if this 
                     pattern also matches the log entry is ignored.
                 title: Ignore Pattern
             wait_line_incomplete:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait for more data if the line wasn't ended with a newline character.
 
                     **Default:** `0.04`
-                ge: 0
+                minimum: 0
                 title: Wait Line Incomplete
+                type: number
             wait_file_not_found:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.
 
                     **Default:** `30`
-                ge: 0
+                minimum: 0
                 title: Wait File Not Found
+                type: number
             wait_no_entries:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait when there are no entries if inotify is not used.
 
                     **Default:** `5`
-                ge: 0
+                minimum: 0
                 title: Wait No Entries
+                type: number
             wait_for_more:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait for more messages before the action is performed.
 
                     **Default:** `0.08`
-                ge: 0
+                minimum: 0
                 title: Wait For More
+                type: number
             wait_after_crash:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait after a logfile handler has crashed before it is restarted.
 
                     **Default:** `10`
-                ge: 0
+                minimum: 0
                 title: Wait After Crash
+                type: number
             max_entries:
                 description: '**Default:** `20`'
                 minimum: 0
@@ -190,23 +179,38 @@ $defs:
             json_match:
                 anyOf:
                 -   $ref: '#/$defs/JsonMatch'
-                -   type: 'null'
+                    title: Object
+                -   title: 'Null'
+                    type: 'null'
                 description: JSON property paths and values to compare them to. 
                     A log entry will only be processed if all properties match. 
                     Per default all log entries are processed.
+                title: Json Match
             json_ignore:
                 anyOf:
                 -   $ref: '#/$defs/JsonMatch'
-                -   type: 'null'
+                    title: Object
+                -   title: 'Null'
+                    type: 'null'
                 description: Even if `json_match` matches, if this matches then 
                     the log entry is ignored.
+                title: Json Ignore
             json_brief:
                 anyOf:
-                -   $ref: '#/$defs/JsonPath'
-                -   type: 'null'
+                -   items:
+                        anyOf:
+                        -   title: Object Key
+                            type: string
+                        -   title: Array Index
+                            type: integer
+                    title: JSON Path
+                    type: array
+                -   title: 'Null'
+                    type: 'null'
                 description: |-
                     Use property at this path as the `{brief}` template variable.
                     **Default:** `['message']`
+                title: Json Brief
             encoding:
                 description: "**Default:** `'UTF-8'`"
                 title: Encoding
@@ -227,11 +231,13 @@ $defs:
             compression:
                 anyOf:
                 -   $ref: '#/$defs/Compression'
-                -   type: 'null'
+                -   title: 'Null'
+                    type: 'null'
                 description: |-
                     Read compressed logfiles.
 
-                    **Default:** `None`
+                    **Default:** `null`
+                title: Compression
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
@@ -241,22 +247,16 @@ $defs:
                 description: Match log entries of this or higher priority.
                 title: Systemd Priority
             systemd_match:
-                additionalProperties:
-                    anyOf:
-                    -   type: string
-                    -   type: integer
-                title: Systemd Match
-                type: object
+                $ref: '#/$defs/SystemDMatch'
             systemd_ignore:
                 anyOf:
-                -   additionalProperties:
-                        anyOf:
-                        -   type: string
-                        -   type: integer
-                    type: object
-                -   type: 'null'
-                description: Even if a log entry is matched via `systemd_match`,
-                    if it also matches via `systemd_ignore` it is ignored.
+                -   $ref: '#/$defs/SystemDMatch'
+                -   title: 'Null'
+                    type: 'null'
+                description: |-
+                    Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.
+
+                    **Default:** `null`
                 title: Systemd Ignore
         title: InputConfig
         type: object
@@ -272,12 +272,6 @@ $defs:
             -   $ref: '#/$defs/JsonExpr'
             -   $ref: '#/$defs/JsonMatch'
         type: object
-    JsonPath:
-        items:
-            anyOf:
-            -   type: string
-            -   type: integer
-        type: array
     LimitsConfig:
         properties:
             max_actions_per_minute:
@@ -403,20 +397,24 @@ $defs:
                 type: integer
             http_timeout:
                 anyOf:
-                -   minimum: 0.0
+                -   title: Seconds
                     type: number
-                -   type: 'null'
+                -   title: Unlimited
+                    type: 'null'
                 description: |-
                     `null` means no timeout.
                     **Default:** `null`
+                ge: 0.0
                 title: Http Timeout
             oauth2_grant_type:
                 $ref: '#/$defs/OAuth2GrantType'
                 description: "**Default:** `'client_credentials'`"
             oauth2_token_url:
                 anyOf:
-                -   type: string
-                -   type: 'null'
+                -   title: URL
+                    type: string
+                -   title: 'Null'
+                    type: 'null'
                 description: |-
                     `null` means don't use OAuth 2.0.
                     **Default:** `null`
@@ -515,8 +513,10 @@ $defs:
             command_env:
                 additionalProperties:
                     anyOf:
-                    -   type: string
-                    -   type: 'null'
+                    -   title: String
+                        type: string
+                    -   title: 'Null'
+                        type: 'null'
                 description: Set the environment of the spawned process to this.
                     Passing `null` as the value means to inherit that 
                     environment variable from the current environment. If this 
@@ -555,18 +555,22 @@ $defs:
                 type: boolean
             command_timeout:
                 anyOf:
-                -   minimum: 0.0
+                -   title: Seconds
                     type: number
-                -   type: 'null'
+                -   title: Unlimited
+                    type: 'null'
                 description: |-
                     Timeout in seconds. If the timeout expires the process is killed.
 
                     **Default:** `null`
+                ge: 0.0
                 title: Command Timeout
             command_chroot:
                 anyOf:
-                -   type: string
-                -   type: 'null'
+                -   title: Path
+                    type: string
+                -   title: 'Null'
+                    type: 'null'
                 description: |-
                     `chroot()` into the given path before the sub-process is executed.
 
@@ -574,14 +578,20 @@ $defs:
                 title: Command Chroot
             command_umask:
                 anyOf:
-                -   type: integer
-                -   type: 'null'
+                -   minimum: 0
+                    title: Integer
+                    type: integer
+                -   title: 'Null'
+                    type: 'null'
                 description: '`umask()` to apply for the sub-process.'
                 title: Command Umask
             command_nice:
                 anyOf:
-                -   type: integer
-                -   type: 'null'
+                -   minimum: 0
+                    title: Integer
+                    type: integer
+                -   title: 'Null'
+                    type: 'null'
                 description: '`nice()` to apply for the sub-process.'
                 title: Command Nice
             command_encoding:
@@ -646,26 +656,34 @@ $defs:
             file_compression:
                 anyOf:
                 -   $ref: '#/$defs/Compression'
-                -   type: 'null'
+                -   title: Uncompressed
+                    type: 'null'
                 description: |-
                     Compress output file.
 
-                    **Default:** `None`
+                    **Default:** `null`
+                title: File Compression
             file_compression_level:
                 anyOf:
-                -   type: integer
-                -   type: 'null'
-                description: '**Default:** Python default for given method'
+                -   title: Integer
+                    type: integer
+                -   title: Python Default
+                    type: 'null'
+                description: '**Default:** `null`'
                 title: File Compression Level
             output_indent:
                 anyOf:
                 -   minimum: 0
+                    title: Integer
                     type: integer
-                -   type: 'null'
+                -   description: Whole JSON document on a single line.
+                    title: 'Null'
+                    type: 'null'
                 description: |-
                     Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.
 
                     **Default:** `4`
+                ge: 0
                 title: Output Indent
             output_format:
                 $ref: '#/$defs/OutputFormat'
@@ -677,9 +695,7 @@ $defs:
                 description: |-
                     String used to delimite entries in {entries_str}.
 
-                    **Default:** `'
-
-                    '`
+                    **Default:** `'\n\n'`
                 title: Entries Delimiter
                 type: string
             sender:
@@ -729,83 +745,61 @@ $defs:
     LogConfig:
         properties:
             entry_start_pattern:
-                anyOf:
-                -   type: string
-                -   items:
-                        type: string
-                    type: array
+                $ref: '#/$defs/ErrorPattern'
                 description: "**Default:** `'^\\\\[\\\\d\\\\d\\\\d\\\\d-\\\\d\\\\\
                     d-\\\\d\\\\d[T ]\\\\d\\\\d:\\\\d\\\\d:\\\\d\\\\d(?:\\\\.\\\\d+)?(?:
                     ?(?:[-+]\\\\d\\\\d:?\\\\d\\\\d|Z))?\\\\]'`"
-                title: Entry Start Pattern
             error_pattern:
-                anyOf:
-                -   type: string
-                -   items:
-                        type: string
-                    type: array
+                $ref: '#/$defs/ErrorPattern'
                 description: "**Default:** `'ERROR|CRITICAL|Exception'`"
-                title: Error Pattern
             ignore_pattern:
                 anyOf:
-                -   type: string
-                -   items:
-                        type: string
-                    type: array
-                -   type: 'null'
+                -   $ref: '#/$defs/ErrorPattern'
+                -   title: 'Null'
+                    type: 'null'
                 description: Even if the `error_pattern` matches, if this 
                     pattern also matches the log entry is ignored.
                 title: Ignore Pattern
             wait_line_incomplete:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait for more data if the line wasn't ended with a newline character.
 
                     **Default:** `0.04`
-                ge: 0
+                minimum: 0
                 title: Wait Line Incomplete
+                type: number
             wait_file_not_found:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.
 
                     **Default:** `30`
-                ge: 0
+                minimum: 0
                 title: Wait File Not Found
+                type: number
             wait_no_entries:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait when there are no entries if inotify is not used.
 
                     **Default:** `5`
-                ge: 0
+                minimum: 0
                 title: Wait No Entries
+                type: number
             wait_for_more:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait for more messages before the action is performed.
 
                     **Default:** `0.08`
-                ge: 0
+                minimum: 0
                 title: Wait For More
+                type: number
             wait_after_crash:
-                anyOf:
-                -   type: integer
-                -   type: number
                 description: |-
                     Seconds to wait after a logfile handler has crashed before it is restarted.
 
                     **Default:** `10`
-                ge: 0
+                minimum: 0
                 title: Wait After Crash
+                type: number
             max_entries:
                 description: '**Default:** `20`'
                 minimum: 0
@@ -836,23 +830,38 @@ $defs:
             json_match:
                 anyOf:
                 -   $ref: '#/$defs/JsonMatch'
-                -   type: 'null'
+                    title: Object
+                -   title: 'Null'
+                    type: 'null'
                 description: JSON property paths and values to compare them to. 
                     A log entry will only be processed if all properties match. 
                     Per default all log entries are processed.
+                title: Json Match
             json_ignore:
                 anyOf:
                 -   $ref: '#/$defs/JsonMatch'
-                -   type: 'null'
+                    title: Object
+                -   title: 'Null'
+                    type: 'null'
                 description: Even if `json_match` matches, if this matches then 
                     the log entry is ignored.
+                title: Json Ignore
             json_brief:
                 anyOf:
-                -   $ref: '#/$defs/JsonPath'
-                -   type: 'null'
+                -   items:
+                        anyOf:
+                        -   title: Object Key
+                            type: string
+                        -   title: Array Index
+                            type: integer
+                    title: JSON Path
+                    type: array
+                -   title: 'Null'
+                    type: 'null'
                 description: |-
                     Use property at this path as the `{brief}` template variable.
                     **Default:** `['message']`
+                title: Json Brief
             encoding:
                 description: "**Default:** `'UTF-8'`"
                 title: Encoding
@@ -873,11 +882,13 @@ $defs:
             compression:
                 anyOf:
                 -   $ref: '#/$defs/Compression'
-                -   type: 'null'
+                -   title: 'Null'
+                    type: 'null'
                 description: |-
                     Read compressed logfiles.
 
-                    **Default:** `None`
+                    **Default:** `null`
+                title: Compression
             systemd_priority:
                 anyOf:
                 -   $ref: '#/$defs/SystemDPriority'
@@ -887,22 +898,16 @@ $defs:
                 description: Match log entries of this or higher priority.
                 title: Systemd Priority
             systemd_match:
-                additionalProperties:
-                    anyOf:
-                    -   type: string
-                    -   type: integer
-                title: Systemd Match
-                type: object
+                $ref: '#/$defs/SystemDMatch'
             systemd_ignore:
                 anyOf:
-                -   additionalProperties:
-                        anyOf:
-                        -   type: string
-                        -   type: integer
-                    type: object
-                -   type: 'null'
-                description: Even if a log entry is matched via `systemd_match`,
-                    if it also matches via `systemd_ignore` it is ignored.
+                -   $ref: '#/$defs/SystemDMatch'
+                -   title: 'Null'
+                    type: 'null'
+                description: |-
+                    Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.
+
+                    **Default:** `null`
                 title: Systemd Ignore
             limiter:
                 anyOf:
@@ -1006,6 +1011,14 @@ $defs:
         -   
         -   STARTTLS
         -   SSL/TLS
+    SystemDMatch:
+        additionalProperties:
+            anyOf:
+            -   title: String
+                type: string
+            -   title: Integer
+                type: integer
+        type: object
     SystemDPriority:
         enum:
         -   PANIC
