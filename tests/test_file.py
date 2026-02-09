@@ -81,6 +81,8 @@ logfiles:
     for filepath in *logfiles, logmonrc_path, file_path:
         try:
             os.remove(filepath)
+        except FileNotFoundError:
+            pass
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
 

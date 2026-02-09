@@ -469,7 +469,7 @@ def main(argv: Optional[list[str]] = None) -> None:
              '\n'
              'Template variables:\n'
              '  {entries} ......... All entries formatted with the --output-format and --output-indent options.\n'
-             '  {entries_str} ..... All entries for the message concatenated into a string with two newlines between each.\n'
+             '  {entries_str} ..... All entries for the message concatenated into a string with --entries-delemeter between each (default is two newlines).\n'
              '  {entries_raw} ..... Raw entries (list[str] for normal log files or list[dict] for SystemD or JSON log files).\n'
              '  {logfile} ......... The path of the logfile.\n'
              '  {entry1} .......... The first log entry of the message.\n'
@@ -575,6 +575,10 @@ def main(argv: Optional[list[str]] = None) -> None:
         help=f'When JSON or YAML data is included in the email indent by this number of spaces. [default: {DEFAULT_OUTPUT_INDENT}]')
     ap.add_argument('--output-format', type=str.upper, choices=get_args(OutputFormat.__value__), default=None,
         help=f'Format structured data in emails using this format. [default: {DEFAULT_OUTPUT_FORMAT}]')
+    ap.add_argument('--entries-delimiter', metavar='STRING', default=None,
+        help='String used to delimite entries in {entries_str}. [default is two newlines]')
+    ap.add_argument('--null-entries-delimiter', action='store_const', const='\0',
+        help='Use a NULL-byte as the entries delimiter.')
 
     ap.add_argument('--systemd-priority', default=None, choices=get_args(SystemDPriority.__value__),
         help='Only report log entries of this or higher priority.')
@@ -1039,6 +1043,9 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.output_format is not None:
         action_config['output_format'] = args.output_format
+
+    if args.entries_delimiter is not None:
+        action_config['entries_delimiter'] = args.entries_delimiter
 
     parse_action(action_config)
 

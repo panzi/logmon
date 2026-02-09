@@ -292,6 +292,7 @@ class CommandAction(Action):
                         stdout     = stdout,
                         stderr     = stderr,
                         umask      = umask if umask is not None else -1,
+                        text       = True,
                         encoding   = self.encoding,
                         errors     = self.encoding_errors,
                         preexec_fn = preexec_fn,
@@ -426,5 +427,5 @@ def write_stdin(proc: Popen, pipe_fmt: str, templ_params: TemplParams) -> None:
     stdin = proc.stdin
     if stdin is not None:
         for line in expand(pipe_fmt, templ_params):
-            stdin.write(line.encode())
-            stdin.write(b'\n')
+            stdin.write(line)
+            stdin.write('\n')

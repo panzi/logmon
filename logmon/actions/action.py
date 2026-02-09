@@ -82,6 +82,7 @@ class Action(ABC):
         'action',
         'output_format',
         'output_indent',
+        'entries_delimiter',
         'line_prefix',
     )
 
@@ -97,6 +98,7 @@ class Action(ABC):
     logmails: Logmails
     output_indent: Optional[int]
     output_format: OutputFormat
+    entries_delimiter: str
     line_prefix: str
 
     @staticmethod
@@ -181,6 +183,7 @@ class Action(ABC):
         self.logmails = action_config.get('logmails', DEFAULT_LOGMAILS)
         self.output_format = action_config.get('output_format', DEFAULT_OUTPUT_FORMAT)
         self.output_indent = action_config.get('output_indent', DEFAULT_OUTPUT_INDENT)
+        self.entries_delimiter = action_config.get('entries_delimiter', DEFAULT_ENTRIES_DELIMITER)
         self.line_prefix = '> '
 
     @abstractmethod
@@ -205,7 +208,7 @@ class Action(ABC):
         output_format = self.output_format
         output_indent = self.output_indent
         formatted = [entry.format(output_format, output_indent) for entry in entries]
-        entries_str = '\n\n'.join(formatted)
+        entries_str = self.entries_delimiter.join(formatted)
         first_entry = formatted[0]
         first_line = first_entry.split('\n', 1)[0]
 

@@ -179,6 +179,7 @@ class ActionConfigBase(TypedDict):
 
     output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
     output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
+    entries_delimiter: Annotated[NotRequired[str], Field(description="String used to delimite entries in {entries_str}.\n\n**Default:** `'\n\n'`")]
 
     sender: Annotated[NotRequired[str], Field(description='Email sender address.\n\n**Default:** `logmon@<host>`')]
     receivers: Annotated[NotRequired[list[str]], Field(description='List of email receiver addresses.\n\n**Default:** `<sender>`')]

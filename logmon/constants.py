@@ -26,6 +26,7 @@ __all__ = (
     'DEFAULT_LOGMAILS',
     'DEFAULT_OUTPUT_INDENT',
     'DEFAULT_OUTPUT_FORMAT',
+    'DEFAULT_ENTRIES_DELIMITER',
     'DEFAULT_ENTRY_START_PATTERN',
     'DEFAULT_WARNING_PATTERN',
     'DEFAULT_ERROR_PATTERN',
@@ -65,6 +66,7 @@ DEFAULT_ENCODING_ERRORS: EncodingErrors = 'replace'
 
 DEFAULT_OUTPUT_INDENT = 4
 DEFAULT_OUTPUT_FORMAT: OutputFormat = 'YAML' if HAS_YAML else 'JSON'
+DEFAULT_ENTRIES_DELIMITER: str = '\n\n'
 
 DEFAULT_ENTRY_START_PATTERN = re.compile(r'^\[\d\d\d\d-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?(?: ?(?:[-+]\d\d:?\d\d|Z))?\]', re.I)
 DEFAULT_WARNING_PATTERN = re.compile(r'WARNING', re.I)
