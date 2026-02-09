@@ -1,4 +1,4 @@
-from typing import NotRequired, TypedDict, Optional, Annotated, Literal
+from typing import NotRequired, TypedDict, Annotated, Literal
 
 import re
 import json
@@ -61,6 +61,8 @@ For SMTP and IMAP these query parameters are supported:
 
 ''' f'**Default:** `{DEFAULT_ACTION!r}`'
 
+Null = Annotated[None, Field(title="Null")]
+
 class ActionConfigBase(TypedDict):
     limiter: NotRequired[
         Annotated[str, Field(title='Limiter Name')]|
@@ -86,10 +88,16 @@ class ActionConfigBase(TypedDict):
     http_content_type: Annotated[NotRequired[ContentType], Field(description=f"**Default:** `{DEFAULT_HTTP_CONTENT_TYPE!r}`")]
     http_headers: Annotated[NotRequired[dict[str, str]], Field(description="Additional HTTP headers. The `Authorization` header will be overwritten if OAuth 2.0 is used or if `username` and `password` are set.")]
     http_max_redirect: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_HTTP_MAX_REDIRECT!r}`", ge=0)]
-    http_timeout: Annotated[NotRequired[Optional[float]], Field(description="`null` means no timeout.\n**Default:** `null`", ge=0.0)]
+    http_timeout: Annotated[NotRequired[
+        Annotated[float, Field(title="Seconds")]|
+        Annotated[None,  Field(title=_unlimited)]
+    ], Field(description="`null` means no timeout.\n**Default:** `null`", ge=0.0)]
 
     oauth2_grant_type: Annotated[NotRequired[OAuth2GrantType], Field(description=f"**Default:** `{DEFAULT_OAUTH2_GRANT_TYPE!r}`")]
-    oauth2_token_url: Annotated[NotRequired[Optional[str]], Field(description="`null` means don't use OAuth 2.0.\n**Default:** `null`")]
+    oauth2_token_url: Annotated[NotRequired[
+        Annotated[str,  Field(title="URL")]|
+        Null
+    ], Field(description="`null` means don't use OAuth 2.0.\n**Default:** `null`")]
     oauth2_client_id: NotRequired[str]
     oauth2_client_secret: NotRequired[str]
     oauth2_scope: NotRequired[list[str]]
@@ -139,15 +147,31 @@ class ActionConfigBase(TypedDict):
         ],
         Field(description="`setgroups()` to apply for the sub-process.")
     ]
-    command_env: Annotated[NotRequired[dict[str, Optional[str]]], Field(description="Set the environment of the spawned process to this. Passing `null` as the value means to inherit that environment variable from the current environment. If this is unset the environment of the logmon process is inherited.")]
+    command_env: Annotated[NotRequired[
+        dict[str,
+             Annotated[str, Field(title="String")]|
+             Null]
+    ], Field(description="Set the environment of the spawned process to this. Passing `null` as the value means to inherit that environment variable from the current environment. If this is unset the environment of the logmon process is inherited.")]
     command_stdin: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`\n\nThe parameters to the `TEMPLATE` are the same as for `body` plus the special syntax `{...entries}` which causes the whole template to repeat for each entry.\n\n**Default:** `'null:'`")]
     command_stdout: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`\n\n**Default:** `'null:'`")]
     command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`\n\n**Default:** `'null:'`")]
     command_interactive: Annotated[NotRequired[bool], Field(description="If `true` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.\n\n**Default:** `false`")]
-    command_timeout: Annotated[NotRequired[Optional[float]], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n\n**Default:** `null`", ge=0.0)]
-    command_chroot: Annotated[NotRequired[Optional[str]], Field(description="`chroot()` into the given path before the sub-process is executed.\n\n**Default:** `null`")]
-    command_umask: Annotated[NotRequired[Optional[int]], Field(description="`umask()` to apply for the sub-process.")]
-    command_nice: Annotated[NotRequired[Optional[int]], Field(description="`nice()` to apply for the sub-process.")]
+    command_timeout: Annotated[NotRequired[
+        Annotated[float, Field(title="Seconds")]|
+        Annotated[None,  Field(title=_unlimited)]
+    ], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n\n**Default:** `null`", ge=0.0)]
+    command_chroot: Annotated[NotRequired[
+        Annotated[str, Field(title="Path")]|
+        Null
+    ], Field(description="`chroot()` into the given path before the sub-process is executed.\n\n**Default:** `null`")]
+    command_umask: Annotated[NotRequired[
+        Annotated[int, Field(title="Integer", ge=0)]|
+        Null
+    ], Field(description="`umask()` to apply for the sub-process.")]
+    command_nice: Annotated[NotRequired[
+        Annotated[int, Field(title="Integer", ge=0)]|
+        Null
+    ], Field(description="`nice()` to apply for the sub-process.")]
     command_encoding: Annotated[NotRequired[str], Field(description="Encoding used to communicate with sub-process.")]
     command_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
 
@@ -174,12 +198,21 @@ class ActionConfigBase(TypedDict):
             Annotated[int, Field(title='Integer')]],
         Field(description='Create the file with these permissions. E.g.: `rwxr-x---`, `u=rwx,g=rx,o=`, or `0750`.', pattern=FILE_MODE_PATTERN)
     ]
-    file_compression: Annotated[NotRequired[Optional[Compression]], Field(description="Compress output file.\n\n**Default:** `None`")]
-    file_compression_level: Annotated[NotRequired[Optional[int]], Field(description="**Default:** Python default for given method")]
+    file_compression: Annotated[NotRequired[
+        Compression|
+        Annotated[None, Field(title="Uncompressed")]
+    ], Field(description="Compress output file.\n\n**Default:** `null`")]
+    file_compression_level: Annotated[NotRequired[
+        Annotated[int, Field(title="Integer")]|
+        Annotated[None, Field(title="Python Default")]
+    ], Field(description="**Default:** `null`")]
 
-    output_indent: Annotated[NotRequired[Optional[int]], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
+    output_indent: Annotated[NotRequired[
+        Annotated[int, Field(title="Integer", ge=0)]|
+        Annotated[None, Field(title="Null", description="Whole JSON document on a single line.")]
+    ], Field(description=f"Indent JSON/YAML log entries in output. If `null` the JSON documents will be in a single line.\n\n**Default:** `{DEFAULT_OUTPUT_INDENT!r}`", ge=0)]
     output_format: Annotated[NotRequired[OutputFormat], Field(description=f"Use this format when writing JSON log entries to the output.\n\n**Default:** `{DEFAULT_OUTPUT_FORMAT!r}`")]
-    entries_delimiter: Annotated[NotRequired[str], Field(description="String used to delimite entries in {entries_str}.\n\n**Default:** `'\n\n'`")]
+    entries_delimiter: Annotated[NotRequired[str], Field(description="String used to delimite entries in {entries_str}.\n\n**Default:** `'\\n\\n'`")]
 
     sender: Annotated[NotRequired[str], Field(description='Email sender address.\n\n**Default:** `logmon@<host>`')]
     receivers: Annotated[NotRequired[list[str]], Field(description='List of email receiver addresses.\n\n**Default:** `<sender>`')]
@@ -203,28 +236,48 @@ class LimitsConfig(TypedDict):
         Field(description=f"**Default:** `{DEFAULT_MAX_ACTIONS_PER_HOUR!r}`")
     ]
 
+type ErrorPattern = (
+    Annotated[str, Field(title="Pattern", description="Python regular expression.")]|
+    Annotated[list[str], Field(title="List of Patterns", description="List of Python regular expressions that will be joined with `|` into a single expression.")]
+)
+
 class LogfileConfig(TypedDict):
-    entry_start_pattern: Annotated[NotRequired[str | list[str]], Field(description=f"**Default:** `{DEFAULT_ENTRY_START_PATTERN.pattern!r}`")]
-    error_pattern: Annotated[NotRequired[str | list[str]], Field(description=f"**Default:** `{DEFAULT_ERROR_PATTERN.pattern!r}`")]
-    #warning_pattern: Annotated[NotRequired[str|list[str]], Field(description=f"**Default:** `{DEFAULT_WARNING_PATTERN.pattern!r}`")]
-    ignore_pattern: Annotated[NotRequired[str | list[str] | None], Field(description="Even if the `error_pattern` matches, if this pattern also matches the log entry is ignored.")]
-    wait_line_incomplete: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait for more data if the line wasn't ended with a newline character.\n\n**Default:** `{DEFAULT_WAIT_LINE_INCOMPLETE!r}`", ge=0)]
-    wait_file_not_found: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.\n\n**Default:** `{DEFAULT_WAIT_FILE_NOT_FOUND!r}`", ge=0)]
-    wait_no_entries: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait when there are no entries if inotify is not used.\n\n**Default:** `{DEFAULT_WAIT_NO_ENTRIES!r}`", ge=0)]
-    wait_for_more: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait for more messages before the action is performed.\n\n**Default:** `{DEFAULT_WAIT_FOR_MORE!r}`", ge=0)]
-    wait_after_crash: Annotated[NotRequired[int | float], Field(description=f"Seconds to wait after a logfile handler has crashed before it is restarted.\n\n**Default:** `{DEFAULT_WAIT_AFTER_CRASH!r}`", ge=0)]
+    entry_start_pattern: Annotated[NotRequired[ErrorPattern], Field(description=f"**Default:** `{DEFAULT_ENTRY_START_PATTERN.pattern!r}`")]
+    error_pattern: Annotated[NotRequired[ErrorPattern], Field(description=f"**Default:** `{DEFAULT_ERROR_PATTERN.pattern!r}`")]
+    #warning_pattern: Annotated[NotRequired[ErrorPattern], Field(description=f"**Default:** `{DEFAULT_WARNING_PATTERN.pattern!r}`")]
+    ignore_pattern: Annotated[NotRequired[ErrorPattern | Null], Field(description="Even if the `error_pattern` matches, if this pattern also matches the log entry is ignored.")]
+    wait_line_incomplete: Annotated[NotRequired[float], Field(description=f"Seconds to wait for more data if the line wasn't ended with a newline character.\n\n**Default:** `{DEFAULT_WAIT_LINE_INCOMPLETE!r}`", ge=0)]
+    wait_file_not_found: Annotated[NotRequired[float], Field(description=f"Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.\n\n**Default:** `{DEFAULT_WAIT_FILE_NOT_FOUND!r}`", ge=0)]
+    wait_no_entries: Annotated[NotRequired[float], Field(description=f"Seconds to wait when there are no entries if inotify is not used.\n\n**Default:** `{DEFAULT_WAIT_NO_ENTRIES!r}`", ge=0)]
+    wait_for_more: Annotated[NotRequired[float], Field(description=f"Seconds to wait for more messages before the action is performed.\n\n**Default:** `{DEFAULT_WAIT_FOR_MORE!r}`", ge=0)]
+    wait_after_crash: Annotated[NotRequired[float], Field(description=f"Seconds to wait after a logfile handler has crashed before it is restarted.\n\n**Default:** `{DEFAULT_WAIT_AFTER_CRASH!r}`", ge=0)]
     max_entries: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRIES!r}`", ge=0)]
     max_entry_lines: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRY_LINES!r}`", ge=0)]
     use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `true`.")]
     seek_end: Annotated[NotRequired[bool], Field(description="Seek to end of log file on open.\n**Default:** `true`")]
     json: Annotated[NotRequired[bool], Field(description="If `true` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.\n**Default:** `false`")]
-    json_match: Annotated[NotRequired[Optional[JsonMatch]], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
-    json_ignore: Annotated[NotRequired[Optional[JsonMatch]], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
-    json_brief: Annotated[NotRequired[Optional[JsonPath]], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
+    json_match: Annotated[NotRequired[
+        Annotated[JsonMatch, Field(title="Object")]|Null
+    ], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
+    json_ignore: Annotated[NotRequired[
+        Annotated[JsonMatch, Field(title="Object")]|Null
+    ], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
+    json_brief: Annotated[NotRequired[
+        Annotated[list[
+            Annotated[str, Field(title="Object Key")]|
+            Annotated[int, Field(title="Array Index")]
+        ], Field(title="JSON Path")]|Null
+    ], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
     encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
     glob: Annotated[NotRequired[bool], Field(description="If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.\n\n**Default:** `false`")]
-    compression: Annotated[NotRequired[Optional[Compression]], Field(description="Read compressed logfiles.\n\n**Default:** `None`")]
+    compression: Annotated[NotRequired[Compression|Null], Field(description="Read compressed logfiles.\n\n**Default:** `null`")]
+
+type SystemDMatch = dict[
+    str,
+    Annotated[str, Field(title="String")]|
+    Annotated[int, Field(title="Integer")]
+]
 
 class SystemDConfig(TypedDict):
     systemd_priority: Annotated[
@@ -234,8 +287,8 @@ class SystemDConfig(TypedDict):
         ],
         Field(description="Match log entries of this or higher priority.")
     ]
-    systemd_match: NotRequired[dict[str, str|int]] # TODO: more complex expressions?
-    systemd_ignore: Annotated[NotRequired[Optional[dict[str, str|int]]], Field(description="Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.")]
+    systemd_match: NotRequired[SystemDMatch] # TODO: more complex expressions?
+    systemd_ignore: Annotated[NotRequired[SystemDMatch|Null], Field(description="Even if a log entry is matched via `systemd_match`, if it also matches via `systemd_ignore` it is ignored.\n\n**Default:** `null`")]
 
 class Config(LogfileConfig, SystemDConfig):
     limiter: NotRequired[
