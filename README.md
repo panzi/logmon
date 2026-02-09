@@ -86,6 +86,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--json-ignore PATH=VALUE] [--json-brief PATH]
                  [--compression {gzip,bz2,zstd,none}] [--glob] [--no-glob]
                  [--output-indent WIDTH|NONE] [--output-format {JSON,YAML}]
+                 [--entries-delimiter STRING] [--null-entries-delimiter]
                  [--systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}]
                  [--systemd-match KEY=VALUE] [--host HOST] [--port PORT]
                  [--user USER] [--password PASSWORD]
@@ -187,7 +188,8 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                                               --output-indent options.
                           {entries_str} ..... All entries for the message
                                               concatenated into a string with
-                                              two newlines between each.
+                                              --entries-delemeter between each
+                                              (default is two newlines).
                           {entries_raw} ..... Raw entries (list[str] for
                                               normal log files or list[dict]
                                               for SystemD or JSON log files).
@@ -308,6 +310,11 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
   --output-format {JSON,YAML}
                         Format structured data in emails using this format.
                         [default: YAML]
+  --entries-delimiter STRING
+                        String used to delimite entries in {entries_str}.
+                        [default is two newlines]
+  --null-entries-delimiter
+                        Use a NULL-byte as the entries delimiter.
   --systemd-priority {PANIC,WARNING,ALERT,NONE,CRITICAL,DEBUG,INFO,ERROR,NOTICE}
                         Only report log entries of this or higher priority.
   --systemd-match KEY=VALUE
