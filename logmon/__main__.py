@@ -80,6 +80,12 @@ def non_negative(parse: Callable[[str], Num]) -> Callable[[str], Num]:
     min: Num = 0
     return in_range(parse, min=min)
 
+def octal_integer(value: str|int) -> int:
+    if isinstance(value, int):
+        return value
+
+    return int(value, 8)
+
 def positive(parse: Callable[[str], Num]) -> Callable[[str], Num]:
     def parse_positive(value: str) -> Num:
         num = parse(value)
@@ -129,6 +135,23 @@ def _parse_comma_list(value: str) -> list[str]:
         if item:
             result.append(item)
     return result
+
+def parse_groups(value: str) -> list[str|int]:
+    value = value.strip()
+    if not value:
+        return []
+
+    groups: list[str|int] = []
+    for group in value.split(','):
+        group = group.strip()
+        try:
+            groups.append(int(group))
+        except ValueError:
+            groups.append(group)
+
+    return groups
+
+parse_groups.__name__ = 'groups'
 
 def make_abs_logfile(logfile: str, context_dir: str) -> str:
     if is_systemd_path(logfile):
@@ -594,16 +617,30 @@ def main(argv: Optional[list[str]] = None) -> None:
              '\n'
              "The command string is parsed as a list of strings with Python's `shlex.split()` before "
              'interpolation takes place and is executed as that list with `Popen(args=command)` and not '
-             'with a shell in order pro prevent command injections.')
+             'with a shell in order pro prevent command injections.\n'
+             '\n'
+             'Additional parameters:\n'
+             '\n'
+             '- `{python}` - Path of the Python binary used to execute logmon itself. (`sys.executable`)\n'
+             '- `{python_version}` - Full vesrsion string of the Python binary. (`sys.version`)\n'
+             '- `{python_version_major}` - `sys.version_info.major`.\n'
+             '- `{python_version_minor}` - `sys.version_info.minor`.\n'
+             '- `{python_version_micro}` - `sys.version_info.micro`.\n')
     ap.add_argument('--command-cwd', metavar='PATH',
         help='Run command in PATH. All other paths are thus relative to this.\n'
              '[default is the current working directory of logmon]')
-    ap.add_argument('--command-user', metavar='USER',
+    ap.add_argument('--command-user', metavar='USERID|USERNAME', type=either(non_negative(int), str),
         help='Run command as USER.\n'
              '[default is the user of the logmon process]')
-    ap.add_argument('--command-group', metavar='GROUP',
+    ap.add_argument('--command-group', metavar='GROUPID|GROUPNAME', type=either(non_negative(int), str),
         help='Run command as GROUP.\n'
              '[default is the group of the logmon process]')
+    ap.add_argument('--command-process-group', metavar='GROUPID', type=int, default=None,
+        help="`setpgid()` to apply for the sub-process.")
+    ap.add_argument('--command-new-session', default=None, action='store_true',
+        help="If `True` use `setsid()` in the sub-process.")
+    ap.add_argument('--command-extra-groups', metavar='GROUPID|GROUPNAME,...', default=None, type=parse_groups,
+        help="`setgroups()` to apply for the sub-process.")
     ap.add_argument('-E', '--command-env', action='append', default=[], metavar='NAME[=VALUE]',
         help='Replace the environment of the command. Pass this option multiple times for multiple '
              'environment variables. Only pass a NAME in order to copy the value from the environment '
@@ -631,6 +668,16 @@ def main(argv: Optional[list[str]] = None) -> None:
         help='Wait SECONDS for process to finish. If the procress is still running on shutdown and '
              'the timeout is exceeded the process will be killed.\n'
              '[default: NONE]')
+    ap.add_argument('--command-chroot', metavar='PATH', default=None,
+        help="`chroot()` into the given path before the sub-process is executed.")
+    ap.add_argument('--command-umask', type=octal_integer, default=None, metavar='UMASK',
+        help="`umask()` to apply for the sub-process.")
+    ap.add_argument('--command-nice', type=int, metavar='NICE', default=None,
+        help="`nice()` to apply for the sub-process.")
+    ap.add_argument('--command-encoding', default=None, metavar='ENCODING',
+        help="Encoding used to communicate with sub-process.")
+    ap.add_argument('--command-encoding-errors', default=None, choices=get_args(EncodingErrors.__value__),
+        help=f'[default: {DEFAULT_ENCODING_ERRORS}]')
 
     ap.add_argument('--file', default=None)
     ap.add_argument('--file-encoding', default=None, metavar='ENCODING',
@@ -925,6 +972,30 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     if args.command_timeout != 'unset':
         action_config['command_timeout'] = args.command_timeout
+
+    if args.command_chroot is not None:
+        action_config['command_chroot'] = args.command_chroot
+
+    if args.command_umask is not None:
+        action_config['command_umask'] = args.command_umask
+
+    if args.command_nice is not None:
+        action_config['command_nice'] = args.command_nice
+
+    if args.command_process_group is not None:
+        action_config['command_process_group'] = args.command_process_group
+
+    if args.command_new_session is not None:
+        action_config['command_new_session'] = args.command_new_session
+
+    if args.command_extra_groups is not None:
+        action_config['command_extra_groups'] = args.command_extra_groups
+
+    if args.command_encoding is not None:
+        action_config['command_encoding'] = args.command_encoding
+
+    if args.command_encoding_errors is not None:
+        action_config['command_encoding_errors'] = args.command_encoding_errors
 
     if args.file is not None:
         action_config['file'] = args.file

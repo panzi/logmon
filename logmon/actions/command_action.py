@@ -1,7 +1,9 @@
-from typing import Optional, Literal, Any, override, IO
+from typing import Optional, Literal, Any, override, IO, Callable, TypedDict, NotRequired
 
 import re
 import os
+import sys
+import shlex
 import logging
 
 from subprocess import Popen, TimeoutExpired, PIPE, DEVNULL, STDOUT
@@ -12,6 +14,8 @@ from ..schema import Config, ActionConfig
 from ..entry_readers import LogEntry
 from ..template import expand_args_inline, expand
 from ..limiter import AbstractLimiter
+from ..types import EncodingErrors
+from ..constants import DEFAULT_ENCODING_ERRORS
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,27 @@ type ParsedPath = (
     tuple[Literal['inherit', 'null', 'stdout'], None, None] |
     tuple[Literal['pipe'], str, None]
 )
+
+class CommandTemplParams(TypedDict):
+    entries: list[str]
+    entries_str: str
+    entries_raw: list[Any]
+    logfile: str
+    brief: str
+    line1: str
+    entry1: str
+    entrynum: str
+    sender: str
+    receivers: str
+    receiver_list: list[str]
+    nl: str
+    subject: NotRequired[str]
+
+    python: str
+    python_version: str
+    python_version_major: int
+    python_version_minor: int
+    python_version_micro: int
 
 def open_io(path: ParsedPath) -> IO[Any]|int|None:
     match path:
@@ -130,6 +155,14 @@ class CommandAction(Action):
         'proc',
         'pipe_fmt',
         'timeout',
+        'chroot',
+        'umask',
+        'nice',
+        'process_group',
+        'new_session',
+        'extra_groups',
+        'encoding',
+        'encoding_errors',
     )
 
     command: list[str]
@@ -147,6 +180,14 @@ class CommandAction(Action):
     proc: Optional[Popen]
     pipe_fmt: Optional[str]
     timeout: Optional[float]
+    chroot: Optional[str]
+    umask: Optional[int]
+    nice: Optional[int]
+    process_group: Optional[int]
+    new_session: bool
+    extra_groups: Optional[list[str|int]]
+    encoding: Optional[str]
+    encoding_errors: Optional[EncodingErrors]
 
     def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
         super().__init__(action_config, config, limiter)
@@ -174,7 +215,7 @@ class CommandAction(Action):
                 if value is not None:
                     env[key] = value
 
-        self.command = command
+        self.command = command if isinstance(command, list) else shlex.split(command)
         self.cwd     = action_config.get('command_cwd')
         self.user    = action_config.get('command_user')
         self.group   = action_config.get('command_group')
@@ -191,8 +232,16 @@ class CommandAction(Action):
         self.timeout  = action_config.get('command_timeout')
         if self.timeout == inf:
             self.timeout = None
+        self.chroot   = action_config.get('command_chroot')
+        self.umask    = action_config.get('command_umask')
+        self.nice     = action_config.get('command_nice')
+        self.process_group   = action_config.get('command_process_group')
+        self.new_session     = action_config.get('command_new_session', False)
+        self.extra_groups    = action_config.get('command_extra_groups')
+        self.encoding        = action_config.get('command_encoding')
+        self.encoding_errors = action_config.get('command_encoding_errors', DEFAULT_ENCODING_ERRORS)
 
-    def create_process(self, templ_params: TemplParams) -> tuple[Popen, str|None]:
+    def create_process(self, templ_params: CommandTemplParams) -> tuple[Popen, str|None]:
         command: list[str] = expand_args_inline(self.command, templ_params)
 
         raw_env = self.env
@@ -216,15 +265,39 @@ class CommandAction(Action):
             try:
                 stderr = open_io(self.stderr_path)
                 try:
+                    umask  = self.umask
+                    nice   = self.nice
+                    chroot = self.chroot
+
+                    preexec_fn: Callable[[], None]|None
+                    if chroot or nice is not None:
+                        def _preexec_fn() -> None:
+                            if chroot:
+                                os.chroot(chroot)
+
+                            if nice is not None:
+                                os.nice(nice)
+
+                        preexec_fn = _preexec_fn
+                    else:
+                        preexec_fn = None
+
                     proc = Popen(
-                        args   = command,
-                        env    = env,
-                        cwd    = self.cwd,
-                        user   = self.user,
-                        group  = self.group,
-                        stdin  = stdin,
-                        stdout = stdout,
-                        stderr = stderr,
+                        args       = command,
+                        env        = env,
+                        cwd        = self.cwd,
+                        user       = self.user,
+                        group      = self.group,
+                        stdin      = stdin,
+                        stdout     = stdout,
+                        stderr     = stderr,
+                        umask      = umask if umask is not None else -1,
+                        encoding   = self.encoding,
+                        errors     = self.encoding_errors,
+                        preexec_fn = preexec_fn,
+                        process_group     = self.process_group,
+                        start_new_session = self.new_session,
+                        extra_groups      = self.extra_groups,
                     )
                 except:
                     close_io(stderr)
@@ -270,6 +343,18 @@ class CommandAction(Action):
             finally:
                 self.proc = None
                 self.pipe_fmt = None
+
+    @override
+    def get_templ_params(self, logfile: str, entries: list[LogEntry], brief: str) -> CommandTemplParams:
+        templ_params: CommandTemplParams = {
+            **super().get_templ_params(logfile, entries, brief),
+            'python': sys.executable,
+            'python_version': sys.version,
+            'python_version_major': sys.version_info.major,
+            'python_version_minor': sys.version_info.minor,
+            'python_version_micro': sys.version_info.micro,
+        }
+        return templ_params
 
     @override
     def perform_action(self, logfile: str, entries: list[LogEntry], brief: str) -> bool:

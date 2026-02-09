@@ -96,12 +96,23 @@ class ActionConfigBase(TypedDict):
     oauth2_refresh_margin: Annotated[NotRequired[timedelta], Field(description="Seconds to substract from the expiration date-time when checking for access token expiration.\n\n**Default:** `0.0`")]
 
     command: Annotated[
-        NotRequired[list[str]],
+        NotRequired[
+            Annotated[list[str], Field(title='Argument Array')]|
+            Annotated[str, Field(title='Command String', description='This string is split into the argument array using `shlex.split()`.')]]
+        ,
         Field(description=
               "Command to run if `action` is `'COMMAND'`.\n\n"
               "The template parameters are the same as with `body` plus the special syntax `{...entries}`, which makes "
               "the argument repeat as a separate argument for each entry. E.g. if there are the entries `'foo'` and `'bar'` "
-              "the argument list `['command', '--entry={...entries}']` will expand to `['command', '--entry=foo', '--entry=bar']`",
+              "the argument list `['command', '--entry={...entries}']` will expand to `['command', '--entry=foo', '--entry=bar']`.\n"
+              "\n"
+              "Additional parameters:\n"
+              "\n"
+              "- `{python}` - Path of the Python binary used to execute logmon itself. (`sys.executable`)\n"
+              "- `{python_version}` - Full vesrsion string of the Python binary. (`sys.version`)\n"
+              "- `{python_version_major}` - `sys.version_info.major`.\n"
+              "- `{python_version_minor}` - `sys.version_info.minor`.\n"
+              "- `{python_version_micro}` - `sys.version_info.micro`.\n",
               examples=[['/path/to/command', '--sender', '{sender}', '--receivers', '{receivers}', '--', '{...entries}']])
     ]
     command_cwd: Annotated[NotRequired[str], Field(description="Working directory of spawned process.")]
@@ -117,12 +128,28 @@ class ActionConfigBase(TypedDict):
             Annotated[int, Field(title='Group Id')]],
         Field(description="Run the process as group/GID.")
     ]
+    command_process_group: Annotated[NotRequired[int], Field(description="`setpgid()` to apply for the sub-process.")]
+    command_new_session: Annotated[NotRequired[bool], Field(description="If `True` use `setsid()` in the sub-process.\n\n**Default:** `False`")]
+    command_extra_groups: Annotated[
+        NotRequired[
+            list[
+                Annotated[str, Field(title="Group Name")]|
+                Annotated[int, Field(title="Group Id")]
+            ]
+        ],
+        Field(description="`setgroups()` to apply for the sub-process.")
+    ]
     command_env: Annotated[NotRequired[dict[str, Optional[str]]], Field(description="Set the environment of the spawned process to this. Passing `null` as the value means to inherit that environment variable from the current environment. If this is unset the environment of the logmon process is inherited.")]
     command_stdin: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'inherit:'`, `'null:'`, `'pipe:TEMPLATE'`\n\nThe parameters to the `TEMPLATE` are the same as for `body` plus the special syntax `{...entries}` which causes the whole template to repeat for each entry.\n\n**Default:** `'null:'`")]
     command_stdout: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`\n\n**Default:** `'null:'`")]
     command_stderr: Annotated[NotRequired[str], Field(description="`'file:/path/to/file'`, `'append:/path/to/file'`, `'inherit:'`, `'null:'`, `'stdout:'`\n\n**Default:** `'null:'`")]
     command_interactive: Annotated[NotRequired[bool], Field(description="If `true` the process is long-running and log entries are passed by writing them to the stdin of the process instead of command line arguments.\n\n**Default:** `false`")]
     command_timeout: Annotated[NotRequired[Optional[float]], Field(description="Timeout in seconds. If the timeout expires the process is killed.\n\n**Default:** `null`", ge=0.0)]
+    command_chroot: Annotated[NotRequired[Optional[str]], Field(description="`chroot()` into the given path before the sub-process is executed.\n\n**Default:** `null`")]
+    command_umask: Annotated[NotRequired[Optional[int]], Field(description="`umask()` to apply for the sub-process.")]
+    command_nice: Annotated[NotRequired[Optional[int]], Field(description="`nice()` to apply for the sub-process.")]
+    command_encoding: Annotated[NotRequired[str], Field(description="Encoding used to communicate with sub-process.")]
+    command_encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: (Python's encoding error handling)[https://docs.python.org/3/library/codecs.html#error-handlers]\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
 
     file: Annotated[NotRequired[str], Field(description="Path of logmon logfile.")]
     file_encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]

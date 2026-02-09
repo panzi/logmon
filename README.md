@@ -101,14 +101,20 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                  [--oauth2-scope OAUTH2_SCOPE]
                  [--oauth2-refresh-margin #:##:##]
                  [--command "/path/to/command --sender {sender} --receivers {receivers} -- {...entries}"]
-                 [--command-cwd PATH] [--command-user USER]
-                 [--command-group GROUP] [-E NAME[=VALUE]]
+                 [--command-cwd PATH] [--command-user USERID|USERNAME]
+                 [--command-group GROUPID|GROUPNAME]
+                 [--command-process-group GROUPID] [--command-new-session]
+                 [--command-extra-groups GROUPID|GROUPNAME,...]
+                 [-E NAME[=VALUE]]
                  [--command-stdin {file:/file/path,null:,inherit:,pipe:FORMAT,/absolute/file/path}]
                  [--command-stdout {file:/file/path,append:/file/path,null:,inherit:,/absolute/file/path}]
                  [--command-stderr {file:/file/path,append:/file/path,null:,stdout:,inherit:,/absolute/file/path}]
                  [--command-interactive] [--command-no-interactive]
-                 [--command-timeout SECONDS|NONE] [--file FILE]
-                 [--file-encoding ENCODING]
+                 [--command-timeout SECONDS|NONE] [--command-chroot PATH]
+                 [--command-umask UMASK] [--command-nice NICE]
+                 [--command-encoding ENCODING]
+                 [--command-encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}]
+                 [--file FILE] [--file-encoding ENCODING]
                  [--file-encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}]
                  [--file-append] [--no-file-append] [--file-user USER]
                  [--file-group GROUP] [--file-type {regular,fifo}]
@@ -347,14 +353,32 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         place and is executed as that list with
                         `Popen(args=command)` and not with a shell in order
                         pro prevent command injections.
+                        
+                        Additional parameters:
+                        
+                        - `{python}` - Path of the Python binary used to
+                        execute logmon itself. (`sys.executable`)
+                        - `{python_version}` - Full vesrsion string of the
+                        Python binary. (`sys.version`)
+                        - `{python_version_major}` - `sys.version_info.major`.
+                        - `{python_version_minor}` - `sys.version_info.minor`.
+                        - `{python_version_micro}` - `sys.version_info.micro`.
+                        
   --command-cwd PATH    Run command in PATH. All other paths are thus relative
                         to this.
                         [default is the current working directory of logmon]
-  --command-user USER   Run command as USER.
+  --command-user USERID|USERNAME
+                        Run command as USER.
                         [default is the user of the logmon process]
-  --command-group GROUP
+  --command-group GROUPID|GROUPNAME
                         Run command as GROUP.
                         [default is the group of the logmon process]
+  --command-process-group GROUPID
+                        `setpgid()` to apply for the sub-process.
+  --command-new-session
+                        If `True` use `setsid()` in the sub-process.
+  --command-extra-groups GROUPID|GROUPNAME,...
+                        `setgroups()` to apply for the sub-process.
   -E, --command-env NAME[=VALUE]
                         Replace the environment of the command. Pass this
                         option multiple times for multiple environment
@@ -386,6 +410,16 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         still running on shutdown and the timeout is exceeded
                         the process will be killed.
                         [default: NONE]
+  --command-chroot PATH
+                        `chroot()` into the given path before the sub-process
+                        is executed.
+  --command-umask UMASK
+                        `umask()` to apply for the sub-process.
+  --command-nice NICE   `nice()` to apply for the sub-process.
+  --command-encoding ENCODING
+                        Encoding used to communicate with sub-process.
+  --command-encoding-errors {strict,ignore,replace,surrogateescape,xmlcharrefreplace,backslashreplace,namereplace}
+                        [default: replace]
   --file FILE
   --file-encoding ENCODING
                         [default: "UTF-8"]
