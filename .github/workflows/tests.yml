@@ -42,5 +42,6 @@ jobs:
     - name: Type Checking
       run: |
         . .venv/bin/activate
+        export MYPY_FORCE_COLOR=1
         mypy
         mypy tests/test_*.py
