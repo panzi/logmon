@@ -281,7 +281,28 @@ class LogfileConfig(TypedDict):
     json: Annotated[NotRequired[bool], Field(description="If `true` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.\n**Default:** `false`")]
     json_match: Annotated[NotRequired[
         Annotated[JsonMatch, Field(title="Object")]|Null
-    ], Field(description="JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.")]
+    ], Field(
+        description=
+            "JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.\n"
+            "\n"
+            'Operators:\n'
+            '\n'
+            '- `=` - equals\n'
+            '- `!=` - not equals\n'
+            '- `<` - less than\n'
+            '- `>` - greater than\n'
+            '- `<=` - less than or equal\n'
+            '- `>=` - greater than or equal\n'
+            '- `~` - match regular expression\n'
+            '- `in` - value in a list or range of given values\n'
+            '- `not in` - value not in a list or range of given values\n'
+            '\n'
+            'The argument to `in` and `not in` can be a list like `["foo", "bar"]` '
+            'or a range definition like `{"start": 0, "stop": 10}`. Start is '
+            'inclusive, stop is exclusive.\n'
+            '\n'
+            'Per default no filter is defined.'
+    )]
     json_ignore: Annotated[NotRequired[
         Annotated[JsonMatch, Field(title="Object")]|Null
     ], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]

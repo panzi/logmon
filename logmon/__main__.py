@@ -555,7 +555,7 @@ def main(argv: Optional[list[str]] = None) -> None:
              'inclusive, stop is exclusive.\n'
              '\n'
              'When multiple --json-match are defined all have to match.\n'
-             'Per no filter is defined.')
+             'Per default no filter is defined.')
     ap.add_argument('--json-ignore', action='append', metavar='PATH=VALUE',
         help='Same match syntax as --json-match, but if this matches the log entry is ignored.')
     ap.add_argument('--json-brief', default=None, metavar='PATH',

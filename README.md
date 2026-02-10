@@ -291,7 +291,7 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         
                         When multiple --json-match are defined all have to
                         match.
-                        Per no filter is defined.
+                        Per default no filter is defined.
   --json-ignore PATH=VALUE
                         Same match syntax as --json-match, but if this matches
                         the log entry is ignored.
