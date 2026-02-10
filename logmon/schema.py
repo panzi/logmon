@@ -68,15 +68,37 @@ class ActionConfigBase(TypedDict):
         Annotated[str, Field(title='Limiter Name')]|
         Annotated[None, Field(title=_unlimited)]
     ]
-    subject: Annotated[NotRequired[str], Field(description=f"Email subject template.\n**Default:** `{DEFAULT_SUBJECT!r}`")]
-    body: Annotated[NotRequired[str], Field(description=f"Email body template.\n**Default:** `{DEFAULT_BODY!r}`")]
-    host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).\n**Default:** `'localhost'`")]
+    subject: Annotated[NotRequired[str], Field(description=f"Email subject template.\n\n**Default:** `{DEFAULT_SUBJECT!r}`")]
+    body: Annotated[NotRequired[str], Field(
+        description=
+            'Body template for the emails.\n'
+            '\n'
+            'Template variables:\n'
+            '\n'
+            '- `{entries}` - All entries formatted with the `output_format` and `output_indent` options.\n'
+            '- `{entries_str}` - All entries for the message concatenated into a string with `entries_delemeter` between each (default is two newlines).\n'
+            '- `{entries_raw}` - Raw entries (`list[str]` for normal log files or `list[dict]` for SystemD or JSON log files).\n'
+            '- `{logfile}` - The path of the logfile.\n'
+            '- `{entry1}` - The first log entry of the message.\n'
+            '- `{line1}` - The first line of the first log entry.\n'
+            '- `{brief}` - Like `{line1}`, but with the entry start pattern removed.\n'
+            '- `{entrynum}` - The number of entries in this message.\n'
+            '- `{sender}` - The sender email address.\n'
+            '- `{receivers}` - Comma separated list of receiver email addresses.\n'
+            '- `{receiver_list}` - List of receiver email addresses (`list[str]`).\n'
+            "- `{nl}` - A newline character (`'\\n'`)\n"
+            '- `{{` - A literal {\n'
+            '- `}}` - A literal }\n'
+            '\n'
+           f"**Default:** `{DEFAULT_BODY!r}`"
+    )]
+    host: Annotated[NotRequired[str], Field(description="Host to connect to for SMTP/IMAP/HTTP(S).\n\n**Default:** `'localhost'`")]
     port: Annotated[NotRequired[int], Field(description="Port to connect to for SMTP/IMAP/HTTP(S) if not the standard port.", ge=0)]
     user: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
     password: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
-    secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.\n**Default:** `null`")]
-    logmails: Annotated[NotRequired[Logmails], Field(description=f"Write messages to logmon's log instead of/in addition to performing the action.\n**Default:** `{DEFAULT_LOGMAILS!r}`")]
-    keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).\n**Default:** `false`")]
+    secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.\n\n**Default:** `null`")]
+    logmails: Annotated[NotRequired[Logmails], Field(description=f"Write messages to logmon's log instead of/in addition to performing the action.\n\n**Default:** `{DEFAULT_LOGMAILS!r}`")]
+    keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).\n\n**Default:** `false`")]
 
     http_method: Annotated[NotRequired[str], Field(description=f"**Default:** `{DEFAULT_HTTP_METHOD!r}`")]
     http_path: Annotated[NotRequired[str], Field(description="**Default:** `'/'`")]
@@ -91,13 +113,13 @@ class ActionConfigBase(TypedDict):
     http_timeout: Annotated[NotRequired[
         Annotated[float, Field(title="Seconds", ge=0.0)]|
         Annotated[None,  Field(title=_unlimited)]
-    ], Field(description="`null` means no timeout.\n**Default:** `null`")]
+    ], Field(description="`null` means no timeout.\n\n**Default:** `null`")]
 
     oauth2_grant_type: Annotated[NotRequired[OAuth2GrantType], Field(description=f"**Default:** `{DEFAULT_OAUTH2_GRANT_TYPE!r}`")]
     oauth2_token_url: Annotated[NotRequired[
         Annotated[str,  Field(title="URL")]|
         Null
-    ], Field(description="`null` means don't use OAuth 2.0.\n**Default:** `null`")]
+    ], Field(description="`null` means don't use OAuth 2.0.\n\n**Default:** `null`")]
     oauth2_client_id: NotRequired[str]
     oauth2_client_secret: NotRequired[str]
     oauth2_scope: NotRequired[list[str]]
@@ -120,7 +142,8 @@ class ActionConfigBase(TypedDict):
               "- `{python_version}` - Full vesrsion string of the Python binary. (`sys.version`)\n"
               "- `{python_version_major}` - `sys.version_info.major`.\n"
               "- `{python_version_minor}` - `sys.version_info.minor`.\n"
-              "- `{python_version_micro}` - `sys.version_info.micro`.\n",
+              "- `{python_version_micro}` - `sys.version_info.micro`.\n"
+              "- `{env.NAME}` - Environment variables of the logmon process. (`os.getenv('NAME')`)\n",
               examples=[['/path/to/command', '--sender', '{sender}', '--receivers', '{receivers}', '--', '{...entries}']])
     ]
     command_cwd: Annotated[NotRequired[str], Field(description="Working directory of spawned process.")]

@@ -19,7 +19,8 @@ logfiles:
       action: command
       command:
       - "{{python}}"
-      - "tests/tee.py"
+      - "tests/print_entries.py"
+      - "--entry={{...entries}}"
       - "{logfiles[1]}.out"
   "{logfiles[2]}":
     do:

@@ -625,11 +625,12 @@ def main(argv: Optional[list[str]] = None) -> None:
              '\n'
              'Additional parameters:\n'
              '\n'
-             '- `{python}` - Path of the Python binary used to execute logmon itself. (`sys.executable`)\n'
-             '- `{python_version}` - Full vesrsion string of the Python binary. (`sys.version`)\n'
-             '- `{python_version_major}` - `sys.version_info.major`.\n'
-             '- `{python_version_minor}` - `sys.version_info.minor`.\n'
-             '- `{python_version_micro}` - `sys.version_info.micro`.\n')
+             '{python} ................. Path of the Python binary used to execute logmon itself. (sys.executable)\n'
+             '{python_version} ......... Full vesrsion string of the Python binary. (sys.version)\n'
+             '{python_version_major} ... sys.version_info.major.\n'
+             '{python_version_minor} ... sys.version_info.minor.\n'
+             '{python_version_micro} ... sys.version_info.micro.\n'
+             "{env.NAME} ............... Environment variables of the logmon process. (os.getenv('NAME'))\n")
     ap.add_argument('--command-cwd', metavar='PATH',
         help='Run command in PATH. All other paths are thus relative to this.\n'
              '[default is the current working directory of logmon]')

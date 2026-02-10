@@ -363,13 +363,15 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         
                         Additional parameters:
                         
-                        - `{python}` - Path of the Python binary used to
-                        execute logmon itself. (`sys.executable`)
-                        - `{python_version}` - Full vesrsion string of the
-                        Python binary. (`sys.version`)
-                        - `{python_version_major}` - `sys.version_info.major`.
-                        - `{python_version_minor}` - `sys.version_info.minor`.
-                        - `{python_version_micro}` - `sys.version_info.micro`.
+                        {python} ................. Path of the Python binary
+                                                   used to execute logmon
+                                                   itself. (sys.executable)
+                        {python_version} ......... Full vesrsion string of the
+                                                   Python binary.
+                                                   (sys.version)
+                        {python_version_major} ... sys.version_info.major.
+                        {python_version_minor} ... sys.version_info.minor.
+                        {python_version_micro} ... sys.version_info.micro.
                         
   --command-cwd PATH    Run command in PATH. All other paths are thus relative
                         to this.

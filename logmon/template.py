@@ -1,11 +1,12 @@
 from typing import Any, Generator, Iterable, Mapping
 
+import os
 import re
 
 from copy import deepcopy
 from itertools import product
 
-TEMPL_PATTERN = re.compile(r'{(?P<splat>\.\.\.)?(?P<var>[-_0-9a-z]+)(?P<fmt>(?:![^:{}]+)?(?::[^{}]*)?)?}|{{|}}|{|}', re.I)
+TEMPL_PATTERN = re.compile(r'{(?:(?P<splat>\.\.\.)|(?:(?P<ctx>[-_0-9a-z]+)\.))?(?P<var>[-_0-9a-z]+)(?P<fmt>(?:![^:{}]+)?(?::[^{}]*)?)?}|{{|}}|{|}', re.I)
 
 def expand(templ: str, params: Mapping[str, Any]) -> Generator[str, None, None]:
     buf: list[str] = []
@@ -40,29 +41,39 @@ def expand(templ: str, params: Mapping[str, Any]) -> Generator[str, None, None]:
             case _:
                 splat = m.group('splat')
                 var = m.group('var')
-                value = params.get(var)
                 fmt = m.group('fmt')
+                ctx = m.group('ctx')
 
-                if splat:
-                    items.append(''.join(buf))
-                    if fmt:
-                        xfmt = f'{{{fmt}}}'
-
-                        if hasattr(value, '__iter__'):
-                            splats.append([xfmt.format(v) for v in value]) # type: ignore
-                        else:
-                            splats.append([xfmt.format(value)])
-                    else:
-                        if hasattr(value, '__iter__'):
-                            splats.append([str(v) for v in value]) # type: ignore
-                        else:
-                            splats.append([str(value)])
-                    buf.clear()
+                if ctx is not None:
+                    obj = params.get(ctx)
+                    try:
+                        value = getattr(obj, var)
+                    except AttributeError:
+                        value = None
                 else:
-                    if fmt:
-                        buf.append(f'{{{fmt}}}'.format(value))
+                    value = params.get(var)
+
+                if value is not None:
+                    if splat:
+                        items.append(''.join(buf))
+                        if fmt:
+                            xfmt = f'{{{fmt}}}'
+
+                            if hasattr(value, '__iter__'):
+                                splats.append([xfmt.format(v) for v in value]) # type: ignore
+                            else:
+                                splats.append([xfmt.format(value)])
+                        else:
+                            if hasattr(value, '__iter__'):
+                                splats.append([str(v) for v in value]) # type: ignore
+                            else:
+                                splats.append([str(value)])
+                        buf.clear()
                     else:
-                        buf.append(str(value))
+                        if fmt:
+                            buf.append(f'{{{fmt}}}'.format(value))
+                        else:
+                            buf.append(str(value))
 
         index = start_index + len(item)
 

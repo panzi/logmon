@@ -33,6 +33,20 @@ type ParsedPath = (
     tuple[Literal['pipe'], str, None]
 )
 
+class Env:
+    __slots__ = ()
+
+    def __getattr__(self, name: str) -> str|None:
+        return os.getenv(name)
+
+    def __getitem__(self, name: str) -> str|None:
+        return os.getenv(name)
+
+    def __str__(self) -> str:
+        return ''.join(f'{name}={value}\n' for name, value in os.environ.items())
+
+_env = Env()
+
 class CommandTemplParams(TypedDict):
     entries: list[str]
     entries_str: str
@@ -53,6 +67,8 @@ class CommandTemplParams(TypedDict):
     python_version_major: int
     python_version_minor: int
     python_version_micro: int
+
+    env: Env
 
 def open_io(path: ParsedPath) -> IO[Any]|int|None:
     match path:
@@ -248,6 +264,7 @@ class CommandAction(Action):
         env: Optional[dict[str, str]]
         if raw_env is not None:
             env = {}
+
             for key, value in raw_env.items():
                 if value is None:
                     value = os.getenv(key)
@@ -354,6 +371,7 @@ class CommandAction(Action):
             'python_version_major': sys.version_info.major,
             'python_version_minor': sys.version_info.minor,
             'python_version_micro': sys.version_info.micro,
+            'env': _env,
         }
         return templ_params
 
