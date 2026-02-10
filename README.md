@@ -372,6 +372,9 @@ Usage: logmon.py [-h] [-v] [--license] [--config PATH]
                         {python_version_major} ... sys.version_info.major.
                         {python_version_minor} ... sys.version_info.minor.
                         {python_version_micro} ... sys.version_info.micro.
+                        {env.NAME} ............... Environment variables of
+                                                   the logmon process.
+                                                   (os.getenv('NAME'))
                         
   --command-cwd PATH    Run command in PATH. All other paths are thus relative
                         to this.
