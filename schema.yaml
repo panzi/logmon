@@ -306,18 +306,38 @@ $defs:
             subject:
                 description: |-
                     Email subject template.
+
                     **Default:** `'{brief}'`
                 title: Subject
                 type: string
             body:
                 description: |-
-                    Email body template.
+                    Body template for the emails.
+
+                    Template variables:
+
+                    - `{entries}` - All entries formatted with the `output_format` and `output_indent` options.
+                    - `{entries_str}` - All entries for the message concatenated into a string with `entries_delemeter` between each (default is two newlines).
+                    - `{entries_raw}` - Raw entries (`list[str]` for normal log files or `list[dict]` for SystemD or JSON log files).
+                    - `{logfile}` - The path of the logfile.
+                    - `{entry1}` - The first log entry of the message.
+                    - `{line1}` - The first line of the first log entry.
+                    - `{brief}` - Like `{line1}`, but with the entry start pattern removed.
+                    - `{entrynum}` - The number of entries in this message.
+                    - `{sender}` - The sender email address.
+                    - `{receivers}` - Comma separated list of receiver email addresses.
+                    - `{receiver_list}` - List of receiver email addresses (`list[str]`).
+                    - `{nl}` - A newline character (`'\n'`)
+                    - `{{` - A literal {
+                    - `}}` - A literal }
+
                     **Default:** `'{logfile}\n\n{entries_str}'`
                 title: Body
                 type: string
             host:
                 description: |-
                     Host to connect to for SMTP/IMAP/HTTP(S).
+
                     **Default:** `'localhost'`
                 title: Host
                 type: string
@@ -341,15 +361,18 @@ $defs:
                 $ref: '#/$defs/SecureOption'
                 description: |-
                     `secure` option for SMTP/IMAP.
+
                     **Default:** `null`
             logmails:
                 $ref: '#/$defs/Logmails'
                 description: |-
                     Write messages to logmon's log instead of/in addition to performing the action.
+
                     **Default:** `'onerror'`
             keep_connected:
                 description: |-
                     Keep connection to server alive (SMTP, IMAP, HTTP(S)).
+
                     **Default:** `false`
                 title: Keep Connected
                 type: boolean
@@ -404,6 +427,7 @@ $defs:
                     type: 'null'
                 description: |-
                     `null` means no timeout.
+
                     **Default:** `null`
                 title: Http Timeout
             oauth2_grant_type:
@@ -417,6 +441,7 @@ $defs:
                     type: 'null'
                 description: |-
                     `null` means don't use OAuth 2.0.
+
                     **Default:** `null`
                 title: Oauth2 Token Url
             oauth2_client_id:
@@ -460,6 +485,7 @@ $defs:
                     - `{python_version_major}` - `sys.version_info.major`.
                     - `{python_version_minor}` - `sys.version_info.minor`.
                     - `{python_version_micro}` - `sys.version_info.micro`.
+                    - `{env.NAME}` - Environment variables of the logmon process. (`os.getenv('NAME')`)
                 examples:
                 -   -   /path/to/command
                     -   --sender

@@ -392,8 +392,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_subject" onclick="anchorLink('do_anyOf_i0_subject')">subject</a></div><h4>Subject</h4><span class="badge badge-dark value-type">Type: string</span><br/>
-<span class="description"><p>Email subject template.<br />
-<strong>Default:</strong> <code>'{brief}'</code></p>
+<span class="description"><p>Email subject template.</p>
+
+<p><strong>Default:</strong> <code>'{brief}'</code></p>
 </span>
         
 
@@ -448,9 +449,36 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_body" onclick="anchorLink('do_anyOf_i0_body')">body</a></div><h4>Body</h4><span class="badge badge-dark value-type">Type: string</span><br/>
-<span class="description"><p>Email body template.<br />
-<strong>Default:</strong> <code>'{logfile}\n\n{entries_str}'</code></p>
-</span>
+<div class="description collapse" id="collapseDescription_do_anyOf_i0_body">
+            <p>Body template for the emails.</p>
+
+<p>Template variables:</p>
+
+<ul>
+<li><code>{entries}</code> - All entries formatted with the <code>output_format</code> and <code>output_indent</code> options.</li>
+<li><code>{entries_str}</code> - All entries for the message concatenated into a string with <code>entries_delemeter</code> between each (default is two newlines).</li>
+<li><code>{entries_raw}</code> - Raw entries (<code>list[str]</code> for normal log files or <code>list[dict]</code> for SystemD or JSON log files).</li>
+<li><code>{logfile}</code> - The path of the logfile.</li>
+<li><code>{entry1}</code> - The first log entry of the message.</li>
+<li><code>{line1}</code> - The first line of the first log entry.</li>
+<li><code>{brief}</code> - Like <code>{line1}</code>, but with the entry start pattern removed.</li>
+<li><code>{entrynum}</code> - The number of entries in this message.</li>
+<li><code>{sender}</code> - The sender email address.</li>
+<li><code>{receivers}</code> - Comma separated list of receiver email addresses.</li>
+<li><code>{receiver_list}</code> - List of receiver email addresses (<code>list[str]</code>).</li>
+<li><code>{nl}</code> - A newline character (<code>'\n'</code>)</li>
+<li><code>{{</code> - A literal {</li>
+<li><code>}}</code> - A literal }</li>
+</ul>
+
+<p><strong>Default:</strong> <code>'{logfile}\n\n{entries_str}'</code></p>
+
+        </div>
+        <div>
+            <a class="collapse-description-link collapsed" data-toggle="collapse" href="#collapseDescription_do_anyOf_i0_body"
+               aria-expanded="false" aria-controls="collapseDescriptiondo_anyOf_i0_body"
+            ></a>
+        </div>
         
 
         
@@ -504,8 +532,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_host" onclick="anchorLink('do_anyOf_i0_host')">host</a></div><h4>Host</h4><span class="badge badge-dark value-type">Type: string</span><br/>
-<span class="description"><p>Host to connect to for SMTP/IMAP/HTTP(S).<br />
-<strong>Default:</strong> <code>'localhost'</code></p>
+<span class="description"><p>Host to connect to for SMTP/IMAP/HTTP(S).</p>
+
+<p><strong>Default:</strong> <code>'localhost'</code></p>
 </span>
         
 
@@ -725,8 +754,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_secure" onclick="anchorLink('do_anyOf_i0_secure')">secure</a></div><span class="badge badge-dark value-type">Type: enum (of null or string)</span><br/>
-<span class="description"><p><code>secure</code> option for SMTP/IMAP.<br />
-<strong>Default:</strong> <code>null</code></p>
+<span class="description"><p><code>secure</code> option for SMTP/IMAP.</p>
+
+<p><strong>Default:</strong> <code>null</code></p>
 </span>
 
     <div class="enum-value" id="do_anyOf_i0_secure_enum">
@@ -786,8 +816,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_logmails" onclick="anchorLink('do_anyOf_i0_logmails')">logmails</a></div><span class="badge badge-dark value-type">Type: enum (of string)</span><br/>
-<span class="description"><p>Write messages to logmon's log instead of/in addition to performing the action.<br />
-<strong>Default:</strong> <code>'onerror'</code></p>
+<span class="description"><p>Write messages to logmon's log instead of/in addition to performing the action.</p>
+
+<p><strong>Default:</strong> <code>'onerror'</code></p>
 </span>
 
     <div class="enum-value" id="do_anyOf_i0_logmails_enum">
@@ -847,8 +878,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_keep_connected" onclick="anchorLink('do_anyOf_i0_keep_connected')">keep_connected</a></div><h4>Keep Connected</h4><span class="badge badge-dark value-type">Type: boolean</span><br/>
-<span class="description"><p>Keep connection to server alive (SMTP, IMAP, HTTP(S)).<br />
-<strong>Default:</strong> <code>false</code></p>
+<span class="description"><p>Keep connection to server alive (SMTP, IMAP, HTTP(S)).</p>
+
+<p><strong>Default:</strong> <code>false</code></p>
 </span>
         
 
@@ -1703,8 +1735,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_http_timeout" onclick="anchorLink('do_anyOf_i0_http_timeout')">http_timeout</a></div><h4>Http Timeout</h4><br/>
-<span class="description"><p><code>null</code> means no timeout.<br />
-<strong>Default:</strong> <code>null</code></p>
+<span class="description"><p><code>null</code> means no timeout.</p>
+
+<p><strong>Default:</strong> <code>null</code></p>
 </span><div class="any-of-value" id="do_anyOf_i0_http_timeout_anyOf"><h2 class="handle">
   <label>Any of</label>
 </h2><ul class="nav nav-tabs" id="tabsdo_anyOf_i0_http_timeout_anyOf_anyOf" role="tablist"><li class="nav-item">
@@ -1940,8 +1973,9 @@ All actions inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#do_anyOf_i0_oauth2_token_url" onclick="anchorLink('do_anyOf_i0_oauth2_token_url')">oauth2_token_url</a></div><h4>Oauth2 Token Url</h4><br/>
-<span class="description"><p><code>null</code> means don't use OAuth 2.0.<br />
-<strong>Default:</strong> <code>null</code></p>
+<span class="description"><p><code>null</code> means don't use OAuth 2.0.</p>
+
+<p><strong>Default:</strong> <code>null</code></p>
 </span><div class="any-of-value" id="do_anyOf_i0_oauth2_token_url_anyOf"><h2 class="handle">
   <label>Any of</label>
 </h2><ul class="nav nav-tabs" id="tabsdo_anyOf_i0_oauth2_token_url_anyOf_anyOf" role="tablist"><li class="nav-item">
@@ -2398,6 +2432,7 @@ All actions inherit these settings if they don't overwrite them.</p>
 <li><code>{python_version_major}</code> - <code>sys.version_info.major</code>.</li>
 <li><code>{python_version_minor}</code> - <code>sys.version_info.minor</code>.</li>
 <li><code>{python_version_micro}</code> - <code>sys.version_info.micro</code>.</li>
+<li><code>{env.NAME}</code> - Environment variables of the logmon process. (<code>os.getenv('NAME')</code>)</li>
 </ul>
 
         </div>
@@ -26422,6 +26457,6 @@ systemd::UNIT:sshd.service
 </div>
 
     <footer>
-        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-02-09 at 19:49:02 +0100</p>
+        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-02-10 at 18:04:10 +0100</p>
     </footer></body>
 </html>
