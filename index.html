@@ -7431,8 +7431,33 @@ All logfiles inherit these settings if they don't overwrite them.</p>
             />
         </svg>
     <a href="#default_json_match" onclick="anchorLink('default_json_match')">json_match</a></div><h4>Json Match</h4><br/>
-<span class="description"><p>JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.</p>
-</span><div class="any-of-value" id="default_json_match_anyOf"><h2 class="handle">
+<div class="description collapse" id="collapseDescription_default_json_match">
+            <p>JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.</p>
+
+<p>Operators:</p>
+
+<ul>
+<li><code>=</code> - equals</li>
+<li><code>!=</code> - not equals</li>
+<li><code>&lt;</code> - less than</li>
+<li><code>&gt;</code> - greater than</li>
+<li><code>&lt;=</code> - less than or equal</li>
+<li><code>&gt;=</code> - greater than or equal</li>
+<li><code>~</code> - match regular expression</li>
+<li><code>in</code> - value in a list or range of given values</li>
+<li><code>not in</code> - value not in a list or range of given values</li>
+</ul>
+
+<p>The argument to <code>in</code> and <code>not in</code> can be a list like <code>["foo", "bar"]</code> or a range definition like <code>{"start": 0, "stop": 10}</code>. Start is inclusive, stop is exclusive.</p>
+
+<p>Per default no filter is defined.</p>
+
+        </div>
+        <div>
+            <a class="collapse-description-link collapsed" data-toggle="collapse" href="#collapseDescription_default_json_match"
+               aria-expanded="false" aria-controls="collapseDescriptiondefault_json_match"
+            ></a>
+        </div><div class="any-of-value" id="default_json_match_anyOf"><h2 class="handle">
   <label>Any of</label>
 </h2><ul class="nav nav-tabs" id="tabsdefault_json_match_anyOf_anyOf" role="tablist"><li class="nav-item">
             <a class="nav-link active anyOf-option"
@@ -16286,8 +16311,33 @@ systemd::UNIT:sshd.service
             />
         </svg>
     <a href="#logfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match" onclick="anchorLink('logfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match')">json_match</a></div><h4>Json Match</h4><br/>
-<span class="description"><p>JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.</p>
-</span><div class="any-of-value" id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match_anyOf"><h2 class="handle">
+<div class="description collapse" id="collapseDescription_logfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match">
+            <p>JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.</p>
+
+<p>Operators:</p>
+
+<ul>
+<li><code>=</code> - equals</li>
+<li><code>!=</code> - not equals</li>
+<li><code>&lt;</code> - less than</li>
+<li><code>&gt;</code> - greater than</li>
+<li><code>&lt;=</code> - less than or equal</li>
+<li><code>&gt;=</code> - greater than or equal</li>
+<li><code>~</code> - match regular expression</li>
+<li><code>in</code> - value in a list or range of given values</li>
+<li><code>not in</code> - value not in a list or range of given values</li>
+</ul>
+
+<p>The argument to <code>in</code> and <code>not in</code> can be a list like <code>["foo", "bar"]</code> or a range definition like <code>{"start": 0, "stop": 10}</code>. Start is inclusive, stop is exclusive.</p>
+
+<p>Per default no filter is defined.</p>
+
+        </div>
+        <div>
+            <a class="collapse-description-link collapsed" data-toggle="collapse" href="#collapseDescription_logfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match"
+               aria-expanded="false" aria-controls="collapseDescriptionlogfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match"
+            ></a>
+        </div><div class="any-of-value" id="logfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match_anyOf"><h2 class="handle">
   <label>Any of</label>
 </h2><ul class="nav nav-tabs" id="tabslogfiles_anyOf_i0_additionalProperties_anyOf_i0_json_match_anyOf_anyOf" role="tablist"><li class="nav-item">
             <a class="nav-link active anyOf-option"
@@ -26457,6 +26507,6 @@ systemd::UNIT:sshd.service
 </div>
 
     <footer>
-        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-02-10 at 18:04:10 +0100</p>
+        <p class="generated-by-footer">Generated using <a href="https://github.com/coveooss/json-schema-for-humans">json-schema-for-humans</a> on 2026-02-10 at 18:17:14 +0100</p>
     </footer></body>
 </html>

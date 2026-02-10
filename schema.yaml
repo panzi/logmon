@@ -182,9 +182,24 @@ $defs:
                     title: Object
                 -   title: 'Null'
                     type: 'null'
-                description: JSON property paths and values to compare them to. 
-                    A log entry will only be processed if all properties match. 
-                    Per default all log entries are processed.
+                description: |-
+                    JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.
+
+                    Operators:
+
+                    - `=` - equals
+                    - `!=` - not equals
+                    - `<` - less than
+                    - `>` - greater than
+                    - `<=` - less than or equal
+                    - `>=` - greater than or equal
+                    - `~` - match regular expression
+                    - `in` - value in a list or range of given values
+                    - `not in` - value not in a list or range of given values
+
+                    The argument to `in` and `not in` can be a list like `["foo", "bar"]` or a range definition like `{"start": 0, "stop": 10}`. Start is inclusive, stop is exclusive.
+
+                    Per default no filter is defined.
                 title: Json Match
             json_ignore:
                 anyOf:
@@ -858,9 +873,24 @@ $defs:
                     title: Object
                 -   title: 'Null'
                     type: 'null'
-                description: JSON property paths and values to compare them to. 
-                    A log entry will only be processed if all properties match. 
-                    Per default all log entries are processed.
+                description: |-
+                    JSON property paths and values to compare them to. A log entry will only be processed if all properties match. Per default all log entries are processed.
+
+                    Operators:
+
+                    - `=` - equals
+                    - `!=` - not equals
+                    - `<` - less than
+                    - `>` - greater than
+                    - `<=` - less than or equal
+                    - `>=` - greater than or equal
+                    - `~` - match regular expression
+                    - `in` - value in a list or range of given values
+                    - `not in` - value not in a list or range of given values
+
+                    The argument to `in` and `not in` can be a list like `["foo", "bar"]` or a range definition like `{"start": 0, "stop": 10}`. Start is inclusive, stop is exclusive.
+
+                    Per default no filter is defined.
                 title: Json Match
             json_ignore:
                 anyOf:
