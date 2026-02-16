@@ -27,7 +27,7 @@ class JsonEntryReaderFactory(EntryReaderFactory):
     match: CompiledJsonMatch
     ignore: Optional[CompiledJsonMatch]
     brief_path: Optional[JsonPath]
-    wait_line_incomplete: int|float
+    wait_line_incomplete: float
 
     def __init__(self, config: Config) -> None:
         super().__init__()

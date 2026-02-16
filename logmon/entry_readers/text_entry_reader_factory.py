@@ -22,7 +22,7 @@ class TextEntryReaderFactory(EntryReaderFactory):
     entry_start_pattern: Pattern[str]
     error_pattern: Pattern[str]
     ignore_pattern: Optional[Pattern[str]]
-    wait_line_incomplete: int|float
+    wait_line_incomplete: float
     max_entry_lines: int
 
     def __init__(self, config: Config) -> None:
