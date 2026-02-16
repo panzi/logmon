@@ -87,7 +87,6 @@ class TextEntryReaderFactory(EntryReaderFactory):
 
             buf.append(line)
             if not line.endswith('\n'):
-                print('wait for line end')
                 sleep(self.wait_line_incomplete)
                 try:
                     rest_of_line = logfile.readline()
