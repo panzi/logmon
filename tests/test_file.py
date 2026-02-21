@@ -86,7 +86,7 @@ logfiles:
         except Exception as exc:
             print(f'Error deleting {filepath}: {exc}')
 
-def _make_test(compression: Compression|None):
+def _make_test(compression: Compression|None) -> None:
     def test_file(logmonrc_path: str, logfiles: list[str], temp_prefix: tuple[str, str]) -> None:
         return _test_file(compression, logmonrc_path, logfiles, temp_prefix)
 

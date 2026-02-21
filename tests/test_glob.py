@@ -7,7 +7,7 @@ from shutil import rmtree
 
 from tests.testutils import *
 
-def test_glob(logmonrc_path: str, temp_prefix: tuple[str, str]) -> None:
+def _test_glob(is_fifo: bool, logmonrc_path: str, temp_prefix: tuple[str, str]) -> None:
     tempdir, prefix = temp_prefix
     logdir = join_path(tempdir, f'{prefix}.logs')
     file_path = join_path(tempdir, f'{prefix}.output.log')
@@ -21,9 +21,10 @@ default:
   #use_inotify: false
   wait_no_entries: 0.01
   wait_file_not_found: 0.01
-  seek_end: true
+  seek_end: {not is_fifo}
 log:
   format: "%(message)s"
+  #file: /tmp/test.log
 logfiles:
   "{join_path(logdir, 'foo*.log')}":
     glob: true
@@ -35,8 +36,12 @@ logfiles:
         os.mkdir(logdir)
         print(f"{logdir}: created directory", file=sys.stderr)
 
-        write_file(join_path(logdir, 'bar.log'), "[2025-12-14T20:15:00+0100] INFO: BAR message.")
+        bar = join_path(logdir, 'bar.log')
 
+        if is_fifo: os.mkfifo(bar)
+        write_file(bar, "[2025-12-14T20:15:00+0100] INFO: BAR message.")
+
+        if is_fifo: os.mkfifo(logfiles[0])
         with open_compressed_file(logfiles[0], compression) as fp1:
             print("[2025-12-14T20:15:00+0100] INFO: Info message.", file=fp1); fp1.flush()
         print(f"{logfiles[0]}: written logs", file=sys.stderr)
@@ -46,6 +51,7 @@ logfiles:
         os.unlink(logfiles[0])
         print(f"{logfiles[0]}: deleted", file=sys.stderr)
 
+        if is_fifo: os.mkfifo(logfiles[0])
         with open_compressed_file(logfiles[0], compression) as fp1:
             print("[2025-12-14T20:16:00+0100] INFO: Info message.", file=fp1); fp1.flush()
             errmsg1hdr = "ERROR: Something failed!"
@@ -60,6 +66,7 @@ logfiles:
 
         #sleep(2) # XXX: shorter sleep breaks this. it shouldn't!
 
+        if is_fifo: os.mkfifo(logfiles[0])
         with open_compressed_file(logfiles[0], compression) as fp1:
             errmsg2hdr = "CRITICAL: Something else failed!"
             errmsg2 = f"[2025-12-14T20:18:00+0100] {errmsg2hdr}"
@@ -73,6 +80,7 @@ logfiles:
         ]
 
         bar2 = join_path(logdir, 'bar2.log')
+        if is_fifo: os.mkfifo(bar2)
         with open_compressed_file(bar2, compression) as fp2:
             errmsg3hdr = "ERROR: Starts with an error!"
             errmsg3_1 = f"[2025-12-14T20:16:00+0100] {errmsg3hdr}"
@@ -91,6 +99,7 @@ logfiles:
             { "header": errmsg3hdr, "message": f"{errmsg3_1}\n{errmsg3_2}" },
         ]
 
+        if is_fifo: os.mkfifo(logfiles[2])
         with open_compressed_file(logfiles[2], compression) as fp3:
             pass
 
@@ -137,3 +146,15 @@ Message not found in output!
         rmtree(logdir)
     except Exception as exc:
         print(f'Error deleting {logdir}: {exc}')
+
+def _make_test(is_fifo: bool) -> None:
+    def test_glob(logmonrc_path: str, temp_prefix: tuple[str, str]) -> None:
+        return _test_glob(is_fifo, logmonrc_path, temp_prefix)
+    
+    if is_fifo:
+        test_glob.__name__ = 'test_glob_fifo'
+
+    globals()[test_glob.__name__] = test_glob
+
+_make_test(False)
+_make_test(True)
