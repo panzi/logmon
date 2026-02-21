@@ -12,6 +12,8 @@ from os.path import abspath, normpath, split as splitpath
 from time import monotonic, sleep
 from fnmatch import translate
 from errno import EINVAL
+from stat import S_ISFIFO
+from select import epoll, POLLIN
 
 try:
     from compression import zstd
@@ -59,7 +61,10 @@ def open_logfile(logfile: str, encoding: str, seek_end: bool, compression: Optio
 
     try:
         if seek_end:
-            logfp.seek(0, os.SEEK_END)
+            try:
+                logfp.seek(0, os.SEEK_END)
+            except OSError as exc:
+                logger.error(f'{logfile}: {exc}', exc_info=exc)
         return logfp
     except:
         logfp.close()
@@ -89,8 +94,11 @@ def _logmon(
     reader_factory = EntryReaderFactory.from_config(config)
 
     with Action.open_actions(config, limiters) as actions:
+        stopfd = get_read_stopfd()
+        poller: Optional[epoll] = None
+
         if use_inotify and HAS_INOTIFY:
-            inotify = PollInotify(get_read_stopfd())
+            inotify = PollInotify(stopfd)
         else:
             inotify = None
 
@@ -109,6 +117,19 @@ def _logmon(
                     try:
                         logfp_stat = os.fstat(logfp.fileno())
                         logfp_ref = (logfp_stat.st_dev, logfp_stat.st_ino)
+                        is_fifo = S_ISFIFO(logfp_stat.st_mode)
+
+                        read_entries: Callable[[bool], int]
+                        if is_fifo:
+                            if not poller:
+                                poller = epoll(2)
+                                if stopfd is not None:
+                                    poller.register(stopfd, POLLIN)
+                            poller.register(logfp.fileno(), POLLIN)
+
+                            read_entries = lambda do_wait: _read_entries_blocking(logfile, reader, max_entries, actions, poller, stopfd, None if do_wait else 0) # type: ignore
+                        else:
+                            read_entries = lambda do_wait: _read_entries(logfile, reader, wait_for_more if do_wait else 0, max_entries, actions, wait_on_empty_messages=do_wait)
 
                         reader = reader_factory.create_reader(logfp)
 
@@ -117,7 +138,7 @@ def _logmon(
                             logfile_id = inotify.add_watch(logfile, IN_MODIFY | IN_MOVE_SELF | IN_DELETE_SELF)
 
                         while is_running():
-                            entry_count = _read_entries(logfile, reader, wait_for_more, max_entries, actions)
+                            entry_count = read_entries(True)
 
                             if entry_count < max_entries and is_running():
                                 # If there are max_entries that means there are probably already more in the
@@ -191,7 +212,7 @@ def _logmon(
 
                                 if do_reopen:
                                     # try to read the rest before closing the file
-                                    while _read_entries(logfile, reader, 0, max_entries, actions) >= max_entries:
+                                    while read_entries(False) >= max_entries:
                                         pass
 
                                     logger.info(f"{logfile}: File changed, reopening...")
@@ -202,6 +223,11 @@ def _logmon(
                                     break
 
                     finally:
+                        if poller is not None:
+                            try:
+                                poller.unregister(logfp.fileno())
+                            except Exception as exc:
+                                logger.error(f'{logfile}: Unregistering epoll events')
                         try:
                             if inotify is not None:
                                 if logfile_id is not None:
@@ -243,8 +269,12 @@ def _logmon(
                     handle_keyboard_interrupt()
 
         finally:
-            if inotify is not None:
-                inotify.close()
+            try:
+                if inotify is not None:
+                    inotify.close()
+            finally:
+                if poller is not None:
+                    poller.close()
 
 class GlobEntry(NamedTuple):
     logfile: str
@@ -615,10 +645,69 @@ def _logmon_thread(logfile: str, config: Config, limiters: Mapping[str, Abstract
         else:
             break
 
+def _read_entries_blocking(
+        logfile: str,
+        reader: Generator[LogEntry|None, None, None],
+        max_entries: int,
+        actions: list[Action],
+        poller: epoll,
+        stopfd: int|None,
+        timeout: int|None,
+) -> int:
+    entries: list[LogEntry] = []
+    try:
+        while is_running():
+            events = poller.poll(timeout)
+            if not events or any(fd == stopfd for fd, _event in events):
+                break
+            timeout = 0
+
+            try:
+                entry = next(reader)
+            except StopIteration:
+                break
+
+            if entry is None:
+                break
+
+            entries.append(entry)
+
+            if len(entries) >= max_entries:
+                break
+
+    except KeyboardInterrupt:
+        handle_keyboard_interrupt()
+
+    except OSError as exc:
+        logger.error(f'{logfile}: Error reading log entries: {exc}', exc_info=exc)
+
+    for offset in range(0, len(entries), max_entries):
+        try:
+            chunk = entries[offset:offset + max_entries]
+            brief = chunk[0].brief
+
+            for action in actions:
+                if action.perform_action(
+                    logfile = logfile,
+                    entries = chunk,
+                    brief = brief,
+                ):
+                    pass
+                elif logger.isEnabledFor(logging.DEBUG):
+                    templ_params = action.get_templ_params(logfile, chunk, brief)
+                    subject = action.subject_templ.format_map(templ_params)
+
+                    logger.debug(f'{logfile}: Action with {len(chunk)} entries was rate limited: {subject}')
+
+        except Exception as exc:
+            logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
+
+    return len(entries)
+
 def _read_entries(
         logfile: str,
         reader: Generator[LogEntry|None, None, None],
-        wait_for_more: float|int,
+        wait_for_more: float,
         max_entries: int,
         actions: list[Action],
         wait_on_empty_messages: bool = True,
