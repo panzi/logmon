@@ -38,7 +38,7 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path)
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, wait_finish=2.50)
 
     expected1 = f'''\
 {logs[0][0]['message']}

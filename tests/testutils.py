@@ -182,17 +182,35 @@ def pipe_io(stdout: IO[bytes], stderr: IO[bytes]) -> tuple[str, str]:
 
 T = TypeVar('T')
 
-@overload
-def run_logmon(logfiles: list[str], *args: str, compression: Compression|None=None) -> tuple[list[list[ExampleLog]], str, str]: ...
+DEFAULT_WAIT_START  = 0.25
+DEFAULT_WAIT_FINISH = 1.75
 
 @overload
-def run_logmon(logfiles: list[str], *args: str, write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]], compression: Compression|None=None) -> tuple[list[list[T]], str, str]: ...
+def run_logmon(
+    logfiles: list[str],
+    *args: str,
+    compression: Compression|None=None,
+    wait_start: float=DEFAULT_WAIT_START,
+    wait_finish: float=DEFAULT_WAIT_FINISH,
+) -> tuple[list[list[ExampleLog]], str, str]: ...
+
+@overload
+def run_logmon(
+    logfiles: list[str],
+    *args: str,
+    write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]],
+    compression: Compression|None=None,
+    wait_start: float=DEFAULT_WAIT_START,
+    wait_finish: float=DEFAULT_WAIT_FINISH,
+) -> tuple[list[list[T]], str, str]: ...
 
 def run_logmon(
-        logfiles: list[str],
-        *args: str,
-        write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]]=write_logs, # type: ignore
-        compression: Compression|None=None,
+    logfiles: list[str],
+    *args: str,
+    write_logs: Callable[[list[str], Compression|None], Generator[list[T], None, None]]=write_logs, # type: ignore
+    compression: Compression|None=None,
+    wait_start: float=DEFAULT_WAIT_START,
+    wait_finish: float=DEFAULT_WAIT_FINISH,
 ) -> tuple[list[list[T]], str, str]:
     proc = Popen(
         [sys.executable, '-m', 'logmon', *args],
@@ -205,7 +223,7 @@ def run_logmon(
         assert proc.stdout is not None
         assert proc.stderr is not None
 
-        sleep(0.25)
+        sleep(wait_start)
 
         status: Optional[int] = proc.returncode
 
@@ -219,7 +237,7 @@ def run_logmon(
                 if status is not None and status != 0:
                     assert status == 0
 
-            sleep(1.75)
+            sleep(wait_finish)
 
             proc.terminate()
 
