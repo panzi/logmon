@@ -11,7 +11,7 @@ from os import scandir
 from os.path import abspath, normpath, split as splitpath
 from time import monotonic, sleep
 from fnmatch import translate
-from errno import EINVAL
+from errno import EINVAL, ENOENT
 from stat import S_ISFIFO
 from select import epoll, POLLIN
 
@@ -28,7 +28,7 @@ from .constants import *
 from .entry_readers import EntryReaderFactory, LogEntry
 from .actions import Action
 from .inotify_wait_for_exists import inotify_wait_for_exists
-from .inotify import HAS_INOTIFY, PollInotify, TerminalEventException, IN_MODIFY, IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO
+from .inotify import HAS_INOTIFY, Inotify, PollInotify, TerminalEventException, IN_MODIFY, IN_CREATE, IN_DELETE, IN_DELETE_SELF, IN_MOVE_SELF, IN_MOVED_FROM, IN_MOVED_TO, IN_CLOEXEC, IN_NONBLOCK
 from .global_state import is_running, handle_keyboard_interrupt, get_read_stopfd
 
 logger = logging.getLogger(__name__)
@@ -296,7 +296,7 @@ class GlobEntry(NamedTuple):
     stream: TextIO
     is_fifo: bool
 
-    def close(self, inotify: PollInotify) -> None:
+    def close(self, inotify: Inotify) -> None:
         try:
             inotify.remove_watch(self.logfile)
         except OSError as exc:
@@ -332,7 +332,7 @@ def _logmon_glob(
         limiters: Mapping[str, AbstractLimiter],
 ) -> None:
     wait_no_entries = config.get('wait_no_entries', DEFAULT_WAIT_NO_ENTRIES)
-    wait_for_more = config.get('wait_for_more', DEFAULT_WAIT_FOR_MORE)
+    wait_for_more = config.get('wait_for_more', DEFAULT_WAIT_FOR_MORE) # TODO: use this?
     max_entries = config.get('max_entries', DEFAULT_MAX_ENTRIES)
     wait_file_not_found = config.get('wait_file_not_found', DEFAULT_WAIT_FILE_NOT_FOUND)
     encoding = config.get('encoding', 'UTF-8')
@@ -351,40 +351,29 @@ def _logmon_glob(
     first = True
 
     with Action.open_actions(config, limiters) as actions:
-        poller: epoll|None = None
+        poller = epoll()
+        read_poller = epoll()
 
         def read_entries(entry: IGlobEntry) -> int:
-            nonlocal poller
             if entry.is_fifo:
-                if poller is None:
-                    poller = epoll(2)
-                    if stopfd is not None:
-                        poller.register(stopfd, POLLIN)
-
-                poller.register(entry.stream.fileno(), POLLIN)
+                read_poller.register(entry.stream.fileno(), POLLIN)
 
                 try:
-                    return _read_entries_blocking(entry.logfile, entry.reader, max_entries, actions, poller, stopfd, 0)
+                    return _read_entries_blocking(entry.logfile, entry.reader, max_entries, actions, read_poller, stopfd, 0)
                 finally:
-                    poller.unregister(entry.stream.fileno())
+                    read_poller.unregister(entry.stream.fileno())
             else:
                 return _read_entries(entry.logfile, entry.reader, 0, max_entries, actions)
 
         def read_all_entries(entry: IGlobEntry) -> None:
-            nonlocal poller
             if entry.is_fifo:
-                if poller is None:
-                    poller = epoll(2)
-                    if stopfd is not None:
-                        poller.register(stopfd, POLLIN)
-
-                poller.register(entry.stream.fileno(), POLLIN)
+                read_poller.register(entry.stream.fileno(), POLLIN)
 
                 try:
-                    while _read_entries_blocking(entry.logfile, entry.reader, max_entries, actions, poller, stopfd, 0) >= max_entries:
+                    while _read_entries_blocking(entry.logfile, entry.reader, max_entries, actions, read_poller, stopfd, 0) >= max_entries:
                         pass
                 finally:
-                    poller.unregister(entry.stream.fileno())
+                    read_poller.unregister(entry.stream.fileno())
             else:
                 while _read_entries(entry.logfile, entry.reader, 0, max_entries, actions) >= max_entries:
                     pass
@@ -392,7 +381,8 @@ def _logmon_glob(
         try:
             stopfd = get_read_stopfd()
             if use_inotify and HAS_INOTIFY:
-                inotify = PollInotify(stopfd)
+                inotify = Inotify(IN_CLOEXEC | IN_NONBLOCK)
+
                 try:
                     inotify2 = PollInotify(stopfd)
                 except:
@@ -400,16 +390,29 @@ def _logmon_glob(
                     raise
 
                 try:
+                    if stopfd is not None:
+                        poller.register(stopfd, POLLIN)
+                        read_poller.register(stopfd, POLLIN)
+                    poller.register(inotify.fileno(), POLLIN)
+
                     loghandles: dict[str, GlobEntry] = {}
+                    fifo_entries: dict[int, GlobEntry] = {}
                     dirwatch_id: Optional[int] = None
 
-                    def _open_logfile(inotify: PollInotify, child_logfile: str, seek_end: bool) -> None:
-                        nonlocal poller
+                    def _open_logfile(inotify: Inotify, child_logfile: str, seek_end: bool) -> None:
                         old_entry = loghandles.pop(child_logfile, None)
                         if old_entry is not None:
-                            logger.debug(f'{child_logfile}: Closing old entry')
-                            read_all_entries(old_entry)
-                            old_entry.close(inotify)
+                            try:
+                                read_all_entries(old_entry)
+                            finally:
+                                if old_entry.is_fifo:
+                                    fifo_entries.pop(old_entry.stream.fileno(), None)
+                                    try:
+                                        poller.unregister(old_entry.stream.fileno())
+                                    except Exception as exc:
+                                        if not is_enoent(exc):
+                                            logger.error(f'{old_entry.logfile}: {exc}')
+                                old_entry.close(inotify)
 
                         logger.debug(f'{child_logfile}: New logfile matched!')
 
@@ -448,6 +451,10 @@ def _logmon_glob(
                                         is_fifo = S_ISFIFO(logfp_stat.st_mode),
                                     )
 
+                                    if entry.is_fifo:
+                                        fifo_entries[entry.stream.fileno()] = entry
+                                        poller.register(entry.stream.fileno(), POLLIN)
+
                                     read_entries(entry)
 
                     while is_running():
@@ -469,9 +476,10 @@ def _logmon_glob(
                                     first = False
 
                                     try:
+                                        dirents = list(scandir(parentdir))
                                         new_paths = set(
                                             normpath(child.path)
-                                            for child in scandir(parentdir)
+                                            for child in dirents
                                             if fnmatch(child.name)
                                         )
                                     except FileNotFoundError:
@@ -481,40 +489,57 @@ def _logmon_glob(
                                         _open_logfile(inotify, added_logfile, seek_end)
 
                                 do_wait = True
-                                # FIXME: inotify.wait() doesn't fire for fifo?! guess I need to poll the open files.
-                                while do_wait and inotify.wait() and is_running():
-                                    for event in inotify.read_events():
+                                while do_wait and (pevents := poller.poll()) and is_running():
+                                    for poll_fd, poll_mask in pevents:
                                         if not is_running():
                                             break
 
-                                        mask = event.mask
+                                        if poll_fd == stopfd:
+                                            break
 
-                                        event_path = normpath(event.full_path())
+                                        entry = fifo_entries.get(poll_fd)
+                                        if entry is not None:
+                                            read_entries(entry)
 
-                                        if event_path == parentdir:
-                                            if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
-                                                logger.debug(f'{parentdir}: Parent dir went away! Stopping monitoring and waiting for it to reapear')
-                                                break
+                                        elif poll_fd == inotify.fileno():
+                                            for event in inotify.read_events():
+                                                if not is_running():
+                                                    break
 
-                                        else:
-                                            if mask & IN_MODIFY:
-                                                entry = loghandles.get(event_path)
-                                                if entry is not None:
-                                                    read_entries(entry)
+                                                mask = event.mask
 
-                                            if event.filename is not None and fnmatch(event.filename):
-                                                if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
-                                                    entry = loghandles.pop(event_path, None)
-                                                    if entry is not None:
-                                                        logger.debug(f"{entry.logfile}: Logfile went away, stopping monitoring")
-                                                        try:
-                                                            # just in case try to read any tailing entries
-                                                            read_all_entries(entry)
-                                                        finally:
-                                                            entry.close(inotify)
+                                                event_path = normpath(event.full_path())
 
-                                                if mask & (IN_CREATE | IN_MOVED_TO):
-                                                    _open_logfile(inotify, event_path, False)
+                                                if event_path == parentdir:
+                                                    if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
+                                                        logger.debug(f'{parentdir}: Parent dir went away! Stopping monitoring and waiting for it to reapear')
+                                                        break
+
+                                                else:
+                                                    if mask & IN_MODIFY:
+                                                        entry = loghandles.get(event_path)
+                                                        if entry is not None and not entry.is_fifo:
+                                                            read_entries(entry)
+
+                                                    if event.filename is not None and fnmatch(event.filename):
+                                                        if mask & (IN_DELETE_SELF | IN_MOVE_SELF):
+                                                            entry = loghandles.pop(event_path, None)
+                                                            if entry is not None:
+                                                                logger.debug(f"{entry.logfile}: Logfile went away, stopping monitoring")
+                                                                try:
+                                                                    # just in case try to read any tailing entries
+                                                                    read_all_entries(entry)
+                                                                    if entry.is_fifo:
+                                                                        try:
+                                                                            poller.unregister(entry.stream.fileno())
+                                                                        except Exception as exc:
+                                                                            if not is_enoent(exc):
+                                                                                logger.error(f'{entry.logfile}: {exc}')
+                                                                finally:
+                                                                    entry.close(inotify)
+
+                                                        if mask & (IN_CREATE | IN_MOVED_TO):
+                                                            _open_logfile(inotify, event_path, False)
 
                         except KeyboardInterrupt:
                             handle_keyboard_interrupt()
@@ -637,8 +662,10 @@ def _logmon_glob(
 
                     logfiles = new_logfiles
         finally:
-            if poller is not None:
+            try:
                 poller.close()
+            finally:
+                read_poller.close()
 
 def logmon_mt(config: MTConfig):
     action_config = config.get('do') or {}
@@ -822,3 +849,6 @@ def _read_entries(
             logger.error(f'{logfile}: Error performing action: {exc}', exc_info=exc)
 
     return len(entries)
+
+def is_enoent(exc: BaseException) -> bool:
+    return (isinstance(exc, OSError) and exc.errno == ENOENT) or isinstance(exc, FileNotFoundError)
