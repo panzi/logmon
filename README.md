@@ -56,7 +56,10 @@ Usage
 The settings are read from `$HOME/.logmonrc`, or if run as root from
 `/etc/logmonrc`. But don't run it as root, use a dedicated user that can only
 read the log files. The command line options overwrite the default settings,
-but not the per-logfile settings. See below for the settings file format.
+but not the per-logfile settings. Command line arguments are relative to
+the current working directory, but paths in the settings file are relative
+to the directory the settings file is in. Better always use absolute paths.
+See below for the settings file format.
 
 Configuration schema:
 [![HTML](https://img.shields.io/badge/HTML-red)](https://panzi.github.io/logmon/)

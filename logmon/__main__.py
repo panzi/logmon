@@ -820,6 +820,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         if args.config:
             print(f"{args.config}: File not found", file=sys.stderr)
             sys.exit(1)
+        config_path = None
         config = { 'logfiles': [] }
 
     except Exception as exc:
@@ -1169,11 +1170,12 @@ def main(argv: Optional[list[str]] = None) -> None:
                     parse_action(raw_do)
 
     if args.logfiles:
+        args_abslogfiles = [make_abs_logfile(logfile, '.') for logfile in args.logfiles]
         config_logfiles = config.get('logfiles')
         if isinstance(config_logfiles, dict):
-            config['logfiles'] = { logfile: config_logfiles.get(logfile) or {} for logfile in args.logfiles }
+            config['logfiles'] = { logfile: config_logfiles.get(logfile) or {} for logfile in args_abslogfiles }
         else:
-            config['logfiles'] = args.logfiles
+            config['logfiles'] = args_abslogfiles
 
     if config_path is None:
         context_dir = abspath('.')

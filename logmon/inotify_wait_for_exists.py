@@ -1,7 +1,7 @@
 import os
 import logging
 
-from os.path import normpath, dirname, join as joinpath
+from os.path import normpath, dirname
 from errno import EINVAL
 
 from .global_state import is_running
@@ -13,17 +13,17 @@ __all__ = (
 
 logger = logging.getLogger(__name__)
 
-def inotify_wait_for_exists(inotify: PollInotify, path: str) -> bool: # type: ignore
+def inotify_wait_for_exists(inotify: PollInotify, path: str) -> bool:
     path = normpath(path)
     dirpath = dirname(path)
     while is_running():
         try:
             inotify.add_watch(dirpath, IN_CREATE | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF)
-        except FileNotFoundError:
-            parentdir = dirname(dirpath)
-            if parentdir == dirpath:
-                raise Exception(f'Root dir ({dirpath}) does not exist?')
-            inotify_wait_for_exists(inotify, parentdir)
+        except FileNotFoundError as exc:
+            if dirname(dirpath) == dirpath:
+                raise Exception(f'Root dir ({dirpath}) does not exist?') from exc
+            if not inotify_wait_for_exists(inotify, dirpath):
+                return False
             continue
         else:
             try:
