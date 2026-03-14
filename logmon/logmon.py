@@ -359,11 +359,11 @@ def _logmon_glob(
                 read_poller.register(entry.stream.fileno(), POLLIN)
 
                 try:
-                    return _read_entries_blocking(entry.logfile, entry.reader, max_entries, actions, read_poller, stopfd, 0)
+                    return _read_entries_blocking(entry.logfile, entry.reader, max_entries, actions, read_poller, stopfd, wait_for_more)
                 finally:
                     read_poller.unregister(entry.stream.fileno())
             else:
-                return _read_entries(entry.logfile, entry.reader, 0, max_entries, actions)
+                return _read_entries(entry.logfile, entry.reader, wait_for_more, max_entries, actions)
 
         def read_all_entries(entry: IGlobEntry) -> None:
             if entry.is_fifo:
@@ -739,7 +739,7 @@ def _read_entries_blocking(
         actions: list[Action],
         poller: epoll,
         stopfd: int|None,
-        timeout: int|None,
+        timeout: float|None,
 ) -> int:
     entries: list[LogEntry] = []
     try:
