@@ -15,7 +15,7 @@ __all__ = (
 )
 
 type SecureOption = Literal[None, 'STARTTLS', 'SSL/TLS']
-type ActionType = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS', 'COMMAND', 'FILE']
+type ActionType = Literal['SMTP', 'IMAP', 'HTTP', 'HTTPS', 'COMMAND', 'FILE', 'SQLITE']
 type Logmails = Literal['always', 'never', 'onerror', 'instead']
 type ContentType = Literal['JSON', 'YAML', 'URL', 'multipart']
 type OutputFormat = Literal['JSON', 'YAML']

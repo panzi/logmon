@@ -7,7 +7,10 @@ import pydantic
 from pydantic import Field
 from datetime import timedelta
 
-from .types import *
+from .types import (
+    SecureOption, Logmails, ContentType, OAuth2GrantType, EncodingErrors,
+    FileType, Compression, OutputFormat, ActionType, SystemDPriority,
+)
 from .constants import *
 from .json_match import JsonMatch
 
@@ -62,6 +65,18 @@ For SMTP and IMAP these query parameters are supported:
 ''' f'**Default:** `{DEFAULT_ACTION!r}`'
 
 Null = Annotated[None, Field(title="Null")]
+
+
+type SQLiteType = Literal['text', 'integer', 'real']
+
+class SQLiteColumn(TypedDict):
+    type: NotRequired[SQLiteType]
+    null: NotRequired[bool]
+    source: NotRequired[Literal['timestamp', 'message', 'UUID', 'now']]
+    auto_increment: NotRequired[bool]
+    primary_key: NotRequired[bool]
+    unique: NotRequired[bool]
+    index: NotRequired[bool]
 
 class ActionConfigBase(TypedDict):
     limiter: NotRequired[
@@ -230,6 +245,9 @@ class ActionConfigBase(TypedDict):
         Annotated[None, Field(title="Python Default")]
     ], Field(description="**Default:** `null`")]
 
+    sqlite_table: NotRequired[str]
+    sqlite_columns: NotRequired[dict[str, SQLiteColumn|SQLiteType]]
+
     output_indent: Annotated[NotRequired[
         Annotated[int, Field(title="Integer", ge=0)]|
         Annotated[None, Field(title="Null", description="Whole JSON document on a single line.")]
@@ -264,20 +282,31 @@ type ErrorPattern = (
     Annotated[list[str], Field(title="List of Patterns", description="List of Python regular expressions that will be joined with `|` into a single expression.")]
 )
 
+type JsonPath = Annotated[list[
+    Annotated[str, Field(title="Object Key")]|
+    Annotated[int, Field(title="Array Index")]
+], Field(title="JSON Path")]
+
 class LogfileConfig(TypedDict):
     entry_start_pattern: Annotated[NotRequired[ErrorPattern], Field(description=f"**Default:** `{DEFAULT_ENTRY_START_PATTERN.pattern!r}`")]
     error_pattern: Annotated[NotRequired[ErrorPattern], Field(description=f"**Default:** `{DEFAULT_ERROR_PATTERN.pattern!r}`")]
     #warning_pattern: Annotated[NotRequired[ErrorPattern], Field(description=f"**Default:** `{DEFAULT_WARNING_PATTERN.pattern!r}`")]
     ignore_pattern: Annotated[NotRequired[ErrorPattern | Null], Field(description="Even if the `error_pattern` matches, if this pattern also matches the log entry is ignored.")]
+    timestamp_pattern: NotRequired[str]
+    message_pattern: NotRequired[str]
+
     wait_line_incomplete: Annotated[NotRequired[float], Field(description=f"Seconds to wait for more data if the line wasn't ended with a newline character.\n\n**Default:** `{DEFAULT_WAIT_LINE_INCOMPLETE!r}`", ge=0)]
     wait_file_not_found: Annotated[NotRequired[float], Field(description=f"Seconds to wait before trying to re-open the file if it was not found and if inotify isn't used.\n\n**Default:** `{DEFAULT_WAIT_FILE_NOT_FOUND!r}`", ge=0)]
     wait_no_entries: Annotated[NotRequired[float], Field(description=f"Seconds to wait when there are no entries if inotify is not used.\n\n**Default:** `{DEFAULT_WAIT_NO_ENTRIES!r}`", ge=0)]
     wait_for_more: Annotated[NotRequired[float], Field(description=f"Seconds to wait for more messages before the action is performed.\n\n**Default:** `{DEFAULT_WAIT_FOR_MORE!r}`", ge=0)]
     wait_after_crash: Annotated[NotRequired[float], Field(description=f"Seconds to wait after a logfile handler has crashed before it is restarted.\n\n**Default:** `{DEFAULT_WAIT_AFTER_CRASH!r}`", ge=0)]
+
     max_entries: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRIES!r}`", ge=0)]
     max_entry_lines: Annotated[NotRequired[int], Field(description=f"**Default:** `{DEFAULT_MAX_ENTRY_LINES!r}`", ge=0)]
+
     use_inotify: Annotated[NotRequired[bool], Field(description="If the `inotify` package is available this defaults to `true`.")]
     seek_end: Annotated[NotRequired[bool], Field(description="Seek to end of log file on open.\n**Default:** `true`")]
+
     json: Annotated[NotRequired[bool], Field(description="If `true` parses each line of the log file as a JSON document. Empty lines and lines starting with `//` are skipped.\n**Default:** `false`")]
     json_match: Annotated[NotRequired[
         Annotated[JsonMatch, Field(title="Object")]|Null
@@ -307,13 +336,13 @@ class LogfileConfig(TypedDict):
         Annotated[JsonMatch, Field(title="Object")]|Null
     ], Field(description="Even if `json_match` matches, if this matches then the log entry is ignored.")]
     json_brief: Annotated[NotRequired[
-        Annotated[list[
-            Annotated[str, Field(title="Object Key")]|
-            Annotated[int, Field(title="Array Index")]
-        ], Field(title="JSON Path")]|Null
+        JsonPath|Null
     ], Field(description=f"Use property at this path as the `{{brief}}` template variable.\n**Default:** `{DEFAULT_JSON_BRIEF!r}`")]
+    json_timestamp: NotRequired[JsonPath|Null]
+
     encoding: Annotated[NotRequired[str], Field(description="**Default:** `'UTF-8'`")]
     encoding_errors: Annotated[NotRequired[EncodingErrors], Field(description=f"See: [Python's encoding error handling](https://docs.python.org/3/library/codecs.html#error-handlers)\n\n**Default:** `{DEFAULT_ENCODING_ERRORS!r}`")]
+
     glob: Annotated[NotRequired[bool], Field(description="If `true` the last segment of a logfile path is a glob pattern. The rest of the path is just a normal path still. This way multiple logfiles can be processed at once and the directory is monitored for changes for when other matching files appear.\n\n**Default:** `false`")]
     compression: Annotated[NotRequired[Compression|Null], Field(description="Read compressed logfiles.\n\n**Default:** `null`")]
 
