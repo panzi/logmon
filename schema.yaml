@@ -646,7 +646,7 @@ $defs:
 
                     **Default:** `'replace'`
             file:
-                description: Path of logmon logfile.
+                description: Path of output file.
                 title: File
                 type: string
             file_encoding:
