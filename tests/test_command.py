@@ -38,7 +38,8 @@ logfiles:
 '''
     write_file(logmonrc_path, logmonrc)
 
-    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, wait_finish=2.50)
+    # takes extra long in GitHub actions
+    logs, stdout, stderr = run_logmon(logfiles, '--config', logmonrc_path, wait_start=0.5, wait_finish=4.0)
 
     expected1 = f'''\
 {logs[0][0]['message']}
