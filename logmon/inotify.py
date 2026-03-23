@@ -48,9 +48,8 @@ import ctypes
 import ctypes.util
 import logging
 
-from os import fsencode, fsdecode
+from os import fsencode, fsdecode, readinto
 from os.path import join as join_path
-from io import BufferedReader
 from struct import Struct
 from errno import (
     EINTR, ENOENT, EEXIST, ENOTDIR, EISDIR,
@@ -116,7 +115,12 @@ __all__ = (
     'INOTIFY_MASK_CODES',
 )
 
-_HEADER_STRUCT = Struct('iIII')
+_HEADER_STRUCT: Final[Struct] = Struct('iIII')
+_HEADER_STRUCT_unpack_from: Final = _HEADER_STRUCT.unpack_from
+_HEADER_STRUCT_size: Final[int] = _HEADER_STRUCT.size
+
+# sizeof(struct inotify_event) + NAME_MAX + 1
+_EVENT_SIZE_MAX: Final[int] = _HEADER_STRUCT_size + 256
 
 # From linux/inotify.h
 
@@ -321,7 +325,7 @@ class InotifyEvent(NamedTuple):
     """
     wd: int; "Inotify watch descriptor."
     mask: int; """
-        Bit set of the events that occured and other intofmation.
+        Bit set of the events that occured and other information.
 
         The flags can be:
         - `IN_ACCESS` - File was accessed.
@@ -375,17 +379,21 @@ class Inotify:
     """
     __slots__ = (
         '_inotify_fd',
-        '_inotify_stream',
+        '_buffer',
+        '_offset',
+        '_size',
         '_path_to_wd',
         '_wd_to_path',
     )
 
     _inotify_fd: int
-    _inotify_stream: BufferedReader
+    _buffer: bytearray
+    _offset: int
+    _size: int
     _path_to_wd: dict[str, int]
     _wd_to_path: dict[int, str]
 
-    def __init__(self, flags: int = IN_CLOEXEC) -> None:
+    def __init__(self, flags: int = IN_CLOEXEC, buffer_size: int = 4096) -> None:
         """
         `flags` is a bit set of these values:
         - `IN_CLOEXEC` - Close inotify file descriptor on exec.
@@ -393,6 +401,9 @@ class Inotify:
 
         It's recommended to pass the `IN_CLOEXEC` flag (default) to close the
         file descriptor on [exec*(2)](https://linux.die.net/man/3/execl).
+
+        `buffer_size` is the size of the used input buffer and needs to be at
+        least 272 (`sizeof(struct inotify_event) + NAME_MAX + 1`).
 
         This calls [inotify_init1(2)](https://linux.die.net/man/2/inotify_init1)
         and thus might raise an `OSError` with one of these `errno` values:
@@ -402,11 +413,16 @@ class Inotify:
         - `ENOSYS` if your libc doesn't support [inotify_init1(2)](https://linux.die.net/man/2/inotify_init1)
         """
         self._inotify_fd = -1
-        self._inotify_fd = inotify_init1(flags)
-        self._inotify_stream = os.fdopen(self._inotify_fd, 'rb')
-
+        self._offset = 0
+        self._size = 0
         self._path_to_wd = {}
         self._wd_to_path = {}
+
+        if buffer_size < _EVENT_SIZE_MAX:
+            raise ValueError(f'buffer_size too small: {buffer_size} < {_EVENT_SIZE_MAX}')
+
+        self._buffer = bytearray(buffer_size)
+        self._inotify_fd = inotify_init1(flags)
 
     def fileno(self) -> int:
         """
@@ -438,7 +454,7 @@ class Inotify:
                 # is initialized with -1.
                 # Since this method is called in __del__() this state needs
                 # be handled.
-                self._inotify_stream.close()
+                os.close(self._inotify_fd)
         finally:
             self._inotify_fd = -1
 
@@ -567,32 +583,53 @@ class Inotify:
         """
         Read a single event. Might return `None` if there is none avaialbe.
         """
-        stream = self._inotify_stream
-        header_bytes = stream.read(_HEADER_STRUCT.size)
-        if not header_bytes:
-            return None
-
-        wd, mask, cookie, filename_len = _HEADER_STRUCT.unpack(header_bytes)
-
-        if filename_len:
-            filename_bytes = stream.read(filename_len)
-            index = filename_bytes.find(b'\0')
-            filename = fsdecode(filename_bytes[:index] if index >= 0 else filename_bytes)
-        else:
-            filename = None
-
+        buffer = self._buffer
+        offset = self._offset
         wd_to_path = self._wd_to_path
-        watch_path = wd_to_path.get(wd)
 
-        if mask & IN_IGNORED and watch_path is not None:
-            wd_to_path.pop(wd, None)
-            self._path_to_wd.pop(watch_path, None)
+        while True:
+            if offset >= self._size:
+                # Only whole records are ever returned by a read() on an inotify file descriptor.
+                # If the file descriptor is blocking a read() only blocks until the first event
+                # is available.
+                self._offset = offset = 0
+                try:
+                    self._size = readinto(self._inotify_fd, buffer)
+                except BlockingIOError:
+                    self._size = 0
+                    return None
 
-        if watch_path is None:
-            _logger.debug('Got inotify event for unknown watch handle: %d, mask: %d, cookie: %d', wd, mask, cookie)
-            return None
+                if self._size == 0:
+                    return None
 
-        return InotifyEvent(wd, mask, cookie, filename_len, watch_path, filename)
+            wd, mask, cookie, filename_len = _HEADER_STRUCT_unpack_from(buffer, offset)
+            offset += _HEADER_STRUCT_size
+            self._offset = filename_end_offset = offset + filename_len
+
+            if filename_len:
+                filename_bytes = buffer[offset:filename_end_offset]
+                index = filename_bytes.find(b'\0')
+                # I don't like the need for bytes() here, fsdecode() doesn't take a bytearray and
+                # you can't get a bytes slice in one step from a bytearray.
+                # I guess I could do this instead?
+                # filename = (filename_bytes[:index] if index >= 0 else filename_bytes).decode(sys.getfilesystemencoding(), errors='surrogateescape')
+                filename = fsdecode(bytes(filename_bytes[:index] if index >= 0 else filename_bytes))
+            else:
+                filename = None
+
+            watch_path = wd_to_path.get(wd)
+
+            if mask & IN_IGNORED and watch_path is not None:
+                wd_to_path.pop(wd, None)
+                self._path_to_wd.pop(watch_path, None)
+
+            offset = filename_end_offset
+
+            if watch_path is None:
+                _logger.debug('Got inotify event for unknown watch handle: %d, mask: %d, cookie: %d', wd, mask, cookie)
+                continue
+
+            return InotifyEvent(wd, mask, cookie, filename_len, watch_path, filename)
 
     def read_events(self, terminal_events: int = IN_Q_OVERFLOW | IN_UNMOUNT) -> list[InotifyEvent]:
         """
@@ -606,34 +643,13 @@ class Inotify:
         Raises `TerminalEventException` if any of the flags in `terminal_events`
         are set in an event `mask`.
         """
-        stream = self._inotify_stream
-        wd_to_path = self._wd_to_path
-
         events: list[InotifyEvent] = []
 
-        while header_bytes := stream.read(_HEADER_STRUCT.size):
-            wd, mask, cookie, filename_len = _HEADER_STRUCT.unpack(header_bytes)
+        while event := self.read_event():
+            if event.mask & terminal_events:
+                raise TerminalEventException(event.wd, event.mask, event.watch_path, event.filename)
 
-            if filename_len:
-                filename_bytes = stream.read(filename_len)
-                index = filename_bytes.find(b'\0')
-                filename = fsdecode(filename_bytes[:index] if index >= 0 else filename_bytes)
-            else:
-                filename = None
-
-            watch_path = wd_to_path.get(wd)
-
-            if mask & terminal_events:
-                raise TerminalEventException(wd, mask, watch_path, filename or None)
-
-            if mask & IN_IGNORED and watch_path is not None:
-                wd_to_path.pop(wd, None)
-                self._path_to_wd.pop(watch_path, None)
-
-            if watch_path is None:
-                _logger.debug('Got inotify event for unknown watch handle: %d, mask: %d, cookie: %d', wd, mask, cookie)
-            else:
-                events.append(InotifyEvent(wd, mask, cookie, filename_len, watch_path, filename))
+            events.append(event)
 
         return events
 
@@ -670,10 +686,13 @@ class PollInotify(Inotify):
     _epoll: select.epoll
     _stopfd: Optional[int]
 
-    def __init__(self, stopfd: Optional[int] = None) -> None:
+    def __init__(self, stopfd: Optional[int] = None, buffer_size: int = 4096) -> None:
         """
         If not `None` then `stopfd` is a file descriptor that will
         be added to the `poll()` call in `PollInotify.wait()`.
+
+        `buffer_size` is the size of the used input buffer and needs to be at
+        least 272 (`sizeof(struct inotify_event) + NAME_MAX + 1`).
 
         This calls [inotify_init1(2)](https://linux.die.net/man/2/inotify_init1)
         and thus might raise an `OSError` with one of these `errno` values:
@@ -682,7 +701,7 @@ class PollInotify(Inotify):
         - `ENOMEM`
         - `ENOSYS` if your libc doesn't support [inotify_init1(2)](https://linux.die.net/man/2/inotify_init1)
         """
-        super().__init__(IN_NONBLOCK | IN_CLOEXEC)
+        super().__init__(IN_NONBLOCK | IN_CLOEXEC, buffer_size)
         self._stopfd = stopfd
         self._epoll = select.epoll(1 if stopfd is None else 2)
         self._epoll.register(self._inotify_fd, select.POLLIN)
