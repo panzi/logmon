@@ -195,6 +195,7 @@ logfiles:
 Subject: {logs[0][0]['header']}
 From: {sender}
 To: {', '.join(receivers)}
+Date: XXX
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
 MIME-Version: 1.0
@@ -211,6 +212,7 @@ MIME-Version: 1.0
 Subject: {logs[1][0]['header']}
 From: {sender}
 To: {', '.join(receivers)}
+Date: XXX
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 7bit
 MIME-Version: 1.0
@@ -220,9 +222,18 @@ MIME-Version: 1.0
 {logs[1][0]['message']}
 """.replace('\n', '\r\n')
 
+    processed_emails = [
+        re.sub(r'^Date: \w+, \d\d \w+ \d\d\d\d \d\d:\d\d:\d\d [-+]?\d\d\d\d\r\n', 'Date: XXX\r\n', email.data, flags=re.M)
+        for email in emails
+    ]
+
     for index, expected in enumerate([expected1, expected2]):
         nr = index + 1
-        assert any(expected == email.data for email in emails), (
+
+        assert any(
+            expected == actual
+            for actual in processed_emails
+        ), (
             f'Message {nr} not found in output!\n'
              '\n'
              '  Message:\n'
@@ -231,7 +242,7 @@ MIME-Version: 1.0
             '\n'
             '  Output:\n'
             '\n'
-           f'{'\n'.join(indent(email.data.replace('\r', '')) for email in emails)}'
+           f'{'\n'.join(indent(actual.replace('\r', '')) for actual in processed_emails)}'
         )
 
     assert len(emails) == 2

@@ -245,6 +245,9 @@ def run_logmon(
         finally:
             stdout, stderr = pipe_io(proc.stdout, proc.stderr)
 
+        if proc.returncode != 0:
+            print('\n'.join(f'stdout: {line}' for line in stdout.split('\n')))
+            print('\n'.join(f'stderr: {line}' for line in stderr.split('\n')))
         assert proc.returncode == 0
 
         return logs, stdout, stderr

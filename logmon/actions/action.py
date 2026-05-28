@@ -71,6 +71,7 @@ def debug_message(
 {line_prefix}Subject: {subject}
 {line_prefix}From: {sender}
 {line_prefix}To: {", ".join(receivers)}
+{line_prefix}Date: {format_datetime(datetime.now(timezone.utc))}
 {line_prefix}
 {line_prefix}{prefixed_body}'''
 

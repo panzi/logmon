@@ -1,4 +1,5 @@
 import os
+import re
 
 from tests.testutils import *
 
@@ -36,6 +37,7 @@ logfiles:
 > Subject: {logs[0][0]['header']}
 > From: {sender}
 > To: {', '.join(receivers)}
+> Date: XXX
 > 
 > {logfiles[0]}
 > 
@@ -51,12 +53,15 @@ logfiles:
 > Subject: {logs[1][0]['header']}
 > From: {sender}
 > To: {', '.join(receivers)}
+> Date: XXX
 > 
 > {logfiles[1]}
 > 
 > {logs[1][0]['message'].replace('\n', '\n> ')}
 > 
 '''
+
+    stderr = re.sub(r'^> Date: \w+, \d\d \w+ \d\d\d\d \d\d:\d\d:\d\d [-+]?\d\d\d\d\n', '> Date: XXX\n', stderr, flags=re.M)
 
     assert expected1 in stderr, f'Message 1 not found in output!\n\n  Message:\n\n{indent(expected1)}\n\n  Output:\n\n{indent(stderr)}'
     assert expected2 in stderr, f'Message 2 not found in output!\n\n  Message:\n\n{indent(expected2)}\n\n  Output:\n\n{indent(stderr)}'
