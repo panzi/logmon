@@ -3,7 +3,9 @@ from typing import TypedDict, Self, Any, NotRequired, Optional, Generator, Mappi
 import logging
 
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from email.message import EmailMessage
+from email.utils import format_datetime
 from contextlib import contextmanager
 
 from ..types import ActionType, Logmails, OutputFormat
@@ -47,6 +49,7 @@ def make_message(
     msg['Subject'] = subject
     msg['From'] = sender
     msg['To'] = ', '.join(receivers)
+    msg['Date'] = format_datetime(datetime.now(timezone.utc))
     msg.set_content(body)
 
     return msg
