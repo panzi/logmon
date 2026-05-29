@@ -97,6 +97,7 @@ class ActionConfigBase(TypedDict):
     user: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
     password: Annotated[NotRequired[str], Field(description="Credentials for SMTP/IMAP, HTTP basic auth, or OAuth 2.0 password grant type.")]
     secure: Annotated[NotRequired[SecureOption], Field(description="`secure` option for SMTP/IMAP.\n\n**Default:** `null`")]
+    html: Annotated[NotRequired[bool], Field(description="Send multi-part MIME emails with HTML and plain text content.\n\n**Default:** `false`")]
     logmails: Annotated[NotRequired[Logmails], Field(description=f"Write messages to logmon's log instead of/in addition to performing the action.\n\n**Default:** `{DEFAULT_LOGMAILS!r}`")]
     keep_connected: Annotated[NotRequired[bool], Field(description="Keep connection to server alive (SMTP, IMAP, HTTP(S)).\n\n**Default:** `false`")]
 

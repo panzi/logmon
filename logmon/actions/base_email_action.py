@@ -15,13 +15,16 @@ class BaseEmailAction(RemoteAction):
     __slots__ = (
         'secure',
         'ssl_context',
+        'html',
     )
 
     secure: SecureOption
     ssl_context: Optional[ssl.SSLContext]
+    html: bool
 
     def __init__(self, action_config: ActionConfig, config: Config, limiter: AbstractLimiter) -> None:
         super().__init__(action_config, config, limiter)
 
         self.secure = secure = action_config.get('secure')
         self.ssl_context = ssl.create_default_context() if secure else None
+        self.html = action_config.get('html', False)

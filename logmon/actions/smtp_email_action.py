@@ -54,7 +54,7 @@ class SmtpEmailAction(BaseEmailAction):
             return True
 
         try:
-            msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ)
+            msg = make_message(self.sender, self.receivers, templ_params, self.subject_templ, self.body_templ, self.html)
 
             try:
                 if self.smtp.sock is None:

@@ -4,8 +4,12 @@ import logging
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from email.message import EmailMessage
+
+from email.mime.multipart import MIMEMultipart
+from email.message import Message, EmailMessage
 from email.utils import format_datetime
+from email.mime.text import MIMEText
+from html import escape
 from contextlib import contextmanager
 
 from ..types import ActionType, Logmails, OutputFormat
@@ -41,18 +45,44 @@ def make_message(
         templ_params: TemplParams,
         subject_templ: str,
         body_templ: str,
-) -> EmailMessage:
+        html: bool = False,
+) -> Message:
     subject = subject_templ.format_map(templ_params)
     body = body_templ.format_map(templ_params)
 
-    msg = EmailMessage()
-    msg['Subject'] = subject
-    msg['From'] = sender
-    msg['To'] = ', '.join(receivers)
-    msg['Date'] = format_datetime(datetime.now(timezone.utc))
-    msg.set_content(body)
+    if html:
+        html_msg = MIMEMultipart('alternative')
 
-    return msg
+        html_msg['Subject'] = subject
+        html_msg['From'] = sender
+        html_msg['To'] = ', '.join(receivers)
+        html_msg['Date'] = format_datetime(datetime.now(timezone.utc))
+
+        html_msg.attach(MIMEText(body, 'plain'))
+        html_msg.attach(MIMEText(
+f'''\
+<!DOCTYPE html>
+<html>
+<head></head>
+<body>
+<pre>{escape(body)}</pre>
+</body>
+</html>
+''', 'html'))
+
+        return html_msg
+
+    else:
+        plain_msg = EmailMessage()
+
+        plain_msg['Subject'] = subject
+        plain_msg['From'] = sender
+        plain_msg['To'] = ', '.join(receivers)
+        plain_msg['Date'] = format_datetime(datetime.now(timezone.utc))
+
+        plain_msg.set_content(body)
+
+        return plain_msg
 
 def debug_message(
         sender: str,
